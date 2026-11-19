@@ -10,7 +10,6 @@
     <string name="serverlist_back_desc">Back</string>
     <string name="serverlist_ok">OK</string>
     <string name="serverlist_cancel">Cancel</string>
-    <string name="serverlist_continue">Continue</string>
 
     <!-- Server List -->
     <string name="serverlist_title">Ferngeist</string>
@@ -18,8 +17,8 @@
     <string name="serverlist_add_gateway_btn">Pair Ferngeist Gateway</string>
     <string name="serverlist_add_agent_btn">Add agent manually</string>
     <string name="serverlist_add_paired_btn">Add using paired gateway</string>
-    <string name="serverlist_launch_risk_title">Run agent on gateway?</string>
-    <string name="serverlist_launch_risk_accept">I understand and want to continue.</string>
+    <string name="serverlist_launch_risk_title">Run on gateway?</string>
+    <string name="serverlist_launch_confirm">Run</string>
     <string name="serverlist_empty_title">No agents yet</string>
     <string name="serverlist_empty_body">Add an agent manually or pair a gateway to build your launch list.</string>
     <string name="serverlist_empty_action">Add agent</string>
@@ -124,7 +123,7 @@
 
     <!-- Gateway Agents -->
     <string name="serverlist_gateway_agents_title">Gateway Agents</string>
-    <string name="serverlist_gateway_agents_add_title">Add agent to list?</string>
+    <string name="serverlist_gateway_agents_add_title">Add agent?</string>
     <string name="serverlist_gateway_agents_detected">Detected</string>
     <string name="serverlist_gateway_agents_not_detected">Not detected</string>
     <string name="serverlist_gateway_agents_custom">Custom</string>
@@ -133,10 +132,7 @@
     <string name="serverlist_gateway_agents_invalid">Invalid</string>
     <string name="serverlist_gateway_agents_added">Added</string>
     <string name="serverlist_gateway_agents_invalid_body">This agent cannot be added because the gateway marked it invalid.</string>
-    <string name="serverlist_gateway_agents_add_body">%1$s will be added to your main agent list and can then be launched from the server screen.</string>
-    <string name="serverlist_gateway_agents_acknowledge_risk">I understand this may download and execute agent binaries on my gateway host.</string>
     <string name="serverlist_gateway_agents_add_btn">Add agent</string>
-    <string name="serverlist_gateway_agents_cancel">Cancel</string>
     <string name="serverlist_gateway_agents_retry">Retry</string>
     <string name="serverlist_gateway_agents_error_title">Couldn\'t load agents</string>
 
@@ -216,16 +212,10 @@
     <string name="serverlist_error_added_agent">Added %1$s</string>
     <string name="serverlist_device_default">Ferngeist Android</string>
 
-    <!-- Risk Disclosure Lines -->
+    <!-- Consent Disclosure -->
     <string name="serverlist_risk_gateway_host_fallback">your gateway host</string>
-    <string name="serverlist_risk_add_agent_line1">This action adds %1$s (%2$s) from your gateway.</string>
-    <string name="serverlist_risk_add_agent_line2">Launching this agent runs code on %1$s.</string>
-    <string name="serverlist_risk_add_agent_line3">If the binary is not installed, the gateway may download it from the ACP registry source.</string>
-    <string name="serverlist_risk_add_agent_line4">Only add agents and sources you trust.</string>
-    <string name="serverlist_risk_launch_agent_line1">Launching %1$s starts agent \'%2$s\' via your gateway.</string>
-    <string name="serverlist_risk_launch_agent_line2">This can execute binaries on %1$s.</string>
-    <string name="serverlist_risk_launch_agent_line3">If required, your gateway may download agent binaries from ACP registry sources.</string>
-    <string name="serverlist_risk_launch_agent_line4">Continue only if you trust this agent and its source.</string>
+    <string name="serverlist_risk_runs_on">Runs on %1$s and may download its binary.</string>
+    <string name="serverlist_risk_trust">I trust this agent</string>
 
     <!-- QR Scanner Errors -->
     <string name="serverlist_qr_error_no_activity">Cannot open scanner: not in an activity context</string>

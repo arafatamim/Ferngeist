@@ -59,7 +59,6 @@
     <string name="chat_load_error_title">Не удалось загрузить сессию</string>
 
     <string name="chat_permission_title">Требуется разрешение</string>
-    <string name="chat_permission_body">Агент ожидает вашего разрешения перед продолжением.</string>
     <string name="chat_deny">Отклонить</string>
     <string name="chat_cancel">Отмена</string>
     <string name="chat_cancel_request">Отменить запрос</string>
@@ -67,7 +66,7 @@
     <string name="chat_elicitation_title">Запрошен ввод</string>
     <string name="chat_elicitation_decline">Отклонить</string>
     <string name="chat_elicitation_url_title">Внешняя ссылка</string>
-    <string name="chat_elicitation_url_body">Агент хочет открыть эту ссылку вне приложения. Проверьте адрес, прежде чем продолжить.</string>
+    <string name="chat_elicitation_url_body">Откроется вне приложения.</string>
     <string name="chat_elicitation_open_link">Открыть ссылку</string>
     <string name="chat_elicitation_required">Обязательно</string>
     <string name="chat_elicitation_invalid">Проверьте это поле</string>

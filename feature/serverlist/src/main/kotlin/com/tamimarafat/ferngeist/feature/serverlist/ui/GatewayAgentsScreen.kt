@@ -24,11 +24,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.rounded.CloudOff
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
@@ -41,12 +39,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
@@ -60,7 +56,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -474,54 +469,14 @@ private fun AddAgentConfirmationDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    var acknowledgedRisk by rememberSaveable(agent.id) { mutableStateOf(false) }
-    val gatewayHost = uiState.gateway?.host.orEmpty()
-    val riskLines = addAgentRiskLines(LocalResources.current, agent, gatewayHost)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.serverlist_gateway_agents_add_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    stringResource(R.string.serverlist_gateway_agents_add_body, agent.displayName),
-                )
-                riskLines.forEach { line ->
-                    Text(
-                        text = "- $line",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Checkbox(
-                        checked = acknowledgedRisk,
-                        onCheckedChange = { acknowledgedRisk = it },
-                        modifier = Modifier.handCursor(),
-                    )
-                    Text(
-                        stringResource(R.string.serverlist_gateway_agents_acknowledge_risk),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = acknowledgedRisk,
-                onClick = onConfirm,
-                modifier = Modifier.handCursor(enabled = acknowledgedRisk),
-            ) {
-                Text(stringResource(R.string.serverlist_gateway_agents_add_btn))
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
-                Text(stringResource(R.string.serverlist_gateway_agents_cancel))
-            }
-        },
+    AgentConsentDialog(
+        stateKey = agent.id,
+        title = stringResource(R.string.serverlist_gateway_agents_add_title),
+        subject = agent.displayName,
+        gatewayHost = uiState.gateway?.host.orEmpty(),
+        confirmLabel = stringResource(R.string.serverlist_gateway_agents_add_btn),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
     )
 }
 

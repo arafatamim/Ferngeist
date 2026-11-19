@@ -80,7 +80,6 @@ data class PendingAuthentication(
 data class PendingLaunchConsent(
     val serverId: String,
     val serverName: String,
-    val agentId: String,
     val gatewayHost: String,
 )
 
@@ -239,7 +238,6 @@ class ServerListViewModel
                         PendingLaunchConsent(
                             serverId = server.id,
                             serverName = server.name,
-                            agentId = server.binding.agentId,
                             gatewayHost = server.gatewaySource.host,
                         ),
                 )

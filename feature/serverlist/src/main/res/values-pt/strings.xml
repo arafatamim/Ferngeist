@@ -8,15 +8,14 @@
     <string name="serverlist_back_desc">Voltar</string>
     <string name="serverlist_ok">OK</string>
     <string name="serverlist_cancel">Cancelar</string>
-    <string name="serverlist_continue">Continuar</string>
 
     <string name="serverlist_title">Ferngeist</string>
     <string name="serverlist_about_body">Ferngeist é um cliente Android para servidores Agent Client Protocol (ACP), permitindo interagir com agentes de código diretamente do seu dispositivo móvel.</string>
     <string name="serverlist_add_gateway_btn">Parear o Ferngeist Gateway</string>
     <string name="serverlist_add_agent_btn">Adicionar agente manualmente</string>
     <string name="serverlist_add_paired_btn">Adicionar usando gateway pareado</string>
-    <string name="serverlist_launch_risk_title">Executar agente na gateway?</string>
-    <string name="serverlist_launch_risk_accept">Entendo e quero continuar.</string>
+    <string name="serverlist_launch_risk_title">Executar na gateway?</string>
+    <string name="serverlist_launch_confirm">Executar</string>
     <string name="serverlist_empty_title">Ainda não há agentes</string>
     <string name="serverlist_empty_body">Adicione um agente manualmente ou pareie uma gateway para montar sua lista de inicialização.</string>
     <string name="serverlist_empty_action">Adicionar agente</string>
@@ -105,18 +104,15 @@
     <string name="serverlist_add_server_clear_auth">Limpar método armazenado</string>
 
     <string name="serverlist_gateway_agents_title">Agentes da gateway</string>
-    <string name="serverlist_gateway_agents_add_title">Adicionar agente à lista?</string>
+    <string name="serverlist_gateway_agents_add_title">Adicionar agente?</string>
     <string name="serverlist_gateway_agents_detected">Detectado</string>
     <string name="serverlist_gateway_agents_not_detected">Não detectado</string>
     <string name="serverlist_gateway_agents_valid">Válido</string>
     <string name="serverlist_gateway_agents_invalid">Inválido</string>
     <string name="serverlist_gateway_agents_added">Adicionado</string>
     <string name="serverlist_gateway_agents_invalid_body">Este agente não pode ser adicionado porque a gateway o marcou como inválido.</string>
-    <string name="serverlist_gateway_agents_add_body">%1$s será adicionado à sua lista principal de agentes e então poderá ser iniciado na tela do servidor.</string>
-    <string name="serverlist_gateway_agents_acknowledge_risk">Entendo que isso pode baixar e executar binários do agente no host da minha gateway.</string>
     <string name="serverlist_gateway_agents_add_btn">Adicionar agente</string>
-    <string name="serverlist_gateway_agents_cancel">Cancelar</string>
-    <string name="serverlist_gateway_agents_retry">Tentar novamente</string>
+        <string name="serverlist_gateway_agents_retry">Tentar novamente</string>
     <string name="serverlist_gateway_agents_error_title">Não foi possível carregar os agentes</string>
 
     <string name="serverlist_gateway_list_title">Gateways do Ferngeist</string>
@@ -152,14 +148,8 @@
     <string name="serverlist_device_default">Ferngeist Android</string>
 
     <string name="serverlist_risk_gateway_host_fallback">o host da sua gateway</string>
-    <string name="serverlist_risk_add_agent_line1">Esta ação adiciona %1$s (%2$s) da sua gateway.</string>
-    <string name="serverlist_risk_add_agent_line2">Iniciar este agente executa código em %1$s.</string>
-    <string name="serverlist_risk_add_agent_line3">Se o binário não estiver instalado, a gateway pode baixá-lo da fonte do registro ACP.</string>
-    <string name="serverlist_risk_add_agent_line4">Adicione apenas agentes e fontes em que você confia.</string>
-    <string name="serverlist_risk_launch_agent_line1">Iniciar %1$s inicia o agente \'%2$s\' pela sua gateway.</string>
-    <string name="serverlist_risk_launch_agent_line2">Isso pode executar binários em %1$s.</string>
-    <string name="serverlist_risk_launch_agent_line3">Se necessário, sua gateway pode baixar binários do agente de fontes do registro ACP.</string>
-    <string name="serverlist_risk_launch_agent_line4">Continue apenas se você confiar neste agente e em sua fonte.</string>
+    <string name="serverlist_risk_runs_on">Executa em %1$s e pode baixar o binário.</string>
+    <string name="serverlist_risk_trust">Confio neste agente</string>
 
     <string name="serverlist_qr_error_no_activity">Não foi possível abrir o scanner: não está em um contexto de activity</string>
     <string name="serverlist_qr_error_play_services">Google Play Services indisponível: %1$s</string>

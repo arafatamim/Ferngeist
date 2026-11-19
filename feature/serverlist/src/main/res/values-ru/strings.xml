@@ -11,7 +11,6 @@
     <string name="serverlist_back_desc">Назад</string>
     <string name="serverlist_ok">ОК</string>
     <string name="serverlist_cancel">Отмена</string>
-    <string name="serverlist_continue">Продолжить</string>
 
     <!-- Server List -->
     <string name="serverlist_title">Ferngeist</string>
@@ -19,8 +18,8 @@
     <string name="serverlist_add_gateway_btn">Сопрячь Ferngeist Gateway</string>
     <string name="serverlist_add_agent_btn">Добавить агента вручную</string>
     <string name="serverlist_add_paired_btn">Добавить через сопряженный шлюз</string>
-    <string name="serverlist_launch_risk_title">Запустить агента на шлюзе?</string>
-    <string name="serverlist_launch_risk_accept">Я понимаю и хочу продолжить.</string>
+    <string name="serverlist_launch_risk_title">Запустить на шлюзе?</string>
+    <string name="serverlist_launch_confirm">Запустить</string>
     <string name="serverlist_empty_title">Агенты отсутствуют</string>
     <string name="serverlist_empty_body">Добавьте агента вручную или сопрягите шлюз, чтобы создать свой список запуска.</string>
     <string name="serverlist_empty_action">Добавить агента</string>
@@ -116,18 +115,15 @@
 
     <!-- Gateway Agents -->
     <string name="serverlist_gateway_agents_title">Агенты шлюза</string>
-    <string name="serverlist_gateway_agents_add_title">Добавить агента в список?</string>
+    <string name="serverlist_gateway_agents_add_title">Добавить агента?</string>
     <string name="serverlist_gateway_agents_detected">Обнаружено</string>
     <string name="serverlist_gateway_agents_not_detected">Не обнаружено</string>
     <string name="serverlist_gateway_agents_valid">Валидно</string>
     <string name="serverlist_gateway_agents_invalid">Невалидно</string>
     <string name="serverlist_gateway_agents_added">Добавлено</string>
     <string name="serverlist_gateway_agents_invalid_body">Агент не может быть добавлен, так как шлюз пометил его как невалидный.</string>
-    <string name="serverlist_gateway_agents_add_body">%1$s будет добавлен в ваш основной список агентов и станет доступен для запуска на экране серверов.</string>
-    <string name="serverlist_gateway_agents_acknowledge_risk">Я понимаю, что это может привести к загрузке и выполнению бинарных файлов агента на моем хосте шлюза.</string>
     <string name="serverlist_gateway_agents_add_btn">Добавить агента</string>
-    <string name="serverlist_gateway_agents_cancel">Отмена</string>
-    <string name="serverlist_gateway_agents_retry">Повторить</string>
+        <string name="serverlist_gateway_agents_retry">Повторить</string>
     <string name="serverlist_gateway_agents_error_title">Не удалось загрузить агентов</string>
 
     <!-- Gateway List -->
@@ -166,14 +162,8 @@
 
     <!-- Risk Disclosure Lines -->
     <string name="serverlist_risk_gateway_host_fallback">ваш хост шлюза</string>
-    <string name="serverlist_risk_add_agent_line1">Это действие добавит %1$s (%2$s) с вашего шлюза.</string>
-    <string name="serverlist_risk_add_agent_line2">Запуск этого агента выполнит код на %1$s.</string>
-    <string name="serverlist_risk_add_agent_line3">Если бинарный файл не установлен, шлюз может загрузить его из ACP реестра (registry source).</string>
-    <string name="serverlist_risk_add_agent_line4">Добавляйте только доверенные агенты и источники.</string>
-    <string name="serverlist_risk_launch_agent_line1">Запуск %1$s начнет агента \'%2$s\' через ваш шлюз.</string>
-    <string name="serverlist_risk_launch_agent_line2">Это может выполнить бинарные файлы на %1$s.</string>
-    <string name="serverlist_risk_launch_agent_line3">При необходимости шлюз может загрузить бинарные файлы агента из ACP реестра.</string>
-    <string name="serverlist_risk_launch_agent_line4">Продолжайте, только если доверяете этому агенту и его источнику.</string>
+    <string name="serverlist_risk_runs_on">Работает на %1$s и может загрузить свой бинарный файл.</string>
+    <string name="serverlist_risk_trust">Я доверяю этому агенту</string>
 
     <!-- QR Scanner Errors -->
     <string name="serverlist_qr_error_no_activity">Ошибка сканера: отсутствует контекст активности</string>

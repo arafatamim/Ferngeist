@@ -1,25 +1,31 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MediumFlexibleTopAppBar
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +33,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -47,58 +54,99 @@ internal fun LaunchRiskConsentDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var acknowledgedRisk by rememberSaveable(pending.serverId) { mutableStateOf(false) }
-    val riskLines =
-        launchRiskLines(
-            res = LocalResources.current,
-            serverName = pending.serverName,
-            agentId = pending.agentId,
-            gatewayHost = pending.gatewayHost,
-        )
+    AgentConsentDialog(
+        stateKey = pending.serverId,
+        title = stringResource(R.string.serverlist_launch_risk_title),
+        subject = pending.serverName,
+        gatewayHost = pending.gatewayHost,
+        confirmLabel = stringResource(R.string.serverlist_launch_confirm),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    )
+}
 
+/**
+ * The one prompt every gateway action that runs agent code answers for: a question as the
+ * title, the agent as the subject, one line of what actually happens, and an explicit
+ * acknowledgement. The action stays disabled until the box is ticked, so the tick is the
+ * consent and the dialog is only the reading.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun AgentConsentDialog(
+    stateKey: Any,
+    title: String,
+    subject: String,
+    gatewayHost: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var acknowledged by rememberSaveable(stateKey) { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.serverlist_launch_risk_title)) },
+        icon = { ConsentMedallion() },
+        title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                riskLines.forEach { line ->
-                    Text(
-                        text = "- $line",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(text = subject, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = agentRiskLine(LocalResources.current, gatewayHost),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Checkbox(
-                        checked = acknowledgedRisk,
-                        onCheckedChange = { acknowledgedRisk = it },
+                        checked = acknowledged,
+                        onCheckedChange = { acknowledged = it },
                         modifier = Modifier.handCursor(),
                     )
                     Text(
-                        text = stringResource(R.string.serverlist_launch_risk_accept),
-                        style = MaterialTheme.typography.bodySmall,
+                        text = stringResource(R.string.serverlist_risk_trust),
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = acknowledgedRisk,
+            Button(
                 onClick = onConfirm,
-                modifier = Modifier.handCursor(),
+                enabled = acknowledged,
+                modifier = Modifier.handCursor(enabled = acknowledged),
             ) {
-                Text(stringResource(R.string.serverlist_continue))
+                Text(confirmLabel)
             }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
+            TextButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.serverlist_cancel))
             }
         },
     )
+}
+
+/** One expressive accent: an abstract shape behind the icon, in the tertiary role. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ConsentMedallion() {
+    Box(
+        modifier =
+            Modifier
+                .size(56.dp)
+                .clip(MaterialShapes.SoftBurst.toShape())
+                .background(MaterialTheme.colorScheme.tertiaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Shield,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.size(28.dp),
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)

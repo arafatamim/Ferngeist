@@ -54,7 +54,6 @@
     <string name="chat_load_error_title">No se pudo cargar esta sesión</string>
 
     <string name="chat_permission_title">Permiso requerido</string>
-    <string name="chat_permission_body">El agente está esperando tu aprobación antes de continuar.</string>
     <string name="chat_deny">Denegar</string>
     <string name="chat_cancel">Cancelar</string>
     <string name="chat_cancel_request">Cancelar solicitud</string>
@@ -62,7 +61,7 @@
     <string name="chat_elicitation_title">Datos solicitados</string>
     <string name="chat_elicitation_decline">Rechazar</string>
     <string name="chat_elicitation_url_title">Enlace externo</string>
-    <string name="chat_elicitation_url_body">El agente quiere abrir este enlace fuera de la aplicación. Revisa la dirección antes de continuar.</string>
+    <string name="chat_elicitation_url_body">Se abre fuera de la aplicación.</string>
     <string name="chat_elicitation_open_link">Abrir enlace</string>
     <string name="chat_elicitation_required">Obligatorio</string>
     <string name="chat_elicitation_invalid">Revisa este campo</string>

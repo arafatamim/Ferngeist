@@ -11,7 +11,6 @@
     <string name="serverlist_back_desc">返回</string>
     <string name="serverlist_ok">确定</string>
     <string name="serverlist_cancel">取消</string>
-    <string name="serverlist_continue">继续</string>
 
     <!-- Server List -->
     <string name="serverlist_title">Ferngeist</string>
@@ -19,8 +18,8 @@
     <string name="serverlist_add_gateway_btn">配对 Ferngeist 网关</string>
     <string name="serverlist_add_agent_btn">手动添加代理</string>
     <string name="serverlist_add_paired_btn">使用已配对的网关添加</string>
-    <string name="serverlist_launch_risk_title">在网关上运行代理？</string>
-    <string name="serverlist_launch_risk_accept">我了解并希望继续。</string>
+    <string name="serverlist_launch_risk_title">在网关上运行？</string>
+    <string name="serverlist_launch_confirm">运行</string>
     <string name="serverlist_empty_title">暂无代理</string>
     <string name="serverlist_empty_body">手动添加代理或配对网关以构建您的启动列表。</string>
     <string name="serverlist_empty_action">添加代理</string>
@@ -116,18 +115,15 @@
 
     <!-- Gateway Agents -->
     <string name="serverlist_gateway_agents_title">网关代理</string>
-    <string name="serverlist_gateway_agents_add_title">将代理添加到列表？</string>
+    <string name="serverlist_gateway_agents_add_title">添加代理？</string>
     <string name="serverlist_gateway_agents_detected">已检测到</string>
     <string name="serverlist_gateway_agents_not_detected">未检测到</string>
     <string name="serverlist_gateway_agents_valid">有效</string>
     <string name="serverlist_gateway_agents_invalid">无效</string>
     <string name="serverlist_gateway_agents_added">已添加</string>
     <string name="serverlist_gateway_agents_invalid_body">由于网关将其标记为无效，无法添加此代理。</string>
-    <string name="serverlist_gateway_agents_add_body">%1$s 将被添加到您的主代理列表，随后可以从服务器屏幕启动。</string>
-    <string name="serverlist_gateway_agents_acknowledge_risk">我明白这可能会在我的网关主机上下载并执行代理二进制文件。</string>
     <string name="serverlist_gateway_agents_add_btn">添加代理</string>
-    <string name="serverlist_gateway_agents_cancel">取消</string>
-    <string name="serverlist_gateway_agents_retry">重试</string>
+        <string name="serverlist_gateway_agents_retry">重试</string>
     <string name="serverlist_gateway_agents_error_title">无法加载代理</string>
 
     <!-- Gateway List -->
@@ -166,14 +162,8 @@
 
     <!-- Risk Disclosure Lines -->
     <string name="serverlist_risk_gateway_host_fallback">您的网关主机</string>
-    <string name="serverlist_risk_add_agent_line1">此操作将从您的网关添加 %1$s (%2$s)。</string>
-    <string name="serverlist_risk_add_agent_line2">启动此代理将在 %1$s 上运行代码。</string>
-    <string name="serverlist_risk_add_agent_line3">如果未安装二进制文件，网关可能会从 ACP 注册中心源 (registry source) 下载。</string>
-    <string name="serverlist_risk_add_agent_line4">仅添加您信任的代理和源。</string>
-    <string name="serverlist_risk_launch_agent_line1">启动 %1$s 将通过您的网关启动代理“%2$s”。</string>
-    <string name="serverlist_risk_launch_agent_line2">这可能会在 %1$s 上执行二进制文件。</string>
-    <string name="serverlist_risk_launch_agent_line3">如有需要，您的网关可能会从 ACP 注册中心源下载代理二进制文件。</string>
-    <string name="serverlist_risk_launch_agent_line4">仅当您信任此代理及其来源时才继续。</string>
+    <string name="serverlist_risk_runs_on">在 %1$s 上运行，并可能下载其二进制文件。</string>
+    <string name="serverlist_risk_trust">我信任此代理</string>
 
     <!-- QR Scanner Errors -->
     <string name="serverlist_qr_error_no_activity">无法打开扫描仪：不在 Activity 上下文中</string>

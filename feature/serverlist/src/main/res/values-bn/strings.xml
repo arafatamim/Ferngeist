@@ -8,15 +8,14 @@
     <string name="serverlist_back_desc">ফিরে যান</string>
     <string name="serverlist_ok">ঠিক আছে</string>
     <string name="serverlist_cancel">বাতিল করুন</string>
-    <string name="serverlist_continue">চালিয়ে যান</string>
-
+    
     <string name="serverlist_title">Ferngeist</string>
     <string name="serverlist_about_body">Ferngeist হলো Agent Client Protocol (ACP) সার্ভারের জন্য একটি Android ক্লায়েন্ট, যা আপনাকে সরাসরি মোবাইল ডিভাইস থেকে কোডিং এজেন্টের সাথে কাজ করতে দেয়।</string>
     <string name="serverlist_add_gateway_btn">Ferngeist Gateway পেয়ার করুন</string>
     <string name="serverlist_add_agent_btn">ম্যানুয়ালি এজেন্ট যোগ করুন</string>
     <string name="serverlist_add_paired_btn">পেয়ার করা গেটওয়ে ব্যবহার করে যোগ করুন</string>
-    <string name="serverlist_launch_risk_title">গেটওয়েতে এজেন্ট চালাবেন?</string>
-    <string name="serverlist_launch_risk_accept">আমি বুঝেছি এবং চালিয়ে যেতে চাই।</string>
+    <string name="serverlist_launch_risk_title">গেটওয়েতে চালাবেন?</string>
+    <string name="serverlist_launch_confirm">চালান</string>
     <string name="serverlist_empty_title">এখনও কোনো এজেন্ট নেই</string>
     <string name="serverlist_empty_body">ম্যানুয়ালি একটি এজেন্ট যোগ করুন বা একটি গেটওয়ে পেয়ার করে আপনার লঞ্চ তালিকা তৈরি করুন।</string>
     <string name="serverlist_empty_action">এজেন্ট যোগ করুন</string>
@@ -105,18 +104,15 @@
     <string name="serverlist_add_server_clear_auth">সংরক্ষিত পদ্ধতি মুছে ফেলুন</string>
 
     <string name="serverlist_gateway_agents_title">গেটওয়ে এজেন্ট</string>
-    <string name="serverlist_gateway_agents_add_title">এজেন্টকে তালিকায় যোগ করবেন?</string>
+    <string name="serverlist_gateway_agents_add_title">এজেন্ট যোগ করবেন?</string>
     <string name="serverlist_gateway_agents_detected">সনাক্ত হয়েছে</string>
     <string name="serverlist_gateway_agents_not_detected">সনাক্ত হয়নি</string>
     <string name="serverlist_gateway_agents_valid">বৈধ</string>
     <string name="serverlist_gateway_agents_invalid">অবৈধ</string>
     <string name="serverlist_gateway_agents_added">যোগ করা হয়েছে</string>
     <string name="serverlist_gateway_agents_invalid_body">গেটওয়ে এটিকে অবৈধ চিহ্নিত করায় এই এজেন্ট যোগ করা যাবে না।</string>
-    <string name="serverlist_gateway_agents_add_body">%1$s আপনার প্রধান এজেন্ট তালিকায় যোগ হবে এবং পরে সার্ভার স্ক্রিন থেকে চালানো যাবে।</string>
-    <string name="serverlist_gateway_agents_acknowledge_risk">আমি বুঝেছি এটি আমার গেটওয়ে হোস্টে এজেন্ট বাইনারি ডাউনলোড ও চালাতে পারে।</string>
     <string name="serverlist_gateway_agents_add_btn">এজেন্ট যোগ করুন</string>
-    <string name="serverlist_gateway_agents_cancel">বাতিল করুন</string>
-    <string name="serverlist_gateway_agents_retry">পুনরায় চেষ্টা করুন</string>
+        <string name="serverlist_gateway_agents_retry">পুনরায় চেষ্টা করুন</string>
     <string name="serverlist_gateway_agents_error_title">এজেন্ট লোড করা যায়নি</string>
 
     <string name="serverlist_gateway_list_title">Ferngeist গেটওয়ে</string>
@@ -152,14 +148,8 @@
     <string name="serverlist_device_default">Ferngeist Android</string>
 
     <string name="serverlist_risk_gateway_host_fallback">আপনার গেটওয়ে হোস্ট</string>
-    <string name="serverlist_risk_add_agent_line1">এই কাজটি আপনার গেটওয়ে থেকে %1$s (%2$s) যোগ করে।</string>
-    <string name="serverlist_risk_add_agent_line2">এই এজেন্ট চালালে %1$s-এ কোড চলবে।</string>
-    <string name="serverlist_risk_add_agent_line3">বাইনারি ইনস্টল না থাকলে, গেটওয়ে এটি ACP রেজিস্ট্রি সোর্স (registry source) থেকে ডাউনলোড করতে পারে।</string>
-    <string name="serverlist_risk_add_agent_line4">শুধু এমন এজেন্ট ও সোর্স (source) যোগ করুন যেগুলোকে আপনি বিশ্বাস করেন।</string>
-    <string name="serverlist_risk_launch_agent_line1">%1$s চালালে গেটওয়ের মাধ্যমে এজেন্ট %2$s শুরু হয়।</string>
-    <string name="serverlist_risk_launch_agent_line2">এটি %1$s-এ বাইনারি চালাতে পারে।</string>
-    <string name="serverlist_risk_launch_agent_line3">প্রয়োজন হলে, আপনার গেটওয়ে ACP রেজিস্ট্রি সোর্স (registry source) থেকে এজেন্ট বাইনারি ডাউনলোড করতে পারে।</string>
-    <string name="serverlist_risk_launch_agent_line4">শুধু তখনই চালিয়ে যান যখন আপনি এই এজেন্ট ও এর সোর্স-এ আস্থা রাখেন।</string>
+    <string name="serverlist_risk_runs_on">%1$s-এ চলে এবং এর বাইনারি ডাউনলোড করতে পারে।</string>
+    <string name="serverlist_risk_trust">আমি এই এজেন্টে আস্থা রাখি</string>
 
     <string name="serverlist_qr_error_no_activity">স্ক্যানার খোলা যাচ্ছে না: এটি কোনো অ্যাক্টিভিটি কনটেক্সট (activity context)-এ নেই</string>
     <string name="serverlist_qr_error_play_services">Google Play Services অনুপলব্ধ: %1$s</string>

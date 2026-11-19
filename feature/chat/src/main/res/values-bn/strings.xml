@@ -54,7 +54,6 @@
     <string name="chat_load_error_title">এই সেশনটি লোড করা যায়নি</string>
 
     <string name="chat_permission_title">অনুমতি প্রয়োজন</string>
-    <string name="chat_permission_body">চালিয়ে যাওয়ার আগে এজেন্ট আপনার অনুমতির অপেক্ষায় আছে।</string>
     <string name="chat_deny">অস্বীকার</string>
     <string name="chat_cancel">বাতিল</string>
     <string name="chat_cancel_request">অনুরোধ বাতিল করুন</string>
@@ -62,7 +61,7 @@
     <string name="chat_elicitation_title">ইনপুট প্রয়োজন</string>
     <string name="chat_elicitation_decline">প্রত্যাখ্যান</string>
     <string name="chat_elicitation_url_title">বাহ্যিক লিংক</string>
-    <string name="chat_elicitation_url_body">এজেন্ট অ্যাপের বাইরে এই লিংকটি খুলতে চায়। এগিয়ে যাওয়ার আগে ঠিকানা যাচাই করুন।</string>
+    <string name="chat_elicitation_url_body">অ্যাপের বাইরে খুলবে।</string>
     <string name="chat_elicitation_open_link">লিংক খুলুন</string>
     <string name="chat_elicitation_required">আবশ্যক</string>
     <string name="chat_elicitation_invalid">এই ফিল্ডটি যাচাই করুন</string>

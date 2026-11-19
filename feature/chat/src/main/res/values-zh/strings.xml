@@ -61,7 +61,6 @@
     <string name="chat_load_error_title">无法加载此会话</string>
 
     <string name="chat_permission_title">需要权限</string>
-    <string name="chat_permission_body">代理正在等待您的批准以继续操作。</string>
     <string name="chat_deny">拒绝</string>
     <string name="chat_cancel">取消</string>
     <string name="chat_cancel_request">取消请求</string>
@@ -69,7 +68,7 @@
     <string name="chat_elicitation_title">需要输入</string>
     <string name="chat_elicitation_decline">拒绝</string>
     <string name="chat_elicitation_url_title">外部链接</string>
-    <string name="chat_elicitation_url_body">代理想在应用外部打开此链接。请先确认地址再继续。</string>
+    <string name="chat_elicitation_url_body">将在应用外部打开。</string>
     <string name="chat_elicitation_open_link">打开链接</string>
     <string name="chat_elicitation_required">必填</string>
     <string name="chat_elicitation_invalid">请检查此字段</string>
