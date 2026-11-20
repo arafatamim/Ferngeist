@@ -15,6 +15,6 @@ fun Map<String, TurnActivity>.statusesFor(targetId: String): Map<String, TurnAct
 val TurnStatus.isActive: Boolean
     get() = this == TurnStatus.WORKING || this == TurnStatus.NEEDS_ATTENTION
 
-/** Worth a status signal: a turn running, awaiting the user, or failed. Finished and unknown flag nothing. */
+/** Worth a status signal, including a finished turn until it is read or expires. */
 val TurnStatus.showsMark: Boolean
-    get() = this == TurnStatus.WORKING || this == TurnStatus.NEEDS_ATTENTION || this == TurnStatus.ERROR
+    get() = this != TurnStatus.UNKNOWN

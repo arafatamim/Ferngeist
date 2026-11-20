@@ -39,7 +39,7 @@ import com.tamimarafat.ferngeist.core.model.TurnStatus
 /**
  * The background carries the turn's state while the agent's identity stays upright and in
  * place. The shape names the state and morphs between states: a turning cookie while working,
- * a very sunny shape, coloured, for a request or a failure, a circle otherwise.
+ * a soft burst for a request and a very sunny shape for a failure, both coloured, a circle otherwise.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -87,7 +87,8 @@ private const val IDLE_VEIL_ALPHA = 0.12f
 private fun TurnStatus.polygon(): RoundedPolygon =
     when (this) {
         TurnStatus.WORKING -> MaterialShapes.Cookie9Sided
-        TurnStatus.NEEDS_ATTENTION, TurnStatus.ERROR -> MaterialShapes.VerySunny
+        TurnStatus.NEEDS_ATTENTION -> MaterialShapes.SoftBurst
+        TurnStatus.ERROR -> MaterialShapes.VerySunny
         TurnStatus.FINISHED, TurnStatus.UNKNOWN -> MaterialShapes.Circle
     }
 
