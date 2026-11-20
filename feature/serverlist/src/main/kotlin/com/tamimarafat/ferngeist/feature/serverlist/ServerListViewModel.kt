@@ -15,21 +15,30 @@ import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.launchConsentKey
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.io.IOException
 import javax.inject.Inject
 
 /**
@@ -83,9 +92,35 @@ data class PendingLaunchConsent(
     val gatewayHost: String,
 )
 
+enum class GatewayHealth { UNKNOWN, REACHABLE, UNREACHABLE }
+
+private const val HEALTH_INTERVAL_MS = 30_000L
+private const val HEALTH_TIMEOUT_MS = 3_000L
+
 private const val LOG_TAG = "ServerListViewModel"
 
 private const val RECENT_SESSIONS_LIMIT = 5
+
+private suspend fun probeGateway(
+    repository: GatewayRepository,
+    dispatcher: CoroutineDispatcher,
+    scheme: String,
+    host: String,
+): GatewayHealth =
+    withContext(dispatcher) {
+        withTimeoutOrNull(HEALTH_TIMEOUT_MS) {
+            runCatching { repository.fetchStatus(scheme, host) }.fold(
+                onSuccess = { GatewayHealth.REACHABLE },
+                onFailure = { error ->
+                    when (error) {
+                        is CancellationException -> throw error
+                        is IOException -> GatewayHealth.UNREACHABLE
+                        else -> GatewayHealth.REACHABLE
+                    }
+                },
+            )
+        } ?: GatewayHealth.UNREACHABLE
+    }
 
 @HiltViewModel
 class ServerListViewModel
@@ -95,6 +130,7 @@ class ServerListViewModel
         private val stores: ServerLocalStores,
         private val agentLauncher: AgentLauncher,
         private val projectCatalog: ProjectCatalog,
+        gatewayPairingRepository: GatewayRepository,
         @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
         /** This screen's verification transport; [AgentLauncher] owns everything behind it. */
@@ -104,6 +140,32 @@ class ServerListViewModel
             repos.launchableTargetRepository
                 .getTargets()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+        val gatewayHealth: StateFlow<Map<String, GatewayHealth>> =
+            channelFlow {
+                repos.gatewaySourceRepository.getGateways().collectLatest { gateways ->
+                    val health = MutableStateFlow(gateways.associate { it.id to GatewayHealth.UNKNOWN })
+                    send(health.value)
+                    coroutineScope {
+                        gateways.forEach { gateway ->
+                            launch {
+                                while (true) {
+                                    send(health.updateAndGet { it + (gateway.id to GatewayHealth.UNKNOWN) })
+                                    val result =
+                                        probeGateway(
+                                            gatewayPairingRepository,
+                                            ioDispatcher,
+                                            gateway.scheme,
+                                            gateway.host,
+                                        )
+                                    send(health.updateAndGet { it + (gateway.id to result) })
+                                    delay(HEALTH_INTERVAL_MS)
+                                }
+                            }
+                        }
+                    }
+                }
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), emptyMap())
 
         val hasGateways: StateFlow<Boolean> =
             repos.gatewaySourceRepository

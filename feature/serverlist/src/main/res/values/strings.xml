@@ -11,6 +11,19 @@
     <string name="serverlist_ok">OK</string>
     <string name="serverlist_cancel">Cancel</string>
 
+    <string name="home_projects_empty_title">No projects yet</string>
+    <string name="home_projects_empty_body">Chats you start on a paired computer show up here, grouped by repository.</string>
+    <string name="home_agents_all">All</string>
+    <string name="home_agents_working">Working</string>
+    <string name="home_agents_direct">Direct</string>
+    <string name="home_agents_offline">Offline</string>
+
+    <string name="home_agents_filter_empty">No agents match this filter.</string>
+    <plurals name="home_agents_count"><item quantity="one">%d agent</item><item quantity="other">%d agents</item></plurals>
+    <plurals name="home_agents_attention_count"><item quantity="one">%d needs you</item><item quantity="other">%d need you</item></plurals>
+    <plurals name="home_agents_working_count"><item quantity="one">%d working</item><item quantity="other">%d working</item></plurals>
+    <plurals name="home_agents_chats_working"><item quantity="one">%d chat working</item><item quantity="other">%d chats working</item></plurals>
+
     <!-- Server List -->
     <string name="serverlist_title">Ferngeist</string>
     <string name="serverlist_about_body">Ferngeist is an Android client for Agent Client Protocol (ACP) servers, allowing you to interact with coding agents directly from your mobile device.</string>
@@ -23,9 +36,8 @@
     <string name="serverlist_empty_body">Add an agent manually or pair a gateway to build your launch list.</string>
     <string name="serverlist_empty_action">Add agent</string>
     <string name="serverlist_fab_add">Add server or gateway</string>
-    <string name="serverlist_fab_close">Close menu</string>
     <string name="serverlist_resume_sessions">Resume sessions</string>
-    <string name="serverlist_section_agents">Your agents</string>
+    <string name="serverlist_section_agents">Agents</string>
     <string name="serverlist_section_custom_agents">Custom agents</string>
     <string name="serverlist_section_built_in_agents">Built-in agents</string>
     <string name="serverlist_continue_resume_desc">Resume session</string>

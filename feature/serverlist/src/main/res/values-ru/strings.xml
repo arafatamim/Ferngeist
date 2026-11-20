@@ -24,7 +24,6 @@
     <string name="serverlist_empty_body">Добавьте агента вручную или сопрягите шлюз, чтобы создать свой список запуска.</string>
     <string name="serverlist_empty_action">Добавить агента</string>
     <string name="serverlist_fab_add">Добавить сервер или шлюз</string>
-    <string name="serverlist_fab_close">Закрыть меню</string>
     <string name="serverlist_card_from_gateway">Со шлюза</string>
     <string name="serverlist_gateway_qr_label">QR-код для сопряжения</string>
     <string name="serverlist_scan_qr_desc">Сканировать QR-код</string>

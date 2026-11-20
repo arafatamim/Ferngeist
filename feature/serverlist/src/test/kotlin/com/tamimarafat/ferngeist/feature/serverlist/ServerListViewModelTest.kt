@@ -21,10 +21,13 @@ import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.core.model.store.RecentCwdStore
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -32,8 +35,10 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -47,6 +52,7 @@ import java.util.UUID
 class ServerListViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
+    private val gatewayPairingRepository = mockk<GatewayRepository>()
     private val gatewaySourceRepository = mockk<GatewaySourceRepository>(relaxed = true)
     private val launchableTargetRepository = mockk<LaunchableTargetRepository>(relaxed = true)
     private val sessionRepository = mockk<ChatCatalog>(relaxed = true)
@@ -305,6 +311,59 @@ class ServerListViewModelTest {
             }
         }
 
+    @Test
+    fun `gateway health retries while observed and distinguishes network failures from responses`() =
+        runTest(testDispatcher) {
+            val gateway = GatewaySource(id = "gateway", name = "Computer", host = "host", gatewayCredential = "")
+            every { gatewaySourceRepository.getGateways() } returns flowOf(listOf(gateway))
+            val firstProbe = CompletableDeferred<Unit>()
+            val secondProbe = CompletableDeferred<Unit>()
+            var attempts = 0
+            coEvery { gatewayPairingRepository.fetchStatus(any(), any()) } coAnswers {
+                if (attempts++ == 0) {
+                    firstProbe.await()
+                    throw java.io.IOException("offline")
+                }
+                secondProbe.await()
+                throw GatewayRequestException(503, "unavailable")
+            }
+            val viewModel = createViewModel()
+            viewModel.gatewayHealth.test {
+                assertEquals(emptyMap<String, GatewayHealth>(), awaitItem())
+                assertEquals(GatewayHealth.UNKNOWN, awaitItem()[gateway.id])
+                firstProbe.complete(Unit)
+                runCurrent()
+                assertEquals(GatewayHealth.UNREACHABLE, awaitItem()[gateway.id])
+                advanceTimeBy(30_000)
+                runCurrent()
+                assertEquals(GatewayHealth.UNKNOWN, awaitItem()[gateway.id])
+                secondProbe.complete(Unit)
+                runCurrent()
+                assertEquals(GatewayHealth.REACHABLE, awaitItem()[gateway.id])
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `gateway health marks a timed out probe unreachable`() =
+        runTest(testDispatcher) {
+            val gateway = GatewaySource(id = "gateway", name = "Computer", host = "host", gatewayCredential = "")
+            every { gatewaySourceRepository.getGateways() } returns flowOf(listOf(gateway))
+            coEvery { gatewayPairingRepository.fetchStatus(any(), any()) } coAnswers {
+                CompletableDeferred<Unit>().await()
+                error("unreachable")
+            }
+            val viewModel = createViewModel()
+            viewModel.gatewayHealth.test {
+                assertEquals(emptyMap<String, GatewayHealth>(), awaitItem())
+                assertEquals(GatewayHealth.UNKNOWN, awaitItem()[gateway.id])
+                advanceTimeBy(3_000)
+                runCurrent()
+                assertEquals(GatewayHealth.UNREACHABLE, awaitItem()[gateway.id])
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     private fun createViewModel() =
         ServerListViewModel(
             ServerRepositories(
@@ -316,6 +375,7 @@ class ServerListViewModelTest {
             ServerLocalStores(authEnvValueStore, agentLaunchConsentStore, recentCwdStore, recentSelectionStore),
             agentLauncher,
             projectCatalog,
+            gatewayPairingRepository,
             testDispatcher,
         )
 }

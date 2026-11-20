@@ -68,6 +68,7 @@ import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
+import com.tamimarafat.ferngeist.feature.serverlist.ui.agents.ServerSubtitle
 
 @Composable
 internal fun SectionHeader(

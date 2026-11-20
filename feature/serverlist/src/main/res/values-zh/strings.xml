@@ -24,7 +24,6 @@
     <string name="serverlist_empty_body">手动添加代理或配对网关以构建您的启动列表。</string>
     <string name="serverlist_empty_action">添加代理</string>
     <string name="serverlist_fab_add">添加服务器或网关</string>
-    <string name="serverlist_fab_close">关闭菜单</string>
     <string name="serverlist_card_from_gateway">来自网关</string>
     <string name="serverlist_gateway_qr_label">二维码配对数据</string>
     <string name="serverlist_scan_qr_desc">扫描二维码</string>

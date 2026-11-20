@@ -1,24 +1,17 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
 import androidx.compose.animation.AnimatedContentScope
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
-import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -31,24 +24,22 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
-import androidx.compose.material3.pulltorefresh.pullToRefresh
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -57,50 +48,52 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
-import com.tamimarafat.ferngeist.core.common.ui.status.statusesFor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnActivity
-import com.tamimarafat.ferngeist.core.model.aggregateTurnActivity
+import com.tamimarafat.ferngeist.feature.serverlist.GatewayHealth
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
+import com.tamimarafat.ferngeist.feature.serverlist.ui.agents.AgentsTab
+import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomeTab
 import com.tamimarafat.ferngeist.feature.serverlist.ui.projects.ProjectsGroup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private const val PROJECT_SLIDE_DIVISOR = 4
-
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun AgentsBackdrop(
+    pagerState: PagerState,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    gatewayHealth: Map<String, GatewayHealth> = emptyMap(),
     connectedChatKeys: Set<String> = emptySet(),
     turnStatuses: Map<String, TurnActivity> = emptyMap(),
     refreshing: Boolean = false,
-    onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
     onOpenProject: (ProjectSummary) -> Unit = {},
     onResumeSession: (RecentSession) -> Unit,
@@ -112,6 +105,7 @@ internal fun AgentsBackdrop(
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
+    val sheetMotion = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
 
     val overscrollRefPx = with(density) { 140.dp.toPx() }
     val sheetOverhang = 120.dp
@@ -141,7 +135,11 @@ internal fun AgentsBackdrop(
                 if (recentsPx > 0) (sheetOffset.value / recentsPx).coerceIn(0f, 1f) else 0f
         }
     }
-    val agentsLazyListState = rememberLazyListState()
+    // One list state per tab: each keeps its own scroll, and the crossfade never binds one state twice.
+    val projectsListState = rememberLazyListState()
+    val agentsListState = rememberLazyListState()
+    val listStateFor = { t: HomeTab -> if (t == HomeTab.PROJECTS) projectsListState else agentsListState }
+    val agentsLazyListState = listStateFor(HomeTab.entries[pagerState.currentPage])
 
     // Restore the user's sheet position once the recents block has a height.
     LaunchedEffect(recentsPx, sheetFractionRestored) {
@@ -151,11 +149,11 @@ internal fun AgentsBackdrop(
         }
     }
 
-    LaunchedEffect(recentsPx, sheetRevealed.value, canReveal, sheetFractionRestored) {
+    LaunchedEffect(recentsPx, canReveal, sheetFractionRestored, sheetMotion) {
         // Hold off until the restore above has landed (or when there is no height
         // to restore into), so the two effects cannot fight over the offset.
         if (sheetFractionRestored || recentsPx == 0) {
-            syncSheetOffset(sheetOffset, sheetRevealed, recentsPx, canReveal)
+            syncSheetOffset(sheetOffset, sheetRevealed, recentsPx, canReveal, sheetMotion)
         }
     }
 
@@ -171,15 +169,17 @@ internal fun AgentsBackdrop(
             sheetRevealed = sheetRevealed,
         )
     BackdropLayers(
+        pagerState = pagerState,
+        listStateFor = listStateFor,
         heroSession = heroSession,
         olderSessions = olderSessions,
         servers = servers,
         uiState = uiState,
         liveServerIds = liveServerIds,
+        gatewayHealth = gatewayHealth,
         connectedChatKeys = connectedChatKeys,
         turnStatuses = turnStatuses,
         refreshing = refreshing,
-        onRefresh = onRefresh,
         projects = projects,
         onOpenProject = onOpenProject,
         onResumeSession = onResumeSession,
@@ -201,21 +201,22 @@ internal fun AgentsBackdrop(
         topZonePx = topZonePx,
         onTopZonePx = { topZonePx = it },
         onRecentsPx = { recentsPx = it },
-        scrollState = agentsLazyListState,
     )
 }
 
 @Composable
 private fun BackdropLayers(
+    pagerState: PagerState,
+    listStateFor: (HomeTab) -> LazyListState,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    gatewayHealth: Map<String, GatewayHealth> = emptyMap(),
     connectedChatKeys: Set<String> = emptySet(),
     turnStatuses: Map<String, TurnActivity> = emptyMap(),
     refreshing: Boolean = false,
-    onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
     onOpenProject: (ProjectSummary) -> Unit = {},
     onResumeSession: (RecentSession) -> Unit,
@@ -237,7 +238,6 @@ private fun BackdropLayers(
     topZonePx: Int,
     onTopZonePx: (Int) -> Unit,
     onRecentsPx: (Int) -> Unit,
-    scrollState: LazyListState,
 ) {
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().then(if (canReveal) Modifier.nestedScroll(sheetConnection) else Modifier),
@@ -255,6 +255,8 @@ private fun BackdropLayers(
             onRecentsSize = onRecentsPx,
         )
         FrontSheetLayer(
+            pagerState = pagerState,
+            listStateFor = listStateFor,
             scope = scope,
             sheetOffset = sheetOffset,
             sheetRevealed = sheetRevealed,
@@ -265,14 +267,13 @@ private fun BackdropLayers(
             sheetHeight = sheetHeight,
             topZonePx = topZonePx,
             viewportHeightPx = viewportHeightPx,
-            scrollState = scrollState,
             servers = servers,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            gatewayHealth = gatewayHealth,
             connectedChatKeys = connectedChatKeys,
             turnStatuses = turnStatuses,
             refreshing = refreshing,
-            onRefresh = onRefresh,
             projects = projects,
             onOpenProject = onOpenProject,
             onConnect = onConnect,
@@ -286,6 +287,8 @@ private fun BackdropLayers(
 
 @Composable
 private fun FrontSheetLayer(
+    pagerState: PagerState,
+    listStateFor: (HomeTab) -> LazyListState,
     scope: CoroutineScope,
     sheetOffset: Animatable<Float, AnimationVector1D>,
     sheetRevealed: MutableState<Boolean>,
@@ -296,14 +299,13 @@ private fun FrontSheetLayer(
     sheetHeight: Dp,
     topZonePx: Int,
     viewportHeightPx: Float,
-    scrollState: LazyListState,
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    gatewayHealth: Map<String, GatewayHealth> = emptyMap(),
     connectedChatKeys: Set<String> = emptySet(),
     turnStatuses: Map<String, TurnActivity> = emptyMap(),
     refreshing: Boolean = false,
-    onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
     onOpenProject: (ProjectSummary) -> Unit = {},
     onConnect: (LaunchableTarget) -> Unit,
@@ -320,7 +322,8 @@ private fun FrontSheetLayer(
         contentAlignment = Alignment.TopCenter,
     ) {
         AgentsBackdropSheet(
-            canRefresh = !canReveal || sheetRevealed.value,
+            pagerState = pagerState,
+            listStateFor = listStateFor,
             modifier =
                 Modifier
                     // Cap must be outside `fillMaxWidth`, which otherwise passes fixed
@@ -345,10 +348,10 @@ private fun FrontSheetLayer(
             servers = servers,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            gatewayHealth = gatewayHealth,
             connectedChatKeys = connectedChatKeys,
             turnStatuses = turnStatuses,
             refreshing = refreshing,
-            onRefresh = onRefresh,
             projects = projects,
             onOpenProject = onOpenProject,
             onConnect = onConnect,
@@ -356,7 +359,6 @@ private fun FrontSheetLayer(
             onDelete = onDelete,
             sharedTransitionScope = sharedTransitionScope,
             animatedContentScope = animatedContentScope,
-            scrollState = scrollState,
             viewportHeightPx = viewportHeightPx,
         )
     }
@@ -406,6 +408,7 @@ private class SheetGestureState {
  * list scrolls; leftover scroll at the list's top/bottom edge (onPostScroll)
  * moves the sheet with a two-sided rubber-band.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun rememberSheetConnection(
     scope: CoroutineScope,
@@ -418,6 +421,7 @@ private fun rememberSheetConnection(
     sheetRevealed: MutableState<Boolean>,
 ): NestedScrollConnection {
     val gesture = remember { SheetGestureState() }
+    val sheetMotion = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
     return object : NestedScrollConnection {
         override fun onPreScroll(
             available: Offset,
@@ -496,7 +500,8 @@ private fun rememberSheetConnection(
                 scope.launch {
                     sheetOffset.animateTo(
                         target,
-                        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                        animationSpec = sheetMotion,
+                        initialVelocity = available.y,
                     )
                 }
             }
@@ -516,6 +521,7 @@ private suspend fun syncSheetOffset(
     sheetRevealed: MutableState<Boolean>,
     recentsPx: Int,
     canReveal: Boolean,
+    sheetMotion: FiniteAnimationSpec<Float>,
 ) {
     when {
         !canReveal -> sheetRevealed.value = false
@@ -526,12 +532,12 @@ private suspend fun syncSheetOffset(
         sheetRevealed.value && recentsPx > 0 ->
             sheetOffset.animateTo(
                 recentsPx.toFloat(),
-                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                sheetMotion,
             )
         !sheetRevealed.value && sheetOffset.value > 0f ->
             sheetOffset.animateTo(
                 0f,
-                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                sheetMotion,
             )
         sheetOffset.value > recentsPx -> sheetOffset.snapTo(recentsPx.toFloat())
     }
@@ -541,6 +547,7 @@ private suspend fun syncSheetOffset(
  * Drag modifier for the front sheet: rubber-bands past the edges and settles
  * to the revealed/hidden edge on release.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun Modifier.sheetDrag(
     scope: CoroutineScope,
@@ -549,8 +556,9 @@ private fun Modifier.sheetDrag(
     recentsPx: Int,
     overscrollRefPx: Float,
     maxTopOverscrollPx: Float,
-): Modifier =
-    this.draggable(
+): Modifier {
+    val sheetMotion = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
+    return this.draggable(
         orientation = Orientation.Vertical,
         state =
             rememberDraggableState { delta ->
@@ -574,32 +582,30 @@ private fun Modifier.sheetDrag(
                 }
             sheetRevealed.value = (target > 0f)
             scope.launch {
-                // Critically damped: the elastic feel lives in the drag-time
-                // rubber-band; the return settles cleanly to the edge with no
-                // overshoot, so it never springs back into the overscroll zone.
+                // Carry the release velocity into the same spring used by nested scrolling.
                 sheetOffset.animateTo(
                     target,
-                    spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow,
-                    ),
+                    animationSpec = sheetMotion,
+                    initialVelocity = velocity,
                 )
             }
         },
     )
+}
 
 @Composable
 private fun AgentsBackdropSheet(
+    pagerState: PagerState,
+    listStateFor: (HomeTab) -> LazyListState,
     modifier: Modifier,
     headerDragModifier: Modifier,
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    gatewayHealth: Map<String, GatewayHealth> = emptyMap(),
     connectedChatKeys: Set<String> = emptySet(),
     turnStatuses: Map<String, TurnActivity> = emptyMap(),
     refreshing: Boolean = false,
-    canRefresh: Boolean,
-    onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
     onOpenProject: (ProjectSummary) -> Unit = {},
     onConnect: (LaunchableTarget) -> Unit,
@@ -607,7 +613,6 @@ private fun AgentsBackdropSheet(
     onDelete: (String) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    scrollState: LazyListState,
     viewportHeightPx: Float,
 ) {
     val viewportDp = with(LocalDensity.current) { viewportHeightPx.toDp() }
@@ -620,14 +625,15 @@ private fun AgentsBackdropSheet(
         shadowElevation = 0.dp,
     ) {
         FrontLayerContent(
-            canRefresh = canRefresh,
+            pagerState = pagerState,
+            listStateFor = listStateFor,
             servers = servers,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            gatewayHealth = gatewayHealth,
             connectedChatKeys = connectedChatKeys,
             turnStatuses = turnStatuses,
             refreshing = refreshing,
-            onRefresh = onRefresh,
             projects = projects,
             onOpenProject = onOpenProject,
             onConnect = onConnect,
@@ -635,7 +641,6 @@ private fun AgentsBackdropSheet(
             onDelete = onDelete,
             sharedTransitionScope = sharedTransitionScope,
             animatedContentScope = animatedContentScope,
-            scrollState = scrollState,
             viewportDp = viewportDp,
             headerDragModifier = headerDragModifier,
         )
@@ -696,14 +701,15 @@ private fun BackLayerContent(
 )
 @Composable
 private fun FrontLayerContent(
+    pagerState: PagerState,
+    listStateFor: (HomeTab) -> LazyListState,
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    gatewayHealth: Map<String, GatewayHealth> = emptyMap(),
     connectedChatKeys: Set<String> = emptySet(),
     turnStatuses: Map<String, TurnActivity> = emptyMap(),
     refreshing: Boolean = false,
-    canRefresh: Boolean,
-    onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
     onOpenProject: (ProjectSummary) -> Unit = {},
     onConnect: (LaunchableTarget) -> Unit,
@@ -711,26 +717,9 @@ private fun FrontLayerContent(
     onDelete: (String) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    scrollState: LazyListState,
     viewportDp: Dp,
     headerDragModifier: Modifier,
 ) {
-    val showProjects = projects.isNotEmpty()
-    val projectVisibility = remember { MutableTransitionState(false) }.apply { targetState = showProjects }
-    val agentHeaderVisibility = remember { MutableTransitionState(false) }.apply { targetState = showProjects }
-    val includeProjects = projectSectionIncluded("projects", projectVisibility, scrollState)
-    val includeAgentHeader = projectSectionIncluded("agents-header", agentHeaderVisibility, scrollState)
-    var lastProjects by remember { mutableStateOf(projects) }
-    SideEffect { if (showProjects) lastProjects = projects }
-    val displayedProjects = if (showProjects) projects else lastProjects
-    val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
-    val projectsAtTop by remember(scrollState, showProjects) {
-        derivedStateOf {
-            val first =
-                scrollState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == scrollState.firstVisibleItemIndex }
-            showProjects && (first?.key == "projects" || first == null && scrollState.firstVisibleItemIndex == 0)
-        }
-    }
     // Header pinned; only cards scroll. Outer is capped to viewport so
     // inner actually overflows (maxValue > 0); scroll to the very end first,
     // then a further up-swipe collapses the sheet back toward 0.
@@ -739,147 +728,135 @@ private fun FrontLayerContent(
             Modifier
                 .fillMaxWidth()
                 .height(viewportDp)
-                .padding(top = 22.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(bottom = 24.dp),
     ) {
-        // With projects, they lead the scroll and the pinned header names them; agents follow.
-        Box(
-            modifier = Modifier.fillMaxWidth().then(headerDragModifier),
-        ) {
-            Crossfade(
-                targetState = projectsAtTop,
-                animationSpec = effects,
-                label = "home section title",
-            ) { hasProjects ->
-                SectionHeader(
-                    title =
-                        stringResource(
-                            if (hasProjects) {
-                                R.string.serverlist_section_projects
-                            } else {
-                                R.string.serverlist_section_agents
-                            },
-                        ),
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                )
-            }
-        }
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             val now = rememberPresentationTime(refreshing)
-            val motion = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
-            val refreshState = rememberPullToRefreshState()
-            Box(
-                Modifier.pullToRefresh(
-                    isRefreshing = refreshing,
-                    state = refreshState,
-                    enabled = canRefresh,
-                    onRefresh = onRefresh,
-                ),
-            ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = scrollState,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+            val pagePosition = pagerState.currentPage + pagerState.currentPageOffsetFraction
+            val animatedPosition by rememberAnimatedPagePosition(pagerState)
+            val direction = if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1f else -1f
+            // Tabs page sideways, so a swipe and a tab tap travel the same path.
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                beyondViewportPageCount = 1,
+                flingBehavior =
+                    PagerDefaults.flingBehavior(
+                        state = pagerState,
+                        snapAnimationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+                    ),
+            ) { page ->
+                val shown = HomeTab.entries[page]
+                Box(
+                    modifier =
+                        Modifier.graphicsLayer {
+                            translationX = (pagePosition - animatedPosition) * size.width * direction
+                        },
                 ) {
-                    animatedProjectSection("projects", projectVisibility, includeProjects) {
-                        ProjectsGroup(
-                            projects = displayedProjects,
-                            turnStatuses = turnStatuses,
-                            connectedChatKeys = connectedChatKeys,
-                            now = now,
-                            onOpenProject = onOpenProject,
-                            sharedTransitionScope = sharedTransitionScope,
-                            animatedContentScope = animatedContentScope,
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                        )
+                    when (shown) {
+                        HomeTab.AGENTS ->
+                            AgentsTab(
+                                servers = servers,
+                                uiState = uiState,
+                                liveServerIds = liveServerIds,
+                                gatewayHealth = gatewayHealth,
+                                turnStatuses = turnStatuses,
+                                listState = listStateFor(shown),
+                                onConnect = onConnect,
+                                onEdit = onEdit,
+                                onDelete = onDelete,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                            )
+                        HomeTab.PROJECTS ->
+                            ProjectsPage(
+                                projects = projects,
+                                turnStatuses = turnStatuses,
+                                connectedChatKeys = connectedChatKeys,
+                                now = now,
+                                listState = listStateFor(shown),
+                                onOpenProject = onOpenProject,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                            )
                     }
-                    animatedProjectSection("agents-header", agentHeaderVisibility, includeAgentHeader) {
-                        SectionHeader(
-                            title = stringResource(R.string.serverlist_section_agents),
-                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
-                        )
-                    }
-                    items(servers, key = { "agent:${it.id}" }) { server ->
-                        val chatStatuses = turnStatuses.statusesFor(server.id)
-                        ServerCard(
-                            server = server,
-                            status = chatStatuses.values.aggregateTurnActivity(),
-                            uiState = uiState,
-                            liveServerIds = liveServerIds,
-                            onClick = { onConnect(server) },
-                            onEdit = { onEdit(server) },
-                            onDelete = { onDelete(server.id) },
-                            sharedTransitionScope = sharedTransitionScope,
-                            animatedContentScope = animatedContentScope,
-                            modifier = Modifier.padding(horizontal = 16.dp).animateItem(placementSpec = motion),
-                        )
-                    }
-                    // ponytail: clearance lets the final card scroll above the bottom controls.
-                    item(key = "bottom-clearance") { Spacer(modifier = Modifier.height(160.dp)) }
+                    EdgeFade(
+                        listState = listStateFor(shown),
+                        fadeColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    )
                 }
-                AgentsRefreshIndicator(
-                    show = projects.isEmpty(),
-                    refreshing = refreshing,
-                    state = refreshState,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
             }
-            EdgeFade(listState = scrollState, fadeColor = MaterialTheme.colorScheme.surfaceContainerLowest)
+            // Keep the grab area without reserving space above the sheet content.
+            Box(modifier = Modifier.fillMaxWidth().height(24.dp).then(headerDragModifier))
         }
-    }
-}
-
-@Composable
-private fun projectSectionIncluded(
-    key: String,
-    state: MutableTransitionState<Boolean>,
-    scrollState: LazyListState,
-): Boolean =
-    remember(key, state, scrollState) {
-        // Measure results change every pass; the item provider must observe only section inclusion.
-        derivedStateOf(structuralEqualityPolicy()) {
-            state.targetState || state.currentState && scrollState.layoutInfo.visibleItemsInfo.any { it.key == key }
-        }
-    }.value
-
-private fun LazyListScope.animatedProjectSection(
-    key: String,
-    state: MutableTransitionState<Boolean>,
-    included: Boolean,
-    content: @Composable () -> Unit,
-) {
-    if (included) {
-        item(key = key) { ProjectSectionVisibility(state, content) }
     }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ProjectSectionVisibility(
-    state: MutableTransitionState<Boolean>,
-    content: @Composable () -> Unit,
+private fun rememberAnimatedPagePosition(pagerState: PagerState): State<Float> {
+    val dragging by pagerState.interactionSource.collectIsDraggedAsState()
+    val pagePosition = pagerState.currentPage + pagerState.currentPageOffsetFraction
+    return animateFloatAsState(
+        targetValue = if (dragging) pagePosition else pagerState.targetPage.toFloat(),
+        animationSpec = if (dragging) snap() else MaterialTheme.motionScheme.slowSpatialSpec(),
+        label = "homePagePosition",
+    )
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun ProjectsPage(
+    projects: List<ProjectSummary>,
+    turnStatuses: Map<String, TurnActivity>,
+    connectedChatKeys: Set<String>,
+    now: Long,
+    listState: LazyListState,
+    onOpenProject: (ProjectSummary) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
 ) {
-    val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
-    val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntSize>()
-    val slide = MaterialTheme.motionScheme.defaultSpatialSpec<IntOffset>()
-    AnimatedVisibility(
-        visibleState = state,
-        enter = fadeIn(effects) + expandVertically(spatial) + slideInVertically(slide) { -it / PROJECT_SLIDE_DIVISOR },
-        exit = fadeOut(effects) + shrinkVertically(spatial) + slideOutVertically(slide) { -it / PROJECT_SLIDE_DIVISOR },
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        content()
+        // Projects arrive after agents; the item fade covers the empty-to-list swap.
+        if (projects.isEmpty()) {
+            item(key = "projects-empty") { ProjectsEmpty(Modifier.animateItem()) }
+        } else {
+            item(key = "projects") {
+                ProjectsGroup(
+                    projects = projects,
+                    turnStatuses = turnStatuses,
+                    connectedChatKeys = connectedChatKeys,
+                    now = now,
+                    onOpenProject = onOpenProject,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    modifier = Modifier.padding(horizontal = 16.dp).animateItem(),
+                )
+            }
+        }
+        // ponytail: clearance lets the final card scroll above the bottom controls.
+        item(key = "bottom-clearance") { Spacer(modifier = Modifier.height(160.dp)) }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AgentsRefreshIndicator(
-    show: Boolean,
-    refreshing: Boolean,
-    state: androidx.compose.material3.pulltorefresh.PullToRefreshState,
-    modifier: Modifier = Modifier,
-) {
-    if (show) {
-        PullToRefreshDefaults.Indicator(state = state, isRefreshing = refreshing, modifier = modifier)
+private fun ProjectsEmpty(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            stringResource(R.string.home_projects_empty_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            stringResource(R.string.home_projects_empty_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

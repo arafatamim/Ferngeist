@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.core.common.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.LinearEasing
@@ -61,6 +63,12 @@ private val busyPopSpec =
 /** Cross-fade leg of the swap, kept short so the pop reads as the motion. */
 private const val FADE_MILLIS = 150
 
+/** The connecting mark pops in while the previous symbol fades away. */
+fun AnimatedContentTransitionScope<Boolean>.agentIconTransition(): ContentTransform =
+    (fadeIn(animationSpec = tween(FADE_MILLIS)) + scaleIn(animationSpec = busyPopSpec, initialScale = 0.8f))
+        .togetherWith(fadeOut(animationSpec = tween(FADE_MILLIS)))
+        .using(SizeTransform(clip = false))
+
 /**
  * An agent's registry logo, or [fallback] when it has none.
  *
@@ -109,9 +117,7 @@ fun AgentIconBadge(
             // The old indicator popped in with an overshoot; a plain crossfade read
             // flat by comparison. Scaling from a touch under the resting size gives
             // the mark the same springy arrival it always had, in the same direction.
-            (fadeIn(animationSpec = tween(FADE_MILLIS)) + scaleIn(animationSpec = busyPopSpec, initialScale = 0.8f))
-                .togetherWith(fadeOut(animationSpec = tween(FADE_MILLIS)))
-                .using(SizeTransform(clip = false))
+            agentIconTransition()
         },
         contentAlignment = Alignment.Center,
         label = "agentIconBusy",

@@ -20,7 +20,6 @@
     <string name="serverlist_empty_body">ম্যানুয়ালি একটি এজেন্ট যোগ করুন বা একটি গেটওয়ে পেয়ার করে আপনার লঞ্চ তালিকা তৈরি করুন।</string>
     <string name="serverlist_empty_action">এজেন্ট যোগ করুন</string>
     <string name="serverlist_fab_add">সার্ভার বা গেটওয়ে যোগ করুন</string>
-    <string name="serverlist_fab_close">মেনু বন্ধ করুন</string>
     <string name="serverlist_card_from_gateway">গেটওয়ে থেকে</string>
     <string name="serverlist_gateway_qr_label">QR পেয়ারিং পেলোড</string>
     <string name="serverlist_scan_qr_desc">QR কোড স্ক্যান করুন</string>
