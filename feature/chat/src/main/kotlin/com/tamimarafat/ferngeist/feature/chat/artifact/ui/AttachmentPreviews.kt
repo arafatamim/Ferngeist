@@ -21,12 +21,14 @@ import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactStat
 import com.tamimarafat.ferngeist.feature.chat.MarkdownRenderedDocument
 import com.tamimarafat.ferngeist.feature.chat.ui.RenderedMarkdown
 import com.tamimarafat.ferngeist.feature.chat.ui.localWorkspaceRoot
+import java.io.IOException
 
 private val previewHost =
     ArtifactHost(
         open = {},
         download = { _, _ -> },
         stat = { paths -> paths.map { ChatArtifactStat(size = 3_400_000L, error = null) } },
+        thumbnail = { _, _ -> throw IOException("No image in a preview") },
     )
 
 private const val TRANSCRIPT =

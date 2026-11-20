@@ -19,6 +19,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.FileProvider
@@ -27,6 +28,7 @@ import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactStat
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.artifact.storage.ArtifactCache
 import com.tamimarafat.ferngeist.feature.chat.artifact.storage.CachedArtifact
+import com.tamimarafat.ferngeist.feature.chat.artifact.storage.decodeThumbnail
 import com.tamimarafat.ferngeist.feature.chat.artifact.storage.exportArtifact
 import com.tamimarafat.ferngeist.feature.chat.artifact.storage.shareArtifact
 import kotlinx.coroutines.CancellationException
@@ -46,6 +48,8 @@ internal class ArtifactHost(
     val download: (path: String, name: String) -> Unit,
     /** Describes [paths] without reading them, one entry per path in order; throws when the host cannot be asked. */
     val stat: suspend (paths: List<String>) -> List<ChatArtifactStat>,
+    /** Fetches [path] into the cache a later open reuses, decoded within [maxPx]; throws when it cannot be read or decoded. */
+    val thumbnail: suspend (path: String, maxPx: Int) -> ImageBitmap,
 )
 
 /** Null where the chat has no gateway workspace, so no card renders. */
@@ -104,7 +108,7 @@ internal fun rememberArtifactHost(
     return remember(context, cache, picker, snackbar, noViewer) {
         ArtifactHost(
             open = { path ->
-                val bound = currentReader() ?: throw IOException("No gateway workspace to read $path from")
+                val bound = requireWorkspace(currentReader(), "read $path from")
                 cache.use(bound, path) { artifact ->
                     val shared = withContext(io) { shareArtifact(artifact, File(context.cacheDir, "artifact-shares")) }
                     if (!context.view(artifact.copy(file = shared))) snackbar.showSnackbar(noViewer)
@@ -118,12 +122,21 @@ internal fun rememberArtifactHost(
                 }
             },
             stat = { paths ->
-                val bound = currentReader() ?: throw IOException("No gateway workspace to describe files from")
-                bound.stat(paths)
+                requireWorkspace(currentReader(), "describe files from").stat(paths)
+            },
+            thumbnail = { path, maxPx ->
+                val bound = requireWorkspace(currentReader(), "read $path from")
+                cache.use(bound, path) { artifact -> withContext(io) { decodeThumbnail(artifact, maxPx) } }
             },
         )
     }
 }
+
+/** [reader], or a failure saying the chat has no gateway workspace to [purpose]. */
+private fun requireWorkspace(
+    reader: ChatArtifactReader?,
+    purpose: String,
+): ChatArtifactReader = reader ?: throw IOException("No gateway workspace to $purpose")
 
 /** The snackbar message for saving [path] to [destination]; a failed save removes the partial document. */
 private suspend fun Context.save(

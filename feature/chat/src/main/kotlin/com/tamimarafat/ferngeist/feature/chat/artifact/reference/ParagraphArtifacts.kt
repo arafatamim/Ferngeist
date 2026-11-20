@@ -26,7 +26,7 @@ internal val ParagraphArtifact.label: String get() = path.substringAfterLast('/'
 
 internal val ParagraphArtifact.kind: ArtifactKind get() = artifactKind(path)
 
-internal val ParagraphArtifact.presentation: ArtifactPresentation get() = presentationOf(kind, inWorkspace)
+internal val ParagraphArtifact.presentation: ArtifactPresentation get() = presentationOf(kind, inWorkspace, source)
 
 /**
  * The files [inlines] reference, once each in first-reference order: Markdown link and image

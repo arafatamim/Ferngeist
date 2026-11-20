@@ -23,7 +23,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.adamglin.compose.markdown.core.model.InlineNode
 import com.tamimarafat.ferngeist.core.model.ChatResourceLink
@@ -32,6 +34,7 @@ import com.tamimarafat.ferngeist.feature.chat.artifact.reference.ArtifactPresent
 import com.tamimarafat.ferngeist.feature.chat.artifact.reference.label
 import com.tamimarafat.ferngeist.feature.chat.artifact.reference.paragraphArtifacts
 import com.tamimarafat.ferngeist.feature.chat.artifact.reference.presentation
+import com.tamimarafat.ferngeist.feature.chat.artifact.reference.showsPreview
 import com.tamimarafat.ferngeist.feature.chat.ui.localWorkspaceFiles
 import com.tamimarafat.ferngeist.feature.chat.ui.localWorkspaceRoot
 import kotlinx.coroutines.CancellationException
@@ -39,6 +42,11 @@ import kotlinx.coroutines.launch
 
 // A design call: big enough for an icon and two lines of name, small enough for a row of three.
 private val cardSize = 128.dp
+
+// An image card is enlarged to twice the width, its shape the image's own within these bounds.
+private val previewWidth = cardSize * 2
+private const val MIN_PREVIEW_ASPECT = 0.75f
+private const val MAX_PREVIEW_ASPECT = 2f
 
 /** One card: the host [path], its [label], and the size an agent reported until the host's stat answers. */
 private data class CardSpec(
@@ -48,7 +56,7 @@ private data class CardSpec(
 )
 
 /**
- * The files [inlines] reference, as square cards below their paragraph once it has [ended], so a
+ * The files [inlines] reference, as cards below their paragraph once it has [ended], so a
  * half-written path never gets a card; nothing where the chat has no [ArtifactHost].
  */
 @Composable
@@ -157,6 +165,16 @@ private fun Card(
     val context = LocalContext.current
     // Leaving composition cancels a fetch in flight, and the cache drops its partial bytes.
     val scope = rememberCoroutineScope()
+    val previewPx = with(LocalDensity.current) { (previewWidth / MIN_PREVIEW_ASPECT).roundToPx() }
+    // A preview that cannot be fetched or decoded leaves the plain card; a tap still opens the file.
+    val preview by produceState<ImageBitmap?>(null, path, stat, host) {
+        if (showsPreview(path, stat)) {
+            value =
+                runCatching { host.thumbnail(path, previewPx) }
+                    .onFailure { if (it is CancellationException) throw it }
+                    .getOrNull()
+        }
+    }
     AttachmentCard(
         path = path,
         label = label,
@@ -173,6 +191,13 @@ private fun Card(
             }
         },
         onDownload = { host.download(path, label.substringAfterLast('/').substringAfterLast('\\')) },
-        modifier = Modifier.widthIn(max = cardSize).fillMaxWidth().aspectRatio(1f),
+        modifier =
+            preview?.let {
+                Modifier
+                    .widthIn(max = previewWidth)
+                    .fillMaxWidth()
+                    .aspectRatio((it.width.toFloat() / it.height).coerceIn(MIN_PREVIEW_ASPECT, MAX_PREVIEW_ASPECT))
+            } ?: Modifier.widthIn(max = cardSize).fillMaxWidth().aspectRatio(1f),
+        preview = preview,
     )
 }

@@ -1,5 +1,8 @@
 package com.tamimarafat.ferngeist.feature.chat.artifact.reference
 
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactStat
+import com.tamimarafat.ferngeist.feature.chat.markdown.image.MAX_IMAGE_BYTES
+
 /** What a referenced file is, by its name alone. */
 internal enum class ArtifactKind { TEXT, IMAGE, VIDEO, AUDIO, HTML, FILE }
 
@@ -8,8 +11,8 @@ internal enum class ArtifactPresentation {
     /** Workspace text: the existing inline chip and file sheet, no attachment. */
     SOURCE_CHIP,
 
-    /** Workspace image, video or audio, played in place. */
-    INLINE_MEDIA,
+    /** A workspace Markdown image, which the paragraph already draws in place. */
+    INLINE_IMAGE,
 
     /** A square attachment card below the paragraph. */
     CARD,
@@ -53,13 +56,28 @@ internal fun artifactKind(path: String): ArtifactKind =
         else -> ArtifactKind.TEXT
     }
 
-/** Only workspace text and media escape the card; HTML is a card everywhere. */
+/** Only workspace text and workspace Markdown images escape the card; HTML is a card everywhere. */
 internal fun presentationOf(
     kind: ArtifactKind,
     inWorkspace: Boolean,
+    source: ReferenceSource,
 ): ArtifactPresentation =
     when {
-        !inWorkspace || kind == ArtifactKind.HTML || kind == ArtifactKind.FILE -> ArtifactPresentation.CARD
+        !inWorkspace -> ArtifactPresentation.CARD
         kind == ArtifactKind.TEXT -> ArtifactPresentation.SOURCE_CHIP
-        else -> ArtifactPresentation.INLINE_MEDIA
+        kind == ArtifactKind.IMAGE && source == ReferenceSource.IMAGE -> ArtifactPresentation.INLINE_IMAGE
+        else -> ArtifactPresentation.CARD
     }
+
+/**
+ * Whether [path]'s card fetches the file to show it before a tap: an image the host reports
+ * readable and within the transcript image cap. An unknown size never fetches, since the read
+ * pulls the whole file.
+ */
+internal fun showsPreview(
+    path: String,
+    stat: ChatArtifactStat?,
+): Boolean =
+    artifactKind(path) == ArtifactKind.IMAGE &&
+        stat?.error == null &&
+        (stat?.size ?: Long.MAX_VALUE) <= MAX_IMAGE_BYTES

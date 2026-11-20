@@ -4,12 +4,12 @@ import com.adamglin.compose.markdown.core.api.MarkdownEngine
 import com.adamglin.compose.markdown.core.dialect.MarkdownDialect
 import com.adamglin.compose.markdown.core.model.BlockNode
 import com.tamimarafat.ferngeist.feature.chat.artifact.reference.ArtifactPresentation.CARD
-import com.tamimarafat.ferngeist.feature.chat.artifact.reference.ArtifactPresentation.INLINE_MEDIA
+import com.tamimarafat.ferngeist.feature.chat.artifact.reference.ArtifactPresentation.INLINE_IMAGE
 import com.tamimarafat.ferngeist.feature.chat.artifact.reference.ArtifactPresentation.SOURCE_CHIP
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** Which files a paragraph references, and whether each becomes a card, inline media or a source chip. */
+/** Which files a paragraph references, and whether each becomes a card, an inline image or a source chip. */
 class ParagraphArtifactsTest {
     private val cwd = "/home/u/app"
     private val probe = "/tmp/ferngeist-elicitation-probe/live-full-history-test.mp4"
@@ -29,9 +29,16 @@ class ParagraphArtifactsTest {
     }
 
     @Test
-    fun `a workspace video plays inline whether linked or written`() {
-        assertEquals(listOf("out/clip.mp4" to INLINE_MEDIA), summary("[clip]($cwd/out/clip.mp4)"))
-        assertEquals(listOf("out/clip.mp4" to INLINE_MEDIA), summary("See $cwd/out/clip.mp4."))
+    fun `a workspace video is a card whether linked or written`() {
+        assertEquals(listOf("out/clip.mp4" to CARD), summary("[clip]($cwd/out/clip.mp4)"))
+        assertEquals(listOf("out/clip.mp4" to CARD), summary("See $cwd/out/clip.mp4."))
+    }
+
+    @Test
+    fun `only a workspace image written as a Markdown image stays inline`() {
+        assertEquals(listOf("out/a.png" to INLINE_IMAGE), summary("![chart](out/a.png)"))
+        assertEquals(listOf("out/a.png" to CARD), summary("See [chart](out/a.png)"))
+        assertEquals(listOf("/tmp/a.png" to CARD), summary("![chart](/tmp/a.png)"))
     }
 
     @Test
@@ -48,11 +55,11 @@ class ParagraphArtifactsTest {
     }
 
     @Test
-    fun `workspace svg and audio render inline`() {
+    fun `workspace svg and audio named in prose are cards`() {
         val listed = mapOf("logo.svg" to listOf("art/logo.svg"), "beep.mp3" to listOf("sfx/beep.mp3"))
 
         assertEquals(
-            listOf("art/logo.svg" to INLINE_MEDIA, "sfx/beep.mp3" to INLINE_MEDIA),
+            listOf("art/logo.svg" to CARD, "sfx/beep.mp3" to CARD),
             summary("Uses logo.svg and beep.mp3", workspace = listed),
         )
         assertEquals(ArtifactKind.IMAGE, artifacts("logo.svg", workspace = listed).single().kind)
@@ -134,7 +141,7 @@ class ParagraphArtifactsTest {
     fun `a bare name several workspace files share stays text`() {
         val listed = mapOf(".gitignore" to listOf(".gitignore", "app/.gitignore"), "a.png" to listOf("x/a.png"))
 
-        assertEquals(listOf("x/a.png" to INLINE_MEDIA), summary("See .gitignore and a.png", workspace = listed))
+        assertEquals(listOf("x/a.png" to CARD), summary("See .gitignore and a.png", workspace = listed))
     }
 
     @Test

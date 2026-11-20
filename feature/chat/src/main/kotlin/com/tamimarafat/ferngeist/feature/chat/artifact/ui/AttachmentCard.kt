@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.selection.DisableSelection
@@ -41,7 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -59,11 +62,14 @@ import com.tamimarafat.ferngeist.feature.chat.artifact.reference.extensionOf
 // Custom clickable press feedback, inside Expressive's 0.95–0.98 band.
 private const val PRESSED_SCALE = 0.96f
 
+// Opaque enough that the name stays legible over any image.
+private const val SCRIM_ALPHA = 0.88f
+
 /**
  * A square attachment for the file at [path]: its type badge, then its name with the extension set
  * apart, so a long name never hides what kind of file it is, and its [size] when known. Tap opens
  * it; long press, or the accessibility action, offers Download. [label] ellipsizes on screen but
- * stays whole for accessibility.
+ * stays whole for accessibility. A [preview] replaces the badge face with the image itself.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -77,6 +83,7 @@ internal fun AttachmentCard(
     onDownload: () -> Unit,
     modifier: Modifier = Modifier,
     failureMessage: String? = null,
+    preview: ImageBitmap? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     val download = stringResource(R.string.artifact_download)
@@ -104,7 +111,7 @@ internal fun AttachmentCard(
                         onDownload = onDownload,
                     ),
             ) {
-                CardFace(path, label, size, loading, if (failed) unavailable else null)
+                CardContent(path, label, size, loading, if (failed) unavailable else null, preview)
             }
             DropdownMenuPopup(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuGroup(shapes = MenuDefaults.groupShape(0, 1)) {
@@ -167,10 +174,24 @@ private fun Modifier.cardGestures(
         }
 }
 
-/**
- * The badge, then the name above its extension and [size], or above [problem] when the file could
- * not be read.
- */
+/** The image face while a [preview] is in hand and the file is readable, otherwise the badge face. */
+@Composable
+private fun CardContent(
+    path: String,
+    label: String,
+    size: String?,
+    loading: Boolean,
+    problem: String?,
+    preview: ImageBitmap?,
+) {
+    if (preview != null && problem == null) {
+        PreviewFace(preview, label, size, loading)
+    } else {
+        CardFace(path, label, size, loading, problem)
+    }
+}
+
+/** The badge above the file's [CardLabels]. */
 @Composable
 private fun CardFace(
     path: String,
@@ -179,24 +200,66 @@ private fun CardFace(
     loading: Boolean,
     problem: String?,
 ) {
-    val extension = extensionOf(label)
     Column(modifier = Modifier.padding(12.dp)) {
         FileBadge(path, loading, failed = problem != null)
         Spacer(modifier = Modifier.weight(1f))
-        Text(
-            (if (extension.isEmpty()) label else label.dropLast(extension.length + 1)).breakableName(),
-            style = MaterialTheme.typography.titleSmall,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            problem ?: listOf(extension.uppercase(), size.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · "),
-            style = MaterialTheme.typography.labelSmall,
-            color = if (problem != null) LocalContentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+        CardLabels(label, size, problem)
     }
+}
+
+/** [preview] filling the card under a scrim with the name and [size]; a fetch for a tap shows the loading shape on top. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun PreviewFace(
+    preview: ImageBitmap,
+    label: String,
+    size: String?,
+    loading: Boolean,
+) {
+    val colors = MaterialTheme.colorScheme
+    Box {
+        Image(preview, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        Column(
+            modifier =
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .background(colors.surfaceContainerHigh.copy(alpha = SCRIM_ALPHA))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            CardLabels(label, size, problem = null)
+        }
+        if (loading) {
+            ContainedLoadingIndicator(
+                modifier = Modifier.align(Alignment.Center).size(44.dp),
+                containerColor = colors.secondaryContainer,
+                indicatorColor = colors.onSecondaryContainer,
+            )
+        }
+    }
+}
+
+/** The name above its extension and [size], or above [problem] when the file could not be read. */
+@Composable
+private fun CardLabels(
+    label: String,
+    size: String?,
+    problem: String?,
+) {
+    val extension = extensionOf(label)
+    Text(
+        (if (extension.isEmpty()) label else label.dropLast(extension.length + 1)).breakableName(),
+        style = MaterialTheme.typography.titleSmall,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+    )
+    Text(
+        problem ?: listOf(extension.uppercase(), size.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · "),
+        style = MaterialTheme.typography.labelSmall,
+        color = if (problem != null) LocalContentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 /** [this] with a break opportunity after each separator, so a long file name wraps between its words. */

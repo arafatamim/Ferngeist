@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -26,6 +27,7 @@ import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactStat
 import com.tamimarafat.ferngeist.core.model.text
 import com.tamimarafat.ferngeist.feature.chat.MarkdownRenderedDocument
+import com.tamimarafat.ferngeist.feature.chat.markdown.image.MAX_IMAGE_BYTES
 import com.tamimarafat.ferngeist.feature.chat.ui.MessageBubble
 import com.tamimarafat.ferngeist.feature.chat.ui.RenderedMarkdown
 import com.tamimarafat.ferngeist.feature.chat.ui.localWorkspaceFiles
@@ -63,10 +65,21 @@ class ParagraphAttachmentsTest {
             download = { path, name -> downloads += path to name },
             stat = { paths ->
                 stats += paths
-                paths.map { if ("gone" in it) ChatArtifactStat(null, "not_found") else ChatArtifactStat(2048, null) }
+                paths.map {
+                    when {
+                        "gone" in it -> ChatArtifactStat(null, "not_found")
+                        "huge" in it -> ChatArtifactStat(MAX_IMAGE_BYTES + 1L, null)
+                        else -> ChatArtifactStat(2048, null)
+                    }
+                }
+            },
+            thumbnail = { path, _ ->
+                thumbnails += path
+                ImageBitmap(400, 200)
             },
         )
     private val stats = mutableListOf<List<String>>()
+    private val thumbnails = mutableListOf<String>()
 
     @Test
     fun `one stat call labels each card with its size and marks an unreadable file before any tap`() {
@@ -136,6 +149,33 @@ class ParagraphAttachmentsTest {
 
         compose.onNodeWithText("Unavailable. Tap to retry.", useUnmergedTree = true).assertDoesNotExist()
         assertEquals(listOf("/tmp/a.pdf", "/tmp/a.pdf"), opened)
+    }
+
+    @Test
+    fun `an image within the cap is fetched before any tap and enlarged to its own shape`() {
+        show("See /tmp/shot.png and /tmp/a.pdf", width = 600)
+        compose.waitForIdle()
+
+        val shot = card("shot.png")
+        val pdf = card("a.pdf")
+        assertEquals(listOf("/tmp/shot.png"), thumbnails)
+        assertTrue("wider than a plain card: ${shot.width}", shot.width > pdf.width)
+        assertEquals("the image's 2:1 shape", shot.width.value / 2, shot.height.value, 0.5f)
+        assertEquals("a preview is not an open", emptyList<String>(), opened)
+
+        compose.onNodeWithContentDescription("shot.png").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("/tmp/shot.png"), opened)
+    }
+
+    @Test
+    fun `an image over the cap stays a plain square card and is never fetched`() {
+        show("See /tmp/huge.png")
+        compose.waitForIdle()
+
+        val huge = card("huge.png")
+        assertEquals("square", huge.width.value, huge.height.value, 0.5f)
+        assertEquals(emptyList<String>(), thumbnails)
     }
 
     private fun card(name: String) = compose.onNodeWithContentDescription(name).getUnclippedBoundsInRoot()
