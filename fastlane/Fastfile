@@ -10,6 +10,7 @@
 #   bundle exec fastlane build                       # signed .aab only, no upload
 #   bundle exec fastlane deploy                       # build + upload to the internal track
 #   bundle exec fastlane deploy track:production rollout:0.1
+#   bundle exec fastlane deploy track:beta             # open testing
 #   bundle exec fastlane metadata                      # push store listing + changelogs, no binary
 #   bundle exec fastlane store_images                  # push icon, feature graphic and screenshots only
 #   bundle exec fastlane store_images dry_run:true     # validate them without committing
@@ -27,7 +28,7 @@ platform :android do
     UI.success("Built AAB: #{lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH]}")
   end
 
-  desc "Build and upload to Play. Options: track (default internal), rollout (e.g. 0.1 for a staged release), aab (upload this bundle instead of building one)."
+  desc "Build and upload to Play. Options: track (default internal; beta is open testing), rollout (e.g. 0.1 for a staged release), aab (upload this bundle instead of building one)."
   lane :deploy do |options|
     track = options[:track] || "internal"
     rollout = options[:rollout]&.to_s
