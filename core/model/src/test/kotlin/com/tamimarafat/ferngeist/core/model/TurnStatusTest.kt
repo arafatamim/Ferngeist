@@ -54,9 +54,9 @@ class TurnStatusTest {
     }
 
     @Test
-    fun `needs attention outranks error, working, finished and unknown`() {
+    fun `error outranks attention, working, finished and unknown`() {
         assertEquals(
-            TurnStatus.NEEDS_ATTENTION,
+            TurnStatus.ERROR,
             listOf(
                 TurnStatus.UNKNOWN,
                 TurnStatus.FINISHED,
@@ -64,6 +64,14 @@ class TurnStatusTest {
                 TurnStatus.ERROR,
                 TurnStatus.NEEDS_ATTENTION,
             ).aggregateTurnStatus(),
+        )
+    }
+
+    @Test
+    fun `attention outranks working`() {
+        assertEquals(
+            TurnStatus.NEEDS_ATTENTION,
+            listOf(TurnStatus.WORKING, TurnStatus.NEEDS_ATTENTION).aggregateTurnStatus(),
         )
     }
 

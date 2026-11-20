@@ -13,13 +13,13 @@ enum class TurnStatus {
     UNKNOWN,
     FINISHED,
     WORKING,
-    ERROR,
     NEEDS_ATTENTION,
+    ERROR,
 }
 
 /**
  * The status a project or agent card shows for the sessions under it: the highest-priority
- * known one, as a request awaits the user first, then a failure, then a running turn, then
+ * known one, as a failure first, then a request awaiting the user, then a running turn, then
  * a finished one. [TurnStatus.UNKNOWN] sessions change nothing, so a card whose sessions are
  * all unknown stays unknown rather than reading as finished.
  */
