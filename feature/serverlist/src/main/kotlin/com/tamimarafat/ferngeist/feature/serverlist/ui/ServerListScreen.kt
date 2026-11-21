@@ -289,9 +289,10 @@ private fun ServerListScaffold(
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
             )
-            if (!isLoading && servers.isNotEmpty()) {
+            if (!isLoading) {
                 HomeTabBar(
                     pager = pager,
+                    showTabs = servers.isNotEmpty(),
                     quickChatAvailable = quickChatAvailable,
                     hasGateways = hasGateways,
                     onQuickChat = onQuickChat,

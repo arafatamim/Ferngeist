@@ -78,6 +78,7 @@ enum class HomeTab(
 @Composable
 internal fun HomeTabBar(
     pager: HomePagerMotion,
+    showTabs: Boolean,
     quickChatAvailable: Boolean,
     hasGateways: Boolean,
     onQuickChat: () -> Unit,
@@ -92,22 +93,25 @@ internal fun HomeTabBar(
         horizontalArrangement = Arrangement.spacedBy(homeBarGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(homeBarGap),
-        ) {
-            HomeTab.entries.forEach { entry ->
-                HomeTabItem(
-                    tab = entry,
-                    selected = entry == tab,
-                    onClick = {
-                        scope.launch { pager.select(entry) }
-                    },
-                )
+        // With no agents there is no pager content to switch; only the add action remains.
+        if (showTabs) {
+            Row(
+                modifier = Modifier.selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(homeBarGap),
+            ) {
+                HomeTab.entries.forEach { entry ->
+                    HomeTabItem(
+                        tab = entry,
+                        selected = entry == tab,
+                        onClick = {
+                            scope.launch { pager.select(entry) }
+                        },
+                    )
+                }
             }
         }
         HomeFab(
-            quickChat = tab == HomeTab.PROJECTS && quickChatAvailable,
+            quickChat = showTabs && tab == HomeTab.PROJECTS && quickChatAvailable,
             hasGateways = hasGateways,
             onQuickChat = onQuickChat,
             onGateways = onGateways,
