@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PlainTooltip
@@ -435,7 +436,7 @@ private fun SwitcherCountContent(
                     Modifier
                         .wrapContentSize()
                         .sizeIn(minWidth = switcherCountBoxMinWidth, minHeight = switcherCountBoxMinHeight)
-                        .border(2.dp, MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(switcherCountBoxCorner))
+                        .border(2.dp, LocalContentColor.current, RoundedCornerShape(switcherCountBoxCorner))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
             ) {
                 Text(text = count.toString(), style = MaterialTheme.typography.titleMedium, maxLines = 1)
