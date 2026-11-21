@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -32,17 +33,20 @@ internal class HomePagerMotion(
     private val spring: FiniteAnimationSpec<Float>,
     val tabs: List<HomeTab>,
 ) {
+    val currentTab: HomeTab get() = tabAt(state.currentPage)
+
+    // The tab bar follows where the pager is heading, so it commits on a tap or release, not at the halfway point.
+    val targetTab: HomeTab get() = tabAt(state.targetPage)
+
     // The page index can briefly outlive a shrunk tab list until the pager's next measure.
-    val currentTab: HomeTab get() = tabs[state.currentPage.coerceAtMost(tabs.lastIndex)]
+    private fun tabAt(page: Int): HomeTab = tabs[page.coerceAtMost(tabs.lastIndex)]
 
     var overshootPx by mutableFloatStateOf(0f)
         private set
 
     suspend fun select(tab: HomeTab) {
         state.scroll {
-            with(state) { updateTargetPage(tabs.indexOf(tab)) }
-            val pageStride = state.layoutInfo.pageSize + state.layoutInfo.pageSpacing
-            settle(state.getOffsetDistanceInPages(tabs.indexOf(tab)) * pageStride, 0f)
+            settle(state.getOffsetDistanceInPages(tabs.indexOf(tab)) * pageStride(), 0f)
         }
     }
 
@@ -90,6 +94,9 @@ internal class HomePagerMotion(
         onRemainingDistanceUpdated: (Float) -> Unit = {},
     ) {
         if (distance == 0f) return
+        // Pin the destination: without it a fling's targetPage flips with the rebound's direction.
+        val destination = state.currentPage + state.currentPageOffsetFraction + distance / pageStride()
+        with(state) { updateTargetPage(destination.roundToInt()) }
         var consumed = 0f
         onRemainingDistanceUpdated(distance)
         try {
@@ -103,6 +110,8 @@ internal class HomePagerMotion(
             overshootPx = 0f
         }
     }
+
+    private fun pageStride(): Int = state.layoutInfo.pageSize + state.layoutInfo.pageSpacing
 }
 
 private const val MAX_FLING_PAGES_PER_SECOND = 2f
