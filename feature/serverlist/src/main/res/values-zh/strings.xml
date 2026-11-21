@@ -22,7 +22,7 @@
     <string name="serverlist_launch_confirm">运行</string>
     <string name="serverlist_empty_title">暂无代理</string>
     <string name="serverlist_empty_body">手动添加代理或配对网关以构建您的启动列表。</string>
-    <string name="serverlist_empty_action">添加代理</string>
+    <string name="serverlist_empty_action">配对您的第一个网关</string>
     <string name="serverlist_fab_add">添加服务器或网关</string>
     <string name="serverlist_card_from_gateway">来自网关</string>
     <string name="serverlist_gateway_qr_label">二维码配对数据</string>

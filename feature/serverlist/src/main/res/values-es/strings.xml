@@ -18,7 +18,7 @@
     <string name="serverlist_launch_confirm">Ejecutar</string>
     <string name="serverlist_empty_title">Aún no hay agentes</string>
     <string name="serverlist_empty_body">Añade un agente manualmente o empareja una puerta de enlace para construir tu lista de inicio.</string>
-    <string name="serverlist_empty_action">Añadir agente</string>
+    <string name="serverlist_empty_action">Empareja tu primera puerta de enlace</string>
     <string name="serverlist_fab_add">Añadir servidor o puerta de enlace</string>
     <string name="serverlist_card_from_gateway">De la puerta de enlace</string>
     <string name="serverlist_gateway_qr_label">Datos de emparejamiento QR</string>

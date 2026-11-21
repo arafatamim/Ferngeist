@@ -36,7 +36,7 @@
     <string name="serverlist_launch_confirm">Run</string>
     <string name="serverlist_empty_title">No agents yet</string>
     <string name="serverlist_empty_body">Add an agent manually or pair a gateway to build your launch list.</string>
-    <string name="serverlist_empty_action">Add agent</string>
+    <string name="serverlist_empty_action">Pair your first gateway</string>
     <string name="serverlist_fab_add">Add server or gateway</string>
     <string name="serverlist_resume_sessions">Resume sessions</string>
     <string name="serverlist_section_agents">Agents</string>

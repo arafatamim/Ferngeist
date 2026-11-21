@@ -284,7 +284,7 @@ private fun ServerListScaffold(
                 onConnect = onConnect,
                 onEdit = onEdit,
                 onDelete = onDelete,
-                onAddServer = onNavigateToAddServer,
+                onPairGateway = onNavigateToPairGateway,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
             )
@@ -462,7 +462,7 @@ private fun ServerListContent(
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
     onDelete: (String) -> Unit,
-    onAddServer: () -> Unit,
+    onPairGateway: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
@@ -480,7 +480,7 @@ private fun ServerListContent(
                     heroSession = heroSession,
                     olderSessions = olderSessions,
                     onResumeSession = onResumeSession,
-                    onAddServer = onAddServer,
+                    onPairGateway = onPairGateway,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                 )
@@ -528,7 +528,7 @@ private fun EmptyServerContent(
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     onResumeSession: (RecentSession) -> Unit,
-    onAddServer: () -> Unit,
+    onPairGateway: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
@@ -561,7 +561,7 @@ private fun EmptyServerContent(
             )
         }
         EmptyServerList(
-            onAddServer = onAddServer,
+            onPairGateway = onPairGateway,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
         Spacer(modifier = Modifier.height(96.dp))
@@ -571,7 +571,7 @@ private fun EmptyServerContent(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EmptyServerList(
-    onAddServer: () -> Unit,
+    onPairGateway: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Lowest tone, like the agents sheet it stands in for: the scaffold behind is Low.
@@ -580,7 +580,7 @@ private fun EmptyServerList(
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
         modifier = modifier.fillMaxWidth(),
     ) {
-        // In the empty state, adding an agent IS the hero action.
+        // In the empty state, pairing a gateway is the hero action.
         ErrorStateCard(
             headline = stringResource(R.string.serverlist_empty_title),
             body = stringResource(R.string.serverlist_empty_body),
@@ -589,7 +589,7 @@ private fun EmptyServerList(
             medallionContent = MaterialTheme.colorScheme.onPrimaryContainer,
             medallionShape = MaterialShapes.Cookie9Sided.toShape(),
             ctaLabel = stringResource(R.string.serverlist_empty_action),
-            onCta = onAddServer,
+            onCta = onPairGateway,
             ctaIsHero = true,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 32.dp),
         )

@@ -18,7 +18,7 @@
     <string name="serverlist_launch_confirm">Executar</string>
     <string name="serverlist_empty_title">Ainda não há agentes</string>
     <string name="serverlist_empty_body">Adicione um agente manualmente ou pareie uma gateway para montar sua lista de inicialização.</string>
-    <string name="serverlist_empty_action">Adicionar agente</string>
+    <string name="serverlist_empty_action">Pareie seu primeiro gateway</string>
     <string name="serverlist_fab_add">Adicionar servidor ou gateway</string>
     <string name="serverlist_card_from_gateway">Do gateway</string>
     <string name="serverlist_gateway_qr_label">Payload de pareamento QR</string>
