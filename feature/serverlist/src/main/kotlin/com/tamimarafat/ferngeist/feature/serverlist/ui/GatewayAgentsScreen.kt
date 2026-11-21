@@ -373,7 +373,7 @@ private fun AgentCardBody(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            AgentMark(iconUrl = agent.preferredIcon, size = 32.dp, active = false)
+            AgentMark(iconUrl = agent.preferredIcon, size = 32.dp, active = false, fallbackName = agent.displayName)
             Text(
                 agent.displayName,
                 style = MaterialTheme.typography.titleMedium,

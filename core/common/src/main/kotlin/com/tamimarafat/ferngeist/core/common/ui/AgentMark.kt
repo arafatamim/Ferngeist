@@ -90,6 +90,7 @@ fun AgentMark(
     contentDescription: String? = null,
     border: BorderStroke? = null,
     reserveOverhang: Boolean = false,
+    fallbackName: String? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val content = LocalContentColor.current
@@ -123,6 +124,7 @@ fun AgentMark(
             size = glyphSize,
             tint = if (active) colors.onPrimary else content,
             contentDescription = contentDescription,
+            fallbackName = fallbackName,
         )
     }
 }
@@ -151,6 +153,7 @@ fun AgentMark(
     contentDescription = contentDescription,
     border = border,
     reserveOverhang = reserveOverhang,
+    fallbackName = if (target is LaunchableTarget.GatewayAgent) target.name else null,
 )
 
 /** How long the busy shape takes to turn once. Slow enough to read as alive, not as a spinner. */

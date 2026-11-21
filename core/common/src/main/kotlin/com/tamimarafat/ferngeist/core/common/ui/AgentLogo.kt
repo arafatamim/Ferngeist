@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,6 +40,11 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
@@ -75,8 +81,8 @@ fun AnimatedContentTransitionScope<Boolean>.agentIconTransition(): ContentTransf
  *
  * The logo is identity, never content: the name is always shown alongside it. Custom
  * and embedded agents, including every agent this app adds itself, have no registry
- * entry and therefore never resolve a URL; a failed load shows [fallback] too, so an
- * unreachable CDN degrades to the existing glyph rather than leaving an empty gap.
+ * entry and therefore never resolve a URL; a failed load shows the fallback too, so an
+ * unreachable CDN degrades to an initial or glyph rather than leaving an empty gap.
  *
  * When [loading] is set it shows the app's busy sun in place of the logo, crossfaded.
  *
@@ -93,6 +99,7 @@ fun AgentLogo(
     tint: Color = LocalContentColor.current,
     contentDescription: String? = null,
     loading: Boolean = false,
+    fallbackName: String? = null,
 ) {
     AnimatedContent(
         targetState = loading,
@@ -110,12 +117,12 @@ fun AgentLogo(
         } else {
             Box(modifier = modifier) {
                 if (iconUrl == null) {
-                    FallbackGlyph(fallback, size, tint, contentDescription)
+                    FallbackGlyph(fallback, size, tint, contentDescription, fallbackName)
                 } else {
                     var failed by remember(iconUrl) { mutableStateOf(false) }
                     Crossfade(targetState = failed, label = "agentLogoFallback") { isFailed ->
                         if (isFailed) {
-                            FallbackGlyph(fallback, size, tint, contentDescription)
+                            FallbackGlyph(fallback, size, tint, contentDescription, fallbackName)
                         } else {
                             // Registry logos are `currentColor` masks, so they are
                             // recolored to the caller's tint rather than shipped in
@@ -161,6 +168,7 @@ fun AgentLogo(
     tint = tint,
     contentDescription = contentDescription,
     loading = loading,
+    fallbackName = if (target is LaunchableTarget.GatewayAgent) target.name else null,
 )
 
 @Composable
@@ -169,13 +177,29 @@ private fun FallbackGlyph(
     size: Dp,
     tint: Color,
     contentDescription: String?,
+    fallbackName: String?,
 ) {
-    Icon(
-        imageVector = fallback,
-        contentDescription = contentDescription,
-        tint = tint,
-        modifier = Modifier.size(size),
-    )
+    val initial = fallbackName?.trim()?.firstOrNull()?.uppercase()
+    if (initial != null) {
+        Text(
+            text = initial,
+            color = tint.copy(alpha = tint.alpha * 0.6f),
+            fontSize = with(LocalDensity.current) { size.toSp() },
+            fontFamily = FontFamily.SansSerif,
+            fontWeight = FontWeight.Black,
+            modifier =
+                Modifier.clearAndSetSemantics {
+                    if (contentDescription != null) this.contentDescription = contentDescription
+                },
+        )
+    } else {
+        Icon(
+            imageVector = fallback,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(size),
+        )
+    }
 }
 
 /**
