@@ -130,7 +130,7 @@ internal fun AgentsBackdrop(
     val projectsListState = rememberLazyListState()
     val agentsListState = rememberLazyListState()
     val listStateFor = { t: HomeTab -> if (t == HomeTab.PROJECTS) projectsListState else agentsListState }
-    val agentsLazyListState = listStateFor(HomeTab.entries[pager.state.currentPage])
+    val agentsLazyListState = listStateFor(pager.currentTab)
 
     // Restore the user's sheet position once the recents block has a height.
     LaunchedEffect(recentsPx, sheetFractionRestored) {
@@ -730,9 +730,11 @@ private fun FrontLayerContent(
                 // One inset for both pages: whatever leads a list clears the sheet's rounded top.
                 modifier = Modifier.fillMaxSize().padding(top = 16.dp),
                 beyondViewportPageCount = 1,
+                // Keyed so a page appearing or vanishing doesn't switch the tab the user is on.
+                key = { pager.tabs[it] },
                 flingBehavior = pager.flingBehavior(),
             ) { page ->
-                val shown = HomeTab.entries[page]
+                val shown = pager.tabs[page]
                 Box(Modifier.graphicsLayer { translationX = pageDirection * pager.overshootPx }) {
                     when (shown) {
                         HomeTab.AGENTS ->

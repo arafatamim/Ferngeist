@@ -17,7 +17,8 @@ class HomePagerMotionTest {
     fun settle_reboundsPastClampedPageInEitherDirection() =
         runTest {
             val pageWidth = 400f
-            val motion = HomePagerMotion(PagerState { 2 }, MotionScheme.expressive().defaultSpatialSpec())
+            val spring = MotionScheme.expressive().defaultSpatialSpec<Float>()
+            val motion = HomePagerMotion(PagerState { 2 }, spring, HomeTab.entries)
 
             for (destination in listOf(pageWidth, 0f)) {
                 var scrollPosition = pageWidth - destination

@@ -78,7 +78,6 @@ enum class HomeTab(
 @Composable
 internal fun HomeTabBar(
     pager: HomePagerMotion,
-    showTabs: Boolean,
     quickChatAvailable: Boolean,
     hasGateways: Boolean,
     onQuickChat: () -> Unit,
@@ -87,19 +86,20 @@ internal fun HomeTabBar(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    val tab = HomeTab.entries[pager.state.currentPage]
+    val tab = pager.currentTab
+    val showTabs = pager.tabs.size > 1
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(homeBarGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // With no agents there is no pager content to switch; only the add action remains.
+        // A single page has nothing to switch to; only the add action remains.
         if (showTabs) {
             Row(
                 modifier = Modifier.selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(homeBarGap),
             ) {
-                HomeTab.entries.forEach { entry ->
+                pager.tabs.forEach { entry ->
                     HomeTabItem(
                         tab = entry,
                         selected = entry == tab,

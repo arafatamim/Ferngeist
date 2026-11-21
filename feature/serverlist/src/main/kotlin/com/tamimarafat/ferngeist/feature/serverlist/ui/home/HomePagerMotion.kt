@@ -19,24 +19,30 @@ import androidx.compose.runtime.setValue
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun rememberHomePagerMotion(): HomePagerMotion {
-    val state = rememberPagerState { HomeTab.entries.size }
+internal fun rememberHomePagerMotion(hasProjects: Boolean): HomePagerMotion {
+    // Projects is a page only while there is something to list; Agents alone needs no switcher.
+    val tabs = if (hasProjects) HomeTab.entries else listOf(HomeTab.AGENTS)
+    val state = rememberPagerState { tabs.size }
     val spring = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
-    return remember(state, spring) { HomePagerMotion(state, spring) }
+    return remember(state, spring, tabs) { HomePagerMotion(state, spring, tabs) }
 }
 
 internal class HomePagerMotion(
     val state: PagerState,
     private val spring: FiniteAnimationSpec<Float>,
+    val tabs: List<HomeTab>,
 ) {
+    // The page index can briefly outlive a shrunk tab list until the pager's next measure.
+    val currentTab: HomeTab get() = tabs[state.currentPage.coerceAtMost(tabs.lastIndex)]
+
     var overshootPx by mutableFloatStateOf(0f)
         private set
 
     suspend fun select(tab: HomeTab) {
         state.scroll {
-            with(state) { updateTargetPage(tab.ordinal) }
+            with(state) { updateTargetPage(tabs.indexOf(tab)) }
             val pageStride = state.layoutInfo.pageSize + state.layoutInfo.pageSpacing
-            settle(state.getOffsetDistanceInPages(tab.ordinal) * pageStride, 0f)
+            settle(state.getOffsetDistanceInPages(tabs.indexOf(tab)) * pageStride, 0f)
         }
     }
 

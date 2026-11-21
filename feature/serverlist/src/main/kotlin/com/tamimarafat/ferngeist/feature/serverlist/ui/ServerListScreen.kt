@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -249,8 +248,8 @@ private fun ServerListScaffold(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    val pager = rememberHomePagerMotion()
-    val gatewayHealth = rememberGatewayHealth(gatewayHealthFlow, pager.state, isLoading, servers)
+    val pager = rememberHomePagerMotion(hasProjects = projects.isNotEmpty())
+    val gatewayHealth = rememberGatewayHealth(gatewayHealthFlow, pager, isLoading, servers)
     Scaffold(
         // Background surface; the lighter foreground sheet reads as elevated against it.
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -292,7 +291,6 @@ private fun ServerListScaffold(
             if (!isLoading) {
                 HomeTabBar(
                     pager = pager,
-                    showTabs = servers.isNotEmpty(),
                     quickChatAvailable = quickChatAvailable,
                     hasGateways = hasGateways,
                     onQuickChat = onQuickChat,
@@ -312,11 +310,11 @@ private fun ServerListScaffold(
 @Composable
 private fun rememberGatewayHealth(
     health: kotlinx.coroutines.flow.StateFlow<Map<String, GatewayHealth>>,
-    pagerState: PagerState,
+    pager: HomePagerMotion,
     isLoading: Boolean,
     servers: List<LaunchableTarget>,
 ): Map<String, GatewayHealth> =
-    if (pagerState.currentPage == HomeTab.AGENTS.ordinal && !isLoading && servers.isNotEmpty()) {
+    if (pager.currentTab == HomeTab.AGENTS && !isLoading && servers.isNotEmpty()) {
         health.collectAsStateWithLifecycle().value
     } else {
         emptyMap()
