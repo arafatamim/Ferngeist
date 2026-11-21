@@ -18,6 +18,7 @@ Kotlin + Jetpack Compose Android client for the Agent Client Protocol (ACP).
 
 - **The index comes first.** `codebase-memory` is the first tool, not an optional one: `search_graph` the concept before any grep/glob/read sweep — see [Codebase intelligence](#codebase-intelligence). A grep-first sweep is how you miss the helper that already exists.
 - **Do the task in the prompt.** It is the whole scope. No tangents, no unsolicited refactors, no "while I'm here" cleanups, no exploring code the task doesn't touch. Investigate only what the task needs to be done correctly; for a new feature that includes the broad picture ([Challenge the plan](#challenge-the-plan)).
+- **A test guards behaviour or it does not exist.** No test ships that cannot fail for the behaviour it names. Read [Writing Tests](#writing-tests) before adding, keeping, or reviewing one.
 - Think in atomic steps, then execute them.
 - Read the existing code for full context before editing.
 - Surface assumptions. Name competing interpretations instead of silently picking one.
@@ -108,6 +109,7 @@ Adapted from [ponytail](https://github.com/DietrichGebert/ponytail).
 - Don't rerun the gate after every small edit while iterating with the maintainer; run it once before commit.
 - **Fix findings; never silence them.** Applies to detekt, ktlint, and Android lint alike: no `@Suppress`, `tools:ignore`, or `//noinspection`; no `detekt-baseline.xml`; no raising a threshold, setting `active: false`, or adding an exclusion glob; no deleting the offending call to dodge the rule. If a finding is genuinely wrong, say why in your report and let the maintainer decide. Silencing a finding to get a green build is a failed task, not a passing one.
 - Device verification is off-limits unless specifically asked — no emulator, APK installs, UI driving, screenshots, or pixel scans.
+- A green unit test only counts if the test guards behaviour. Every test you add, keep, or review passes the [Writing Tests](#writing-tests) dependency check first.
 - `detekt` runs in `--analysis-mode full`; findings in `src/test` can be artefacts of the main-only classpath, so don't treat a thin report as a clean bill of health.
 
 ### Shell & tooling
@@ -133,6 +135,71 @@ Confirm first for: `rm -rf` outside `/tmp` and scratch dirs, any Room schema dro
 ### Hands-off directories
 
 Do not create or edit without being asked: `.idea/`, `.vscode/`, `.claude/`, `.cursor/`, `.gradle/`, `build/`.
+
+## Writing Tests
+
+> **Every test must guard behaviour. This is a guardrail, not a preference.** A test earns its place only if it changes when the behaviour it protects changes, and fails when that behaviour regresses. It gets to fail for exactly one reason: **that behaviour regressed.**
+>
+> A test that guards nothing is not cheap. It is a lie that turns red for the wrong reason and gets muted for the wrong reason, and it costs the next reader a debugging session. It does not get written, it does not get kept, and it does not get reviewed in.
+>
+> **Three questions, every test, every time:**
+>
+> 1. What behaviour does this test depend on?
+> 2. Which credible regression makes it fail?
+> 3. Does another test already own that behaviour?
+>
+> Three real answers, or the test is a defect. The maintainer's tests are not exempt, and neither is a test you are only reviewing.
+
+### This repo's tests
+
+JUnit4. 110 `*Test.kt` files. `mockk` + `kotlinx-coroutines-test` + Turbine for flows; Robolectric where the JVM needs Room (see `data/database` tests). No Compose UI tests found — confirm before assuming.
+
+Test names describe behaviour, e.g. `appendChunk_afterInterleavedUpdate_keepsSingleMessage`. Add tests next to changed logic — reducers, ACP parsing, segment runs, stream/chunk handling.
+
+### Dependency check: what does this test depend on?
+
+A test stays only if it depends on the **intended behaviour** — nothing else. Read the test, name its dependency out loud. Here are the four things a test can wrongly depend on; any one of them means prune.
+
+**Depends on the past — prune.** The test asserts that removed code stays gone. Bringing it back would be a decision, not a regression, so the test cannot flag one.
+
+- A feature was removed, and tests assert it is gone.
+- A module was moved, and a test asserts it is absent from its old path.
+
+**Depends on nothing — prune.** No change to the code can make it fail, so it has no reason of its own to change.
+
+- It tests the platform: a `<button>` renders, or a click event fires. The platform is already tested.
+- It mocks the unit under test, then asserts what the mock returns.
+- It asserts what the type system already guarantees: non-null returns, sealed `when` exhaustiveness, enum membership, `data class` `equals`/`copy`, constructor field assignment, generics, a getter forwarding a field, an assertion that only compiles against the implementation. A widened or narrowed parameter belongs here too — if the old type could not express the new value, the compiler already fails every call site.
+
+**Depends on the implementation — prune.** It changes whenever the code does, even when behaviour did not.
+
+- The expected value is derived from the same logic as the code, so a wrong result still passes.
+- It asserts private state, internal call order, or which helper was invoked.
+
+**Depends on a copy — prune.** If another test already guards the same behaviour, keep one owner and cut the duplicate. One owner per contract; a second layer needs its own transport or lifecycle risk to justify itself.
+
+### Authoring gate
+
+Answer all four before adding a test:
+
+1. Which observable behaviour, invariant, or independent contract does it protect?
+2. Which credible regression makes it fail? A compile error is not one — a type change, a widened parameter, or tightened nullability is owned by the compiler.
+3. Why does existing proof miss it? One owner per contract — a second layer needs a distinct transport or lifecycle risk.
+4. Does it need an export, flag, wrapper, or injection hook with no production caller? Then the proof belongs at the real boundary.
+
+A regression test fails before the fix and passes after. Report when no baseline proof is available. One owner regression per bug — never replay it at every crossed layer. Answering these four *is* the dependency check above, spelled out for new code.
+
+Also rejected on sight: self-comparisons, copied inventories, source greps, implementation and call-shape assertions (`verify { collaborator.foo() }` proving an internal call happened), test-only production seams, expected values produced by the subject under test, mocks supplying the behaviour being asserted, negative controls that fail at the wrong guard, and names that don't match the exercised behaviour.
+
+### What to keep
+
+Independent contracts: ACP wire format and parsing, Room schema and `FerngeistMigrations`, `CredentialEncryptor`, observable ordering, config and defaults. Static or slow is not a reason to delete. A red baseline may be a bug to repair, not a test to remove.
+
+### Audit
+
+Before deleting a test, read its owner, callers, and history, and record what proof survives. Delete obsolete production seams together with their tests. Never optimize for a deletion count — prune per the dependency check, not for a smaller number.
+
+After non-trivial work, exercise the changed path and report the observed result. Report unverified work as unverified.
 
 > ^^^ Everything above is the harness doctrine. Everything below is this repo's context. ^^^
 
@@ -207,41 +274,6 @@ Run from the repo root.
 ### Room/KSP gotcha
 
 Hilt's processor bundles an older `kotlin-metadata-jvm` that cannot read newer Kotlin metadata, breaking `hiltJavaCompileDebug` with `Provided Metadata instance has version X, while maximum supported version is Y`. The root `build.gradle.kts` forces `kotlin-metadata-jvm` onto every kapt/KSP/annotation-processor configuration — update that version when the error reappears.
-
-## Testing & QA
-
-JUnit4. 110 `*Test.kt` files. `mockk` + `kotlinx-coroutines-test` + Turbine for flows; Robolectric where the JVM needs Room (see `data/database` tests). No Compose UI tests found — confirm before assuming.
-
-Test names describe behaviour, e.g. `appendChunk_afterInterleavedUpdate_keepsSingleMessage`. Add tests next to changed logic — reducers, ACP parsing, segment runs, stream/chunk handling.
-
-**Never write tests for what the type system already guarantees** — non-null returns, sealed `when` exhaustiveness, enum membership, `data class` `equals`/`copy`, constructor field assignment, generics. A widened or narrowed parameter belongs here too: if the old type could not express the new value, the compiler already fails every call site. Same for getters that forward a field and assertions that only compile against the implementation.
-
-### Authoring gate
-
-Answer all four before adding a test:
-
-1. Which observable behaviour, invariant, or independent contract does it protect?
-2. Which credible regression makes it fail? A compile error is not one — a type change, a widened parameter, or tightened nullability is owned by the compiler.
-3. Why does existing proof miss it? One owner per contract — a second layer needs a distinct transport or lifecycle risk.
-4. Does it need an export, flag, wrapper, or injection hook with no production caller? Then the proof belongs at the real boundary.
-
-A regression test fails before the fix and passes after. Report when no baseline proof is available. One owner regression per bug — never replay it at every crossed layer.
-
-### Junk tests — reject
-
-- Self-comparisons, copied inventories, source greps, and implementation or call-shape assertions (`verify { collaborator.foo() }` proving an internal call happened).
-- Duplicate contracts across layers, test-only production seams, expected values produced by the subject under test, mocks supplying the behaviour being asserted.
-- Negative controls that fail at the wrong guard; names that don't match the exercised behaviour.
-
-### What to keep
-
-Independent contracts: ACP wire format and parsing, Room schema and `FerngeistMigrations`, `CredentialEncryptor`, observable ordering, config and defaults. Static or slow is not a reason to delete. A red baseline may be a bug to repair, not a test to remove.
-
-### Audit
-
-Before deleting a test, read its owner, callers, and history, and record what proof survives. Delete obsolete production seams together with their tests. Never optimize for a deletion count.
-
-After non-trivial work, exercise the changed path and report the observed result. Report unverified work as unverified.
 
 ## Runtime & Tooling
 
