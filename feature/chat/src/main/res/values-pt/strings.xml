@@ -235,7 +235,7 @@
     <!-- Present-continuous variants, shown while the group still has a running call -->
     <string name="chat_tool_summary_separator">", "</string>
     <string name="chat_turn_took">%1$s por %2$s</string>
-    <string name="chat_turn_interrupted">interrompido às %1$s após %2$s</string>
+    <string name="chat_turn_interrupted">Interrompido às %1$s após %2$s</string>
     <string name="chat_turn_done">concluído %1$s</string>
     <string-array name="chat_turn_verbs">
         <item>Trabalhou</item>

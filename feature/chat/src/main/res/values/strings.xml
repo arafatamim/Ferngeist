@@ -233,7 +233,7 @@
     <!-- A finished turn: "Brewed for 1m 20s · done 2:24 AM". The verb is picked per turn. -->
     <string name="chat_turn_separator" translatable="false">" · "</string>
     <string name="chat_turn_took">%1$s for %2$s</string>
-    <string name="chat_turn_interrupted">interrupted %1$s after %2$s</string>
+    <string name="chat_turn_interrupted">Interrupted %1$s after %2$s</string>
     <string name="chat_turn_done">done %1$s</string>
     <!-- Other locales carry one plain verb; only English picks from the whimsical set. -->
     <string-array name="chat_turn_verbs" tools:ignore="InconsistentArrays">
