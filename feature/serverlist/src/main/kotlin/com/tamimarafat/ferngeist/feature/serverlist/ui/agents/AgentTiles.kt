@@ -3,12 +3,11 @@ package com.tamimarafat.ferngeist.feature.serverlist.ui.agents
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -24,37 +23,36 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.lerp
-import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
+import com.tamimarafat.ferngeist.core.common.ui.AgentLogo
+import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.agentIconTransition
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusWaveLine
 import com.tamimarafat.ferngeist.core.common.ui.chat.rememberStatusLineState
-import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.feature.serverlist.R
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.CardTone
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.HeroBody
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.StatusLabelLine
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.cardCornerRadius
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.containerColor
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.contentColor
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.headline
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.waveLineColor
 
 private const val CONNECTING_MARK_SCALE = 1.25f
 private const val HERO_CONNECTING_MARK_SCALE = 1.6f
-private val tileOuterCorner = 28.dp
-private val tileInnerCorner = 8.dp
 
 /** A promoted agent: a full-width tile with its most important activity. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -63,9 +61,8 @@ internal fun AgentHeroTile(
     target: LaunchableTarget,
     status: TurnStatus,
     working: Int,
-    headlineStatus: TurnStatus?,
     connection: ServerConnectionUiState,
-    tone: AgentCardTone,
+    tone: CardTone,
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -75,7 +72,7 @@ internal fun AgentHeroTile(
 ) {
     AgentSurface(
         target = target,
-        shape = RoundedCornerShape(32.dp),
+        shape = RoundedCornerShape(cardCornerRadius),
         color = tone.containerColor,
         contentColor = tone.contentColor,
         enabled = !connection.isConnecting,
@@ -86,32 +83,22 @@ internal fun AgentHeroTile(
         animatedContentScope = animatedContentScope,
         modifier = modifier,
     ) {
-        var promoted by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { promoted = true }
-        val progress by animateFloatAsState(
-            targetValue = if (promoted) 1f else 0f,
-            animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-            label = "agentHeroPositions",
-        )
-        Layout(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 136.dp).padding(20.dp),
-            content = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // An unread finished turn is the promotion itself, so it needs no label of its own.
-                    val label =
+        HeroBody(
+            statusRow = {
+                // An unread finished turn is the promotion itself, so it needs no label of its own.
+                val headline = status.headline
+                StatusLabelLine(
+                    label =
                         when {
-                            headlineStatus == TurnStatus.WORKING ->
+                            headline == TurnStatus.WORKING ->
                                 pluralStringResource(R.plurals.home_agents_chats_working, working, working)
-                            headlineStatus != null -> turnStatusLabel(headlineStatus)
+                            headline != null -> turnStatusLabel(headline)
                             else -> null
-                        }
-                    label?.let { Text(it, style = MaterialTheme.typography.labelLargeEmphasized) }
-                    StatusWaveLine(
-                        state = rememberStatusLineState(status),
-                        modifier = Modifier.weight(1f, fill = false),
-                        startPadding = if (label != null) 12.dp else 0.dp,
-                    )
-                }
+                        },
+                    status = status,
+                )
+            },
+            nameRow = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f)) {
                         AgentName(
@@ -122,32 +109,13 @@ internal fun AgentHeroTile(
                             maxLines = 2,
                         )
                     }
-                    AgentBadge(target, status, connection.isConnecting, size = 44, hero = true)
+                    AgentBadge(target, connection.isConnecting, connection.isConnected, status, size = 44, hero = true)
                 }
             },
-        ) { measurables, constraints ->
-            val loose = constraints.copy(minWidth = 0, minHeight = 0)
-            val statusRow = measurables[0].measure(loose.copy(minWidth = constraints.maxWidth))
-            val nameRow = measurables[1].measure(loose.copy(minWidth = constraints.maxWidth))
-            val height = constraints.constrainHeight(statusRow.height + nameRow.height)
-            layout(constraints.maxWidth, height) {
-                statusRow.placeRelative(0, lerp(0, height - statusRow.height, progress))
-                nameRow.placeRelative(0, lerp(height - nameRow.height, 0, progress))
-            }
-        }
+            modifier = Modifier.fillMaxWidth().heightIn(min = 136.dp).padding(20.dp),
+        )
     }
 }
-
-/** Shape for tile [index] of a two-up row of [count]: the inner bottom corners pinch toward each other. */
-internal fun tileShape(
-    index: Int,
-    count: Int,
-): RoundedCornerShape =
-    when {
-        count == 1 -> RoundedCornerShape(tileOuterCorner)
-        index == 0 -> RoundedCornerShape(tileOuterCorner, tileOuterCorner, tileInnerCorner, tileOuterCorner)
-        else -> RoundedCornerShape(tileOuterCorner, tileOuterCorner, tileOuterCorner, tileInnerCorner)
-    }
 
 /** A gateway agent in the two-up grid: status on top, name at the foot. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -156,7 +124,7 @@ internal fun AgentTile(
     target: LaunchableTarget,
     status: TurnStatus,
     connection: ServerConnectionUiState,
-    tone: AgentCardTone,
+    tone: CardTone,
     shape: RoundedCornerShape,
     onClick: () -> Unit,
     onEdit: () -> Unit,
@@ -184,8 +152,10 @@ internal fun AgentTile(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // The Box keeps the badge at the end while the line is hidden and gives it room to grow into.
-                Box(Modifier.weight(1f).padding(end = 12.dp)) { StatusWaveLine(rememberStatusLineState(status)) }
-                AgentBadge(target, status, connection.isConnecting, size = 36)
+                Box(Modifier.weight(1f).padding(end = 12.dp)) {
+                    StatusWaveLine(rememberStatusLineState(status), color = waveLineColor)
+                }
+                AgentBadge(target, connection.isConnecting, connection.isConnected, status, size = 36)
             }
             AgentName(
                 target = target,
@@ -204,7 +174,7 @@ internal fun DirectAgentRow(
     target: LaunchableTarget,
     status: TurnStatus,
     connection: ServerConnectionUiState,
-    tone: AgentCardTone,
+    tone: CardTone,
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -214,7 +184,7 @@ internal fun DirectAgentRow(
 ) {
     AgentSurface(
         target = target,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(cardCornerRadius),
         color = tone.containerColor,
         contentColor = tone.contentColor,
         enabled = !connection.isConnecting,
@@ -230,7 +200,7 @@ internal fun DirectAgentRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            AgentBadge(target, status, connection.isConnecting, size = 40)
+            AgentBadge(target, connection.isConnecting, connection.isConnected, status, size = 40)
             Column(Modifier.weight(1f)) {
                 AgentName(
                     target = target,
@@ -240,7 +210,11 @@ internal fun DirectAgentRow(
                 )
                 ServerSubtitle(target, hasSavedAuthMethod = target.preferredAuthMethodId?.isNotBlank() == true)
             }
-            StatusWaveLine(rememberStatusLineState(status), Modifier.widthIn(max = 56.dp))
+            StatusWaveLine(
+                rememberStatusLineState(status),
+                Modifier.widthIn(max = 56.dp),
+                color = waveLineColor,
+            )
         }
     }
 }
@@ -286,8 +260,9 @@ internal fun AgentGroupHeader(
 @Composable
 private fun AgentBadge(
     target: LaunchableTarget,
-    status: TurnStatus,
     connecting: Boolean,
+    connected: Boolean,
+    status: TurnStatus,
     size: Int,
     hero: Boolean = false,
 ) {
@@ -298,33 +273,16 @@ private fun AgentBadge(
         label = "agentConnectionBadge",
     ) { isConnecting ->
         if (isConnecting) {
-            AgentIconBadge(
-                target = target,
-                fallback = Icons.Default.SmartToy,
-                modifier = Modifier.scale(if (hero) HERO_CONNECTING_MARK_SCALE else CONNECTING_MARK_SCALE),
-                containerSize = size.dp,
-                loading = true,
-            )
-        } else if (hero && status in setOf(TurnStatus.WORKING, TurnStatus.FINISHED)) {
-            // The wide card keeps its activity badge still, with no extra frame around its icon.
-            Box(
-                Modifier
-                    .size(size.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                AgentIconBadge(
-                    target,
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                AgentLogo(
+                    target = target,
                     fallback = Icons.Default.SmartToy,
-                    size = 22.dp,
-                    containerSize = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.scale(if (hero) HERO_CONNECTING_MARK_SCALE else CONNECTING_MARK_SCALE),
+                    loading = true,
                 )
             }
         } else {
-            ActivityIconContainer(size = size.dp, status = status) {
-                AgentIconBadge(target = target, fallback = Icons.Default.SmartToy, containerSize = null)
-            }
+            AgentMark(target, size = size.dp, active = connected, status = status)
         }
     }
 }

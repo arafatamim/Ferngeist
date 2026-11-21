@@ -17,7 +17,7 @@ private const val EYES = "M8 12a1.5 1.5 0 1 1 3 0a1.5 1.5 0 1 1 -3 0Z M13 12a1.5
 
 // The ears sit 1dp clear of the head.
 private const val EARS =
-    "M3 9A1 1 0 0 1 4 10V14A1 1 0 0 1 2 14V10A1 1 0 0 1 3 9Z" +
+    "M3 9A1 1 0 0 1 4 10V14A1 1 0 0 1 2 14V10A1 1 0 0 1 3 9Z " +
         "M21 9A1 1 0 0 1 22 10V14A1 1 0 0 1 20 14V10A1 1 0 0 1 21 9Z"
 
 /** Filled: solid head with the eyes cut out, for the selected state. */

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
@@ -38,7 +37,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.R
-import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
+import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.formatCompactTokens
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.time.relativeTime
@@ -100,7 +99,7 @@ private fun ProviderCard(
             shapes = shapes,
             colors = ListItemDefaults.segmentedColors(containerColor = Color.Transparent),
             modifier = Modifier.handCursor().semantics { stateDescription = stateLabel },
-            leadingContent = { AgentIconBadge(iconUrl = quota.icon, fallback = Icons.Rounded.SmartToy) },
+            leadingContent = { AgentMark(iconUrl = quota.icon, size = 32.dp, active = false) },
             supportingContent = {
                 Text(
                     quota.balance

@@ -93,7 +93,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
-import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
+import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCard
 import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
@@ -101,7 +101,7 @@ import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
-import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
+import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
@@ -701,18 +701,16 @@ private fun SwitcherRowContent(
             ),
         modifier = modifier,
     ) {
-        // Every agent shares its state treatment; the upright logo tells them apart.
-        ActivityIconContainer(
-            status = session.turnStatus.status,
+        AgentMark(
+            iconUrl = session.agentIconUrl,
             size = 40.dp,
+            // Every row here holds a live transport, so the mark separates the session
+            // this sheet was opened from, and any turn still in flight, from idle ones.
+            active = session.isCurrent || session.turnStatus.status.isActive,
+            status = session.turnStatus.status,
+            fallback = Icons.Rounded.SmartToy,
             modifier = Modifier.semantics { contentDescription = session.agentName },
-        ) {
-            AgentIconBadge(
-                iconUrl = session.agentIconUrl,
-                fallback = Icons.Rounded.SmartToy,
-                containerSize = null,
-            )
-        }
+        )
         StatusCardBody(
             status = session.turnStatus.status,
             modifier = Modifier.weight(1f),

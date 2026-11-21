@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -19,7 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
+import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.feature.chat.R
 
 @Composable
@@ -40,12 +38,7 @@ internal fun ChatEmptyHero(
             // Registry logo only: custom/manual agents have no genuine icon,
             // and a placeholder glyph would read as branding that isn't there.
             if (iconUrl != null) {
-                AgentIconBadge(
-                    iconUrl = iconUrl,
-                    fallback = Icons.Default.SmartToy,
-                    size = 28.dp,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                AgentMark(iconUrl = iconUrl, size = 28.dp, active = true)
             }
             BasicText(
                 text = title,

@@ -64,29 +64,33 @@ class ProjectChoicesTest {
     }
 
     @Test
-    fun `project status aggregates its own chats by full identity with attention first`() {
+    fun `presentation aggregates the project's own chats by full identity with attention first`() {
         val first = project("/repo", 1).chats.single()
         val second = first.copy(summary = first.summary.copy(id = "second"))
         val project = project("/repo", 1).copy(chats = listOf(first, second))
 
         assertEquals(
             TurnActivity(TurnStatus.ERROR),
-            project.turnStatus(
+            projectCardPresentation(
+                project,
                 mapOf(
                     "agent//repo" to TurnActivity(TurnStatus.FINISHED),
                     "agent/second" to TurnActivity(TurnStatus.ERROR),
                     "other//repo" to TurnActivity(TurnStatus.NEEDS_ATTENTION),
                 ),
-            ),
+                emptySet(),
+            ).activity,
         )
         assertEquals(
             TurnActivity(TurnStatus.UNKNOWN),
-            project.turnStatus(
+            projectCardPresentation(
+                project,
                 mapOf(
                     "other//repo" to TurnActivity(TurnStatus.FINISHED),
                     "other/second" to TurnActivity(TurnStatus.WORKING),
                 ),
-            ),
+                emptySet(),
+            ).activity,
         )
     }
 
@@ -111,7 +115,7 @@ class ProjectChoicesTest {
             )
         val ordered = projectsByActivity(listOf(project("/recent", 199_999_999L), mixed), statuses)
 
-        assertEquals(TurnActivity(TurnStatus.ERROR), mixed.turnStatus(statuses))
+        assertEquals(TurnActivity(TurnStatus.ERROR), projectCardPresentation(mixed, statuses, emptySet()).activity)
         assertEquals(listOf("/old", "/recent"), ordered.map { it.repo })
         assertEquals(listOf("/old", "/recent"), collapsedProjects(ordered, 200_000_000L, statuses).map { it.repo })
     }
@@ -126,6 +130,35 @@ class ProjectChoicesTest {
         assertFalse(second.hasLiveChat(connected))
         assertFalse(first.hasLiveChat(setOf("other//first")))
         assertFalse(first.hasLiveChat(emptySet()))
+    }
+
+    @Test
+    fun `marks name each connected agent once and carry its worst connected turn`() {
+        val single = project("/repo", 1).chats.single()
+        val secondChat = single.copy(summary = SessionSummary(id = "second"))
+        val otherAgent =
+            single.copy(
+                target = single.target.copy(binding = single.target.binding.copy(id = "other", agentId = "other")),
+            )
+        val project = project("/repo", 1).copy(chats = listOf(single, secondChat, otherAgent))
+        val statuses =
+            mapOf(
+                "agent//repo" to TurnActivity(TurnStatus.FINISHED),
+                "agent/second" to TurnActivity(TurnStatus.WORKING),
+                "other//repo" to TurnActivity(TurnStatus.NEEDS_ATTENTION),
+            )
+
+        assertEquals(
+            listOf("agent" to TurnStatus.WORKING),
+            project.connectedAgents(setOf("agent//repo", "agent/second"), statuses).map { it.target.id to it.status },
+        )
+        assertEquals(
+            listOf("agent" to TurnStatus.WORKING, "other" to TurnStatus.NEEDS_ATTENTION),
+            project
+                .connectedAgents(setOf("agent//repo", "agent/second", "other//repo"), statuses)
+                .map { it.target.id to it.status },
+        )
+        assertEquals(emptyList<ConnectedAgent>(), project.connectedAgents(emptySet(), statuses))
     }
 
     private fun project(

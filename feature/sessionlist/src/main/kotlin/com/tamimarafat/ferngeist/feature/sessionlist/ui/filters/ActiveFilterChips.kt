@@ -11,7 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,7 +26,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
+import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.edgeFadeMask
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.input.mouseDragScroll
@@ -132,13 +131,9 @@ private fun ChipIcon(icon: ImageVector) {
 
 @Composable
 private fun AgentFilterLogo(iconUrl: String) {
-    // No container: the chip is the avatar slot, so a second rounded frame would nest two shapes.
-    AgentIconBadge(
-        iconUrl = iconUrl,
-        fallback = Icons.Rounded.SmartToy,
-        size = 18.dp,
-        containerSize = null,
-    )
+    // The chip is only as tall as its label, so the mark takes the slot whole and its logo
+    // runs over the default half, which would not read at this size.
+    AgentMark(iconUrl = iconUrl, size = 20.dp, active = false, glyphSize = 12.dp)
 }
 
 @Composable

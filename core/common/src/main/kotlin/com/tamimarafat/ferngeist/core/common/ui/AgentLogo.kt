@@ -24,7 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,9 +45,6 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.iconUrl
-
-/** Tool call card's container-to-icon ratio (32dp slot, 20dp icon). */
-private const val CONTAINER_ICON_RATIO = 1.6f
 
 /**
  * The connecting sun's size. Matches the indicator this replaced, so the mark is
@@ -74,41 +70,28 @@ fun AnimatedContentTransitionScope<Boolean>.agentIconTransition(): ContentTransf
  *
  * The ACP registry publishes logos as SVG — monochrome masks rather than brand art —
  * so the logo sits in the same tonal role as the glyph it replaces instead of
- * fighting the theme.
+ * fighting the theme. It is drawn bare: the surface that shows it owns the frame, so
+ * an identity mark can be a filled square in one place and part of a clover in another.
  *
- * The logo is carried in a rounded container, matching the tool call card's status
- * indicator: a bare glyph on a card reads as loose decoration, while a contained one
- * reads as an avatar slot and lines up with the text beside it. The container is
- * neutral rather than the tool call card's `primary` fill — these are identity marks,
- * not status, and a tinted chip on every card would be noise.
- *
- * The badge is identity, never content: the name is always shown alongside it. Custom
+ * The logo is identity, never content: the name is always shown alongside it. Custom
  * and embedded agents, including every agent this app adds itself, have no registry
  * entry and therefore never resolve a URL; a failed load shows [fallback] too, so an
  * unreachable CDN degrades to the existing glyph rather than leaving an empty gap.
  *
- * When [loading] is set the badge shows the app's busy sun in place of the logo,
- * crossfaded. The sun is deliberately *not* wrapped in the rounded container: it is
- * the app's established connection affordance and already reads as a standalone mark
- * elsewhere, so enclosing it would change how it looks rather than just where it
- * appears. It covers the same [containerSize] footprint the logo did, so the swap
- * costs the row no layout shift.
+ * When [loading] is set it shows the app's busy sun in place of the logo, crossfaded.
  *
- * @param size the logo's size; the container is [containerSize] around it.
- * @param containerSize the rounded slot. Defaults to 1.6x [size], the tool call
- *   card's container-to-icon ratio, so the two marks read as the same kind of thing.
+ * @param size the logo's size. Draws nothing larger than this; the loading sun keeps
+ *   its own [loadingSunSize] and is centred in whatever slot the caller gives it.
  * @param loading shows the busy sun instead of the logo.
  */
 @Composable
-fun AgentIconBadge(
+fun AgentLogo(
     iconUrl: String?,
     fallback: ImageVector,
     modifier: Modifier = Modifier,
     size: Dp = 20.dp,
     tint: Color = LocalContentColor.current,
     contentDescription: String? = null,
-    containerSize: Dp? = size * CONTAINER_ICON_RATIO,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
     loading: Boolean = false,
 ) {
     AnimatedContent(
@@ -120,21 +103,17 @@ fun AgentIconBadge(
             agentIconTransition()
         },
         contentAlignment = Alignment.Center,
-        label = "agentIconBusy",
+        label = "agentLogoBusy",
     ) { isLoading ->
         if (isLoading) {
-            LoadingSun(
-                size = loadingSunSize,
-                containerSize = containerSize ?: size * CONTAINER_ICON_RATIO,
-                modifier = modifier,
-            )
+            LoadingSun(modifier = modifier)
         } else {
-            BadgeContainer(modifier = modifier, containerSize = containerSize, containerColor = containerColor) {
+            Box(modifier = modifier) {
                 if (iconUrl == null) {
                     FallbackGlyph(fallback, size, tint, contentDescription)
                 } else {
                     var failed by remember(iconUrl) { mutableStateOf(false) }
-                    Crossfade(targetState = failed, label = "agentIconFallback") { isFailed ->
+                    Crossfade(targetState = failed, label = "agentLogoFallback") { isFailed ->
                         if (isFailed) {
                             FallbackGlyph(fallback, size, tint, contentDescription)
                         } else {
@@ -166,53 +145,23 @@ fun AgentIconBadge(
 
 /** Convenience overload for a launchable target, whose icon URL comes from its binding. */
 @Composable
-fun AgentIconBadge(
+fun AgentLogo(
     target: LaunchableTarget,
     fallback: ImageVector,
     modifier: Modifier = Modifier,
     size: Dp = 20.dp,
     tint: Color = LocalContentColor.current,
     contentDescription: String? = null,
-    containerSize: Dp? = size * CONTAINER_ICON_RATIO,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
     loading: Boolean = false,
-) = AgentIconBadge(
+) = AgentLogo(
     iconUrl = target.iconUrl,
     fallback = fallback,
     modifier = modifier,
     size = size,
     tint = tint,
     contentDescription = contentDescription,
-    containerSize = containerSize,
-    containerColor = containerColor,
     loading = loading,
 )
-
-/**
- * The tool call card's status indicator, in neutral colors: a rounded container
- * that keeps the logo in the same slot and proportion as the icon it replaces.
- */
-@Composable
-private fun BadgeContainer(
-    containerSize: Dp?,
-    containerColor: Color,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    if (containerSize == null) {
-        // The caller supplies its own shaped backdrop (the hero card's clover), so
-        // adding a frame here would stack one shape inside another.
-        Box(modifier = modifier, contentAlignment = Alignment.Center) { content() }
-        return
-    }
-    Surface(
-        modifier = modifier.size(containerSize),
-        shape = MaterialTheme.shapes.medium,
-        color = containerColor,
-    ) {
-        Box(contentAlignment = Alignment.Center) { content() }
-    }
-}
 
 @Composable
 private fun FallbackGlyph(
@@ -230,26 +179,16 @@ private fun FallbackGlyph(
 }
 
 /**
- * The app's connection mark, shown bare.
- *
- * Same sun, rotation and color as the server card's connecting indicator, so the
- * affordance is unchanged from what the app already showed. It is intentionally not
- * wrapped in [BadgeContainer]: the container exists to frame a logo as an avatar
- * slot, and enclosing the sun would alter a mark the user already knows rather than
- * just relocating it. It reserves [containerSize] for layout but draws at [size],
- * so the row never shifts as it swaps; sizing the mark to the container instead would
- * make the sun read larger than it did, since the sun's bounding box exceeds the
- * circle it actually fills.
+ * The app's connection mark: the same sun, rotation and color as the server card's
+ * connecting indicator, so the affordance is unchanged from what the app already showed.
+ * It draws at [loadingSunSize] and is centred in the caller's slot, which reserves the
+ * footprint the logo had so the swap costs the row no layout shift.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun LoadingSun(
-    size: Dp,
-    containerSize: Dp,
-    modifier: Modifier = Modifier,
-) {
+private fun LoadingSun(modifier: Modifier = Modifier) {
     val rotation by
-        rememberInfiniteTransition(label = "agentIconBusy").animateFloat(
+        rememberInfiniteTransition(label = "agentLogoBusy").animateFloat(
             initialValue = 0f,
             targetValue = 360f,
             animationSpec =
@@ -257,16 +196,13 @@ private fun LoadingSun(
                     animation = tween(4200, easing = LinearEasing),
                     repeatMode = RepeatMode.Restart,
                 ),
-            label = "agentIconBusyRotation",
+            label = "agentLogoBusyRotation",
         )
-    // Reserve the container's footprint so the title does not shift, but draw the
-    // mark at its original size: the sun's bounding box is larger than the circle
-    // it fills, so scaling it to the container would read as a bigger indicator.
-    Box(modifier = modifier.size(containerSize), contentAlignment = Alignment.Center) {
+    Box(modifier = modifier.size(loadingSunSize), contentAlignment = Alignment.Center) {
         Box(
             modifier =
                 Modifier
-                    .size(size)
+                    .size(loadingSunSize)
                     .rotate(rotation)
                     .clip(MaterialShapes.VerySunny.toShape())
                     .background(MaterialTheme.colorScheme.secondary),

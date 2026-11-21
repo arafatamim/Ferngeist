@@ -2,24 +2,16 @@ package com.tamimarafat.ferngeist.feature.serverlist.ui.agents
 
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +34,9 @@ import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayHealth
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.homeItemMotion
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.tileShape
+import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomeFilterChips
 
 private const val WORKING_FILTER = "working"
 internal const val DISCONNECTED_ALPHA = 0.5f
@@ -92,14 +87,23 @@ internal fun AgentsTab(
     ) {
         if (groups.size > 1) {
             item(key = "filters") {
-                AgentFilters(groups.mapNotNull { it.first }, filter, { filter = it }, agentItemMotion())
+                HomeFilterChips(
+                    liveValue = WORKING_FILTER,
+                    liveLabel = stringResource(R.string.home_agents_working),
+                    gateways = groups.mapNotNull { it.first },
+                    selected = filter,
+                    onSelect = { filter = it },
+                    modifier = Modifier.homeItemMotion(this),
+                )
             }
         }
         shown.forEach { (gateway, targets) ->
             // Connected is the default, so an unreachable computer is marked and faded.
             val disconnected = gateway != null && gatewayHealth[gateway.id] == GatewayHealth.UNREACHABLE
             val fade = if (disconnected) Modifier.alpha(DISCONNECTED_ALPHA) else Modifier
-            item(key = "group:${gateway?.id}") { AgentGroupHeader(gateway, disconnected, agentItemMotion()) }
+            item(key = "group:${gateway?.id}") {
+                AgentGroupHeader(gateway, disconnected, Modifier.homeItemMotion(this))
+            }
             if (gateway == null) {
                 items(targets, key = { "agent:${it.id}" }) { target ->
                     val state = activity.getValue(target.id)
@@ -113,7 +117,7 @@ internal fun AgentsTab(
                         onDelete = { onDelete(target.id) },
                         sharedTransitionScope = sharedTransitionScope,
                         animatedContentScope = animatedContentScope,
-                        modifier = Modifier.padding(horizontal = 16.dp).then(agentItemMotion()),
+                        modifier = Modifier.padding(horizontal = 16.dp).homeItemMotion(this),
                     )
                 }
                 return@forEach
@@ -131,7 +135,6 @@ internal fun AgentsTab(
                             target = target,
                             status = state.status,
                             working = state.working,
-                            headlineStatus = state.headlineStatus,
                             connection = state.connection,
                             tone = state.tone,
                             onClick = { onConnect(target) },
@@ -139,14 +142,14 @@ internal fun AgentsTab(
                             onDelete = { onDelete(target.id) },
                             sharedTransitionScope = sharedTransitionScope,
                             animatedContentScope = animatedContentScope,
-                            modifier = Modifier.padding(horizontal = 16.dp).then(agentItemMotion()).then(fade),
+                            modifier = Modifier.padding(horizontal = 16.dp).homeItemMotion(this).then(fade),
                         )
                     }
                 }
             resting.chunked(2).forEach { pair ->
                 item(key = "agents:${pair.joinToString { it.id }}") {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp).then(agentItemMotion()).then(fade),
+                        modifier = Modifier.padding(horizontal = 16.dp).homeItemMotion(this).then(fade),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         pair.forEachIndexed { index, target ->
@@ -175,11 +178,11 @@ internal fun AgentsTab(
                     stringResource(R.string.home_agents_filter_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp).then(agentItemMotion()),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp).homeItemMotion(this),
                 )
             }
         }
-        item(key = "summary") { AgentsSummary(activity.values, servers.size, agentItemMotion()) }
+        item(key = "summary") { AgentsSummary(activity.values, servers.size, Modifier.homeItemMotion(this)) }
         // ponytail: clearance lets the final card scroll above the bottom controls.
         item(key = "bottom-clearance") { Spacer(modifier = Modifier.height(160.dp)) }
     }
@@ -202,17 +205,6 @@ private fun filterGroups(
                 }
         }.filter { it.second.isNotEmpty() }
 
-/** Filtering reflows the list: fade what leaves, glide what stays. */
-@Composable
-private fun LazyItemScope.agentItemMotion(): Modifier {
-    val effects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
-    return Modifier.animateItem(
-        fadeInSpec = effects,
-        placementSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-        fadeOutSpec = effects,
-    )
-}
-
 @Composable
 private fun AgentsSummary(
     activity: Collection<AgentCardPresentation>,
@@ -234,38 +226,4 @@ private fun AgentsSummary(
         textAlign = TextAlign.Center,
         modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
     )
-}
-
-@Composable
-private fun AgentFilters(
-    gateways: List<GatewaySource>,
-    selected: String?,
-    onSelect: (String?) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        FilterChip(
-            selected = selected == null,
-            onClick = { onSelect(null) },
-            label = { Text(stringResource(R.string.home_agents_all)) },
-        )
-        FilterChip(
-            selected = selected == WORKING_FILTER,
-            onClick = { onSelect(WORKING_FILTER) },
-            label = { Text(stringResource(R.string.home_agents_working)) },
-            leadingIcon = {
-                Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
-            },
-        )
-        gateways.forEach { gateway ->
-            FilterChip(
-                selected = selected == gateway.id,
-                onClick = { onSelect(gateway.id) },
-                label = { Text(gateway.name) },
-            )
-        }
-    }
 }

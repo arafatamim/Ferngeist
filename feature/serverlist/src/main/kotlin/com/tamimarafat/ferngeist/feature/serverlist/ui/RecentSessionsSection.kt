@@ -53,11 +53,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
+import com.tamimarafat.ferngeist.core.common.ui.AgentLogo
+import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
-import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
+import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
@@ -366,11 +367,10 @@ private fun RotatingCloverBadge(
         )
         // The agent's logo riding the clover: the clover is the hero's animated
         // accent, so the mark sits in its shape rather than being framed again.
-        AgentIconBadge(
+        AgentLogo(
             iconUrl = session.target.iconUrl,
             fallback = Icons.Rounded.History,
             size = 22.dp,
-            containerSize = null,
             tint =
                 if (status == TurnStatus.NEEDS_ATTENTION) {
                     MaterialTheme.colorScheme.onTertiary
@@ -430,14 +430,13 @@ private fun RecentSessionCardRow(
                 .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ActivityIconContainer(status = status.status, size = 28.dp) {
-            AgentIconBadge(
-                target = session.target,
-                fallback = Icons.Default.History,
-                size = 18.dp,
-                containerSize = null,
-            )
-        }
+        AgentMark(
+            target = session.target,
+            size = 28.dp,
+            active = status.status.isActive,
+            status = status.status,
+            fallback = Icons.Default.History,
+        )
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             with(sharedTransitionScope) {

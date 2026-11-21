@@ -22,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -61,7 +60,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
+import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
@@ -374,13 +373,7 @@ private fun AgentCardBody(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            AgentIconBadge(
-                iconUrl = agent.preferredIcon,
-                fallback = Icons.Default.SmartToy,
-                size = 20.dp,
-                containerSize = 32.dp,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            AgentMark(iconUrl = agent.preferredIcon, size = 32.dp, active = false)
             Text(
                 agent.displayName,
                 style = MaterialTheme.typography.titleMedium,

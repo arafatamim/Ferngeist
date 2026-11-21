@@ -20,16 +20,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -52,7 +49,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -65,13 +61,13 @@ import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayHealth
-import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import com.tamimarafat.ferngeist.feature.serverlist.ui.agents.AgentsTab
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.sheetShape
 import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomePagerMotion
 import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomeTab
-import com.tamimarafat.ferngeist.feature.serverlist.ui.projects.ProjectsGroup
+import com.tamimarafat.ferngeist.feature.serverlist.ui.projects.ProjectsTab
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -615,7 +611,7 @@ private fun AgentsBackdropSheet(
         modifier = modifier,
         // Lightest tone: the foreground sheet sits above the darker background.
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        shape = sheetShape(),
         // Elevated via tonal color, deliberately without a drop shadow.
         shadowElevation = 0.dp,
     ) {
@@ -731,7 +727,8 @@ private fun FrontLayerContent(
             // Tabs page sideways, so a swipe and a tab tap travel the same path.
             HorizontalPager(
                 state = pager.state,
-                modifier = Modifier.fillMaxSize(),
+                // One inset for both pages: whatever leads a list clears the sheet's rounded top.
+                modifier = Modifier.fillMaxSize().padding(top = 16.dp),
                 beyondViewportPageCount = 1,
                 flingBehavior = pager.flingBehavior(),
             ) { page ->
@@ -753,7 +750,7 @@ private fun FrontLayerContent(
                                 animatedContentScope = animatedContentScope,
                             )
                         HomeTab.PROJECTS ->
-                            ProjectsPage(
+                            ProjectsTab(
                                 projects = projects,
                                 turnStatuses = turnStatuses,
                                 connectedChatKeys = connectedChatKeys,
@@ -773,62 +770,5 @@ private fun FrontLayerContent(
             // Keep the grab area without reserving space above the sheet content.
             Box(modifier = Modifier.fillMaxWidth().height(24.dp).then(headerDragModifier))
         }
-    }
-}
-
-@OptIn(ExperimentalSharedTransitionApi::class)
-@Composable
-private fun ProjectsPage(
-    projects: List<ProjectSummary>,
-    turnStatuses: Map<String, TurnActivity>,
-    connectedChatKeys: Set<String>,
-    now: Long,
-    listState: LazyListState,
-    onOpenProject: (ProjectSummary) -> Unit,
-    sharedTransitionScope: SharedTransitionScope,
-    animatedContentScope: AnimatedContentScope,
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        state = listState,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        // Projects arrive after agents; the item fade covers the empty-to-list swap.
-        if (projects.isEmpty()) {
-            item(key = "projects-empty") { ProjectsEmpty(Modifier.animateItem()) }
-        } else {
-            item(key = "projects") {
-                ProjectsGroup(
-                    projects = projects,
-                    turnStatuses = turnStatuses,
-                    connectedChatKeys = connectedChatKeys,
-                    now = now,
-                    onOpenProject = onOpenProject,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    modifier = Modifier.padding(horizontal = 16.dp).animateItem(),
-                )
-            }
-        }
-        // ponytail: clearance lets the final card scroll above the bottom controls.
-        item(key = "bottom-clearance") { Spacer(modifier = Modifier.height(160.dp)) }
-    }
-}
-
-@Composable
-private fun ProjectsEmpty(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            stringResource(R.string.home_projects_empty_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Text(
-            stringResource(R.string.home_projects_empty_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }

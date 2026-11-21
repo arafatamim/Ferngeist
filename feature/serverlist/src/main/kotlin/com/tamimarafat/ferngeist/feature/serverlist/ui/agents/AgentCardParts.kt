@@ -3,20 +3,11 @@ package com.tamimarafat.ferngeist.feature.serverlist.ui.agents
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -29,7 +20,6 @@ import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,33 +30,24 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
-import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
-
-/** Expressive press feedback: corners tighten to this share of their radius, the way M3 buttons do. */
-private const val PRESSED_CORNER_FRACTION = 0.6f
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.PressSurface
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.sharedCardBounds
 
 /**
- * The pressable shell every agent card shares: press scale, long-press and right-click actions,
- * delete confirmation, and the shared bounds the session list grows out of.
+ * The pressable shell every agent card shares, over the tabs' common press surface: the
+ * agent's actions menu, delete confirmation, and the shared bounds the session list grows out of.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -84,21 +65,6 @@ internal fun AgentSurface(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val menuInteractionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val corners by animateFloatAsState(
-        targetValue = if (pressed) PRESSED_CORNER_FRACTION else 1f,
-        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
-        label = "agentPress",
-    )
-    val pressShape = remember(shape, corners) { shape.scaledCorners(corners) }
-    // Status changes recolor the card in place; an effects spec so the tone never overshoots.
-    val animatedColor by animateColorAsState(
-        targetValue = color,
-        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
-        label = "agentColor",
-    )
     var showMenu by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     if (showDeleteDialog) {
@@ -109,51 +75,28 @@ internal fun AgentSurface(
         )
     }
     Box(modifier) {
-        Surface(
-            color = animatedColor,
+        PressSurface(
+            shape = shape,
+            color = color,
             contentColor = contentColor,
-            shape = pressShape,
-            modifier =
-                Modifier
-                    .sharedServerBounds(ServerSharedBoundsKey(target.id), sharedTransitionScope, animatedContentScope)
-                    .fillMaxWidth()
-                    .clip(pressShape)
-                    .handCursor()
-                    .onSecondaryClick(enabled = enabled) { showMenu = true }
-                    .combinedClickable(
-                        interactionSource = interactionSource,
-                        indication = LocalIndication.current,
-                        enabled = enabled,
-                        onClick = onClick,
-                        onLongClick = { showMenu = true },
-                        role = Role.Button,
-                    ),
+            enabled = enabled,
+            onClick = onClick,
+            onLongClick = { showMenu = true },
+            sharedBoundsKey = ServerSharedBoundsKey(target.id),
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
             content = content,
         )
         ServerCardActionsMenu(
             expanded = showMenu,
             onDismiss = { showMenu = false },
-            interactionSource = menuInteractionSource,
+            interactionSource = remember { MutableInteractionSource() },
             isGatewayAgent = target is LaunchableTarget.GatewayAgent,
             onEdit = onEdit,
             onDelete = { showDeleteDialog = true },
         )
     }
 }
-
-/** [this] with every corner radius multiplied by [fraction]. */
-private fun RoundedCornerShape.scaledCorners(fraction: Float): Shape =
-    object : Shape {
-        override fun createOutline(
-            size: Size,
-            layoutDirection: LayoutDirection,
-            density: Density,
-        ): Outline {
-            fun CornerSize.scaled() = CornerSize(toPx(size, density) * fraction)
-            return copy(topStart.scaled(), topEnd.scaled(), bottomEnd.scaled(), bottomStart.scaled())
-                .createOutline(size, layoutDirection, density)
-        }
-    }
 
 /** Agent name that the session list's title grows out of. */
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -171,53 +114,13 @@ internal fun AgentName(
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         modifier =
-            Modifier.sharedServerBounds(
+            Modifier.sharedCardBounds(
                 ServerNameSharedBoundsKey(target.id),
                 sharedTransitionScope,
                 animatedContentScope,
             ),
     )
 }
-
-@OptIn(ExperimentalSharedTransitionApi::class)
-@Composable
-private fun Modifier.sharedServerBounds(
-    key: Any,
-    sharedTransitionScope: SharedTransitionScope,
-    animatedContentScope: AnimatedContentScope,
-): Modifier =
-    with(sharedTransitionScope) {
-        sharedBounds(
-            sharedContentState = rememberSharedContentState(key = key),
-            animatedVisibilityScope = animatedContentScope,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-        )
-    }
-
-// Opaque roles pair each card tone with its on-colour; primary stays with the hero.
-internal val AgentCardTone.containerColor: Color
-    @Composable
-    get() =
-        when (this) {
-            AgentCardTone.PRIMARY -> MaterialTheme.colorScheme.primaryContainer
-            AgentCardTone.ATTENTION -> MaterialTheme.colorScheme.tertiaryContainer
-            AgentCardTone.CONNECTED -> MaterialTheme.colorScheme.secondaryContainer
-            AgentCardTone.FAILED -> MaterialTheme.colorScheme.errorContainer
-            AgentCardTone.DEFAULT -> MaterialTheme.colorScheme.surfaceContainer
-        }
-
-internal val AgentCardTone.contentColor: Color
-    @Composable
-    get() =
-        when (this) {
-            AgentCardTone.PRIMARY -> MaterialTheme.colorScheme.onPrimaryContainer
-            AgentCardTone.ATTENTION -> MaterialTheme.colorScheme.onTertiaryContainer
-            AgentCardTone.CONNECTED -> MaterialTheme.colorScheme.onSecondaryContainer
-            AgentCardTone.FAILED -> MaterialTheme.colorScheme.onErrorContainer
-            AgentCardTone.DEFAULT -> MaterialTheme.colorScheme.onSurface
-        }
 
 @Composable
 internal fun ServerCardDeleteDialog(

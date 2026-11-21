@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.serverlist.ui.agents
 
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.CardTone
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -13,7 +14,7 @@ class AgentCardPresentationTest {
                 agentCardPresentation(true, listOf(TurnActivity(status)), ServerConnectionUiState(false, false, false))
 
             assertEquals(AgentCardVariant.HERO, card.variant)
-            assertEquals(status, card.headlineStatus)
+            assertEquals(status, card.status)
         }
     }
 
@@ -23,8 +24,8 @@ class AgentCardPresentationTest {
         val disconnected = agentCardPresentation(true, chats, ServerConnectionUiState(false, false, false))
         val connected = agentCardPresentation(true, chats, ServerConnectionUiState(false, true, false))
 
-        assertEquals(AgentCardTone.DEFAULT, disconnected.tone)
-        assertEquals(AgentCardTone.PRIMARY, connected.tone)
+        assertEquals(CardTone.DEFAULT, disconnected.tone)
+        assertEquals(CardTone.PRIMARY, connected.tone)
     }
 
     @Test
@@ -36,6 +37,6 @@ class AgentCardPresentationTest {
                 connection = ServerConnectionUiState(false, false, false),
             )
         assertEquals(AgentCardVariant.HERO, card.variant)
-        assertEquals(TurnStatus.ERROR, card.headlineStatus)
+        assertEquals(TurnStatus.ERROR, card.status)
     }
 }

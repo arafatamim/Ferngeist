@@ -3,22 +3,19 @@ package com.tamimarafat.ferngeist.feature.serverlist.ui.agents
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.aggregateTurnActivity
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.CardTone
+import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.cardTone
 
 internal enum class AgentCardVariant { DIRECT, HERO, TILE }
-
-internal enum class AgentCardTone { PRIMARY, ATTENTION, CONNECTED, FAILED, DEFAULT }
 
 internal data class AgentCardPresentation(
     val status: TurnStatus,
     val working: Int,
     val unreadFinished: Int,
     val variant: AgentCardVariant,
-    val tone: AgentCardTone,
+    val tone: CardTone,
     val connection: ServerConnectionUiState,
-) {
-    val headlineStatus: TurnStatus?
-        get() = status.takeUnless { it == TurnStatus.FINISHED || it == TurnStatus.UNKNOWN }
-}
+)
 
 internal fun agentCardPresentation(
     gatewayAgent: Boolean,
@@ -41,13 +38,12 @@ internal fun agentCardPresentation(
         unreadFinished = unread,
         variant = variant,
         tone =
-            when {
-                variant == AgentCardVariant.HERO && connection.isConnected -> AgentCardTone.PRIMARY
-                status == TurnStatus.NEEDS_ATTENTION -> AgentCardTone.ATTENTION
-                connection.isConnected -> AgentCardTone.CONNECTED
-                connection.isFailed -> AgentCardTone.FAILED
-                else -> AgentCardTone.DEFAULT
-            },
+            cardTone(
+                status = status,
+                hero = variant == AgentCardVariant.HERO,
+                live = connection.isConnected,
+                failed = connection.isFailed,
+            ),
         connection = connection,
     )
 }

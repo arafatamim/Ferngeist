@@ -6,8 +6,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,10 +23,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectChat
-import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
+import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
-import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
+import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
@@ -83,18 +81,13 @@ internal fun ProjectChatRow(
                     sharedBoundsEnabled,
                 ),
         ) {
-            // Every agent shares its state treatment; the upright logo tells them apart.
-            ActivityIconContainer(
-                status = status.status,
+            AgentMark(
+                target = chat.target,
                 size = 40.dp,
+                active = status.status.isActive,
+                status = status.status,
                 modifier = Modifier.semantics { contentDescription = chat.target.name },
-            ) {
-                AgentIconBadge(
-                    target = chat.target,
-                    fallback = Icons.Rounded.SmartToy,
-                    containerSize = null,
-                )
-            }
+            )
             ProjectChatText(
                 chat,
                 status,
