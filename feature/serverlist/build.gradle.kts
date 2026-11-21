@@ -8,7 +8,12 @@ plugins {
 
 android {
     namespace = "com.tamimarafat.ferngeist.feature.serverlist"
-    compileSdk = 37
+    compileSdk {
+        version =
+            release(37) {
+                minorApiLevel = 1
+            }
+    }
 
     flavorDimensions += "distribution"
     productFlavors {

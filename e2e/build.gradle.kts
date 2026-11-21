@@ -13,7 +13,12 @@ kotlin {
 
 android {
     namespace = "com.tamimarafat.ferngeist.e2e"
-    compileSdk = 37
+    compileSdk {
+        version =
+            release(37) {
+                minorApiLevel = 1
+            }
+    }
 
     flavorDimensions += "distribution"
     productFlavors {

@@ -32,7 +32,6 @@ import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -342,14 +341,11 @@ private fun ServerListDialogsAndEffects(
                 ?.id,
         )
     }
-    val envValues = remember(pendingAuthentication?.serverId) { mutableStateMapOf<String, String>() }
 
     ServerListEventEffects(
         viewModel = viewModel,
         snackbarHostState = snackbarHostState,
         uiState = uiState,
-        pendingAuthentication = pendingAuthentication,
-        envValues = envValues,
         onNavigateToSessions = onNavigateToSessions,
         onQuickChat = onQuickChat,
     )
@@ -361,7 +357,6 @@ private fun ServerListDialogsAndEffects(
         pendingLaunchConsent = pendingLaunchConsent,
         showAboutDialog = showAboutDialog,
         selectedAuthMethodId = selectedAuthMethodId,
-        envValues = envValues,
         onSelectedAuthMethodChange = { methodId -> selectedAuthMethodId = methodId },
         onAuthenticate = { methodId, values ->
             pendingAuthentication?.let { viewModel.authenticate(it.serverId, methodId, values) }
@@ -379,8 +374,6 @@ private fun ServerListEventEffects(
     viewModel: ServerListViewModel,
     snackbarHostState: SnackbarHostState,
     uiState: ServerListUiState,
-    pendingAuthentication: PendingAuthentication?,
-    envValues: MutableMap<String, String>,
     onNavigateToSessions: (String, String, List<SessionSummary>, Boolean) -> Unit,
     onQuickChat: (RecentSession) -> Unit,
 ) {
@@ -407,13 +400,6 @@ private fun ServerListEventEffects(
             viewModel.dismissError()
         }
     }
-
-    LaunchedEffect(pendingAuthentication?.serverId, pendingAuthentication?.persistedEnvValues) {
-        envValues.clear()
-        pendingAuthentication?.persistedEnvValues?.forEach { (name, value) ->
-            envValues[name] = value
-        }
-    }
 }
 
 @Composable
@@ -423,7 +409,6 @@ private fun ServerListDialogsHost(
     pendingLaunchConsent: PendingLaunchConsent?,
     showAboutDialog: Boolean,
     selectedAuthMethodId: String?,
-    envValues: MutableMap<String, String>,
     onSelectedAuthMethodChange: (String) -> Unit,
     onAuthenticate: (String, Map<String, String>) -> Unit,
     onReconnect: () -> Unit,
@@ -438,7 +423,6 @@ private fun ServerListDialogsHost(
             isAuthenticating = isAuthenticating,
             selectedAuthMethodId = selectedAuthMethodId,
             onSelectedAuthMethodChange = onSelectedAuthMethodChange,
-            envValues = envValues,
             onSubmit = onAuthenticate,
             onReconnect = onReconnect,
             onDismiss = onDismissAuthentication,

@@ -28,6 +28,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -239,45 +240,46 @@ internal fun PendingAuthenticationDialog(
     isAuthenticating: Boolean,
     selectedAuthMethodId: String?,
     onSelectedAuthMethodChange: (String) -> Unit,
-    envValues: MutableMap<String, String>,
     onSubmit: (String, Map<String, String>) -> Unit,
     onReconnect: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AuthenticationDialog(
-        request =
-            AuthenticationRequest(
-                agentName = pendingAuthentication.agentName,
-                methods =
-                    pendingAuthentication.authMethods.map { method ->
-                        AuthenticationMethod(
-                            id = method.id,
-                            name = method.name,
-                            description = method.description,
-                            type = method.type,
-                            envVars =
-                                method.envVars.map {
-                                    AuthenticationEnvVar(
-                                        it.name,
-                                        it.label,
-                                        it.secret,
-                                        it.optional,
-                                    )
-                                },
-                            link = method.link,
-                            args = method.args,
-                        )
-                    },
-                errorMessage = pendingAuthentication.authErrorMessage,
-                isAuthenticating = isAuthenticating,
-            ),
-        title = stringResource(R.string.serverlist_auth_title, pendingAuthentication.serverName),
-        gatewayBacked = pendingAuthentication.gatewayBacked,
-        selectedAuthMethodId = selectedAuthMethodId,
-        onSelectedAuthMethodChange = onSelectedAuthMethodChange,
-        envValues = envValues,
-        onSubmit = onSubmit,
-        onReconnect = onReconnect,
-        onDismiss = onDismiss,
-    )
+    key(pendingAuthentication.serverId) {
+        AuthenticationDialog(
+            request =
+                AuthenticationRequest(
+                    agentName = pendingAuthentication.agentName,
+                    methods =
+                        pendingAuthentication.authMethods.map { method ->
+                            AuthenticationMethod(
+                                id = method.id,
+                                name = method.name,
+                                description = method.description,
+                                type = method.type,
+                                envVars =
+                                    method.envVars.map {
+                                        AuthenticationEnvVar(
+                                            it.name,
+                                            it.label,
+                                            it.secret,
+                                            it.optional,
+                                        )
+                                    },
+                                link = method.link,
+                                args = method.args,
+                            )
+                        },
+                    errorMessage = pendingAuthentication.authErrorMessage,
+                    isAuthenticating = isAuthenticating,
+                ),
+            title = stringResource(R.string.serverlist_auth_title, pendingAuthentication.serverName),
+            gatewayBacked = pendingAuthentication.gatewayBacked,
+            selectedAuthMethodId = selectedAuthMethodId,
+            onSelectedAuthMethodChange = onSelectedAuthMethodChange,
+            initialEnvValues = pendingAuthentication.persistedEnvValues,
+            onSubmit = onSubmit,
+            onReconnect = onReconnect,
+            onDismiss = onDismiss,
+        )
+    }
 }

@@ -8,7 +8,12 @@ plugins {
 
 android {
     namespace = "com.tamimarafat.ferngeist.feature.sessionlist"
-    compileSdk = 37
+    compileSdk {
+        version =
+            release(37) {
+                minorApiLevel = 1
+            }
+    }
 
     defaultConfig {
         minSdk = 30

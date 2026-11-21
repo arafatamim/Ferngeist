@@ -1,24 +1,24 @@
 [versions]
-agp = "9.5.1"
+agp = "9.5.2"
 diffKotlin = "0.0.5"
 kotlin = "2.4.21"
-ksp = "2.3.12"
+ksp = "2.3.14"
 coreKtx = "1.19.1"
 coreSplashScreen = "1.2.0"
 junit = "4.13.2"
 konsist = "0.18.1"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
-lifecycleRuntimeKtx = "2.11.0"
-lifecycleViewmodelKtx = "2.11.0"
-lifecycleViewmodelCompose = "2.11.0"
+lifecycleRuntimeKtx = "2.11.1"
+lifecycleViewmodelKtx = "2.11.1"
+lifecycleViewmodelCompose = "2.11.1"
 activityCompose = "1.13.0"
-composeBom = "2026.09.00"
+composeBom = "2026.11.01"
 androidxWindow = "1.5.1"
 androidxBrowser = "1.10.0"
 
 # Serialization
-kotlinxSerializationJson = "1.12.0"
+kotlinxSerializationJson = "1.13.0"
 
 # Coroutines
 kotlinxCoroutinesCore = "1.11.0"
@@ -42,7 +42,7 @@ navigationCompose = "2.10.2"
 playServicesCodeScanner = "16.1.0"
 
 # UnifiedPush
-unifiedpushConnector = "3.3.5"
+unifiedpushConnector = "3.3.6"
 unifiedpushEmbeddedFcmDistributor = "3.1.0"
 
 # ACP Kotlin SDK
@@ -53,15 +53,15 @@ ktor = "3.6.1"
 
 # Turbine for Flow testing
 turbine = "1.2.1"
-mockk = "1.14.11"
+mockk = "1.14.12"
 # Match MockK's instrumentation dependency for startup agent loading.
 byteBuddy = "1.18.17"
 # Robolectric runs Room migration tests on the JVM (CI has no emulator).
-robolectric = "4.17"
+robolectric = "4.18.1"
 androidxTestCore = "1.7.0"
 androidxTestRunner = "1.7.0"
 uiautomator = "2.4.1"
-material3 = "1.5.0-rc01"
+material3 = "1.5.0"
 materialKolor = "6.0.0"
 coil = "3.6.3"
 datastorePreferences = "1.3.0"

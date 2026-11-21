@@ -8,18 +8,22 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.TextObfuscationMode
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -28,9 +32,6 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.R
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
@@ -46,7 +47,7 @@ fun AuthenticationDialog(
     allowEnvironmentAuth: Boolean = true,
     selectedAuthMethodId: String?,
     onSelectedAuthMethodChange: (String) -> Unit,
-    envValues: MutableMap<String, String>,
+    initialEnvValues: Map<String, String> = emptyMap(),
     onSubmit: (String, Map<String, String>) -> Unit,
     onReconnect: () -> Unit,
     onDismiss: () -> Unit,
@@ -55,13 +56,19 @@ fun AuthenticationDialog(
     val selectedMethod =
         request.methods.firstOrNull { it.id == selectedAuthMethodId }
             ?: request.methods.firstOrNull()
+    val envVarNames = request.methods.flatMap { method -> method.envVars.map { it.name } }.toSet()
+    // Recreate the input state when the server supplies new saved values. Keep credentials out of saved instance state.
+    val envFields =
+        remember(request.agentName, envVarNames, initialEnvValues) {
+            (envVarNames + initialEnvValues.keys).associateWith { TextFieldState(initialEnvValues[it].orEmpty()) }
+        }
     val isGatewayEnvAuth = selectedMethod?.type == "env" && gatewayBacked
     val isManualEnvAuth = selectedMethod?.type == "env" && !gatewayBacked
 
     // All non-optional env vars must be filled before the button is enabled.
     val requiredEnvVarsFilled =
         selectedMethod?.envVars?.all { envVar ->
-            envVar.optional || !envValues[envVar.name].isNullOrBlank()
+            envVar.optional || !envFields[envVar.name]?.text.isNullOrBlank()
         } ?: false
 
     AlertDialog(
@@ -72,7 +79,7 @@ fun AuthenticationDialog(
                 request = request,
                 gatewayBacked = gatewayBacked,
                 selectedMethod = selectedMethod,
-                envValues = envValues,
+                envFields = envFields,
                 onSelectedAuthMethodChange = onSelectedAuthMethodChange,
                 onOpenLink = { uriHandler.openUri(it) },
             )
@@ -85,7 +92,7 @@ fun AuthenticationDialog(
                 requiredEnvVarsFilled = requiredEnvVarsFilled,
                 busy = request.isAuthenticating,
                 allowEnvironmentAuth = allowEnvironmentAuth,
-                envValues = envValues,
+                envFields = envFields,
                 onSubmit = onSubmit,
                 onReconnect = onReconnect,
             )
@@ -106,7 +113,7 @@ private fun AuthDialogBody(
     request: AuthenticationRequest,
     gatewayBacked: Boolean,
     selectedMethod: AuthenticationMethod?,
-    envValues: MutableMap<String, String>,
+    envFields: Map<String, TextFieldState>,
     onSelectedAuthMethodChange: (String) -> Unit,
     onOpenLink: (String) -> Unit,
 ) {
@@ -155,7 +162,7 @@ private fun AuthDialogBody(
                 method = method,
                 selectedMethod = selectedMethod,
                 onSelectedAuthMethodChange = onSelectedAuthMethodChange,
-                envValues = envValues,
+                envFields = envFields,
                 isGatewayBacked = gatewayBacked,
                 onOpenLink = onOpenLink,
             )
@@ -171,7 +178,7 @@ private fun AuthDialogConfirmButton(
     requiredEnvVarsFilled: Boolean,
     busy: Boolean,
     allowEnvironmentAuth: Boolean,
-    envValues: MutableMap<String, String>,
+    envFields: Map<String, TextFieldState>,
     onSubmit: (String, Map<String, String>) -> Unit,
     onReconnect: () -> Unit,
 ) {
@@ -191,7 +198,7 @@ private fun AuthDialogConfirmButton(
             when {
                 selectedMethod == null -> Unit
                 isManualEnvAuth -> onReconnect()
-                else -> onSubmit(selectedMethod.id, envValues)
+                else -> onSubmit(selectedMethod.id, envFields.mapValues { it.value.text.toString() })
             }
         },
     ) {
@@ -211,7 +218,7 @@ private fun AuthMethodOption(
     method: AuthenticationMethod,
     selectedMethod: AuthenticationMethod?,
     onSelectedAuthMethodChange: (String) -> Unit,
-    envValues: MutableMap<String, String>,
+    envFields: Map<String, TextFieldState>,
     isGatewayBacked: Boolean,
     onOpenLink: (String) -> Unit,
 ) {
@@ -250,10 +257,9 @@ private fun AuthMethodOption(
                 if (selectedMethod?.id == method.id) {
                     AuthenticationMethodDetails(
                         method = method,
-                        envValues = envValues,
+                        envFields = envFields,
                         isGatewayBacked = isGatewayBacked,
                         onOpenLink = onOpenLink,
-                        onEnvValueChange = { name, value -> envValues[name] = value },
                     )
                 }
             }
@@ -284,10 +290,9 @@ private fun computeConfirmEnabled(
 @Composable
 private fun AuthenticationMethodDetails(
     method: AuthenticationMethod,
-    envValues: MutableMap<String, String>,
+    envFields: Map<String, TextFieldState>,
     isGatewayBacked: Boolean,
     onOpenLink: (String) -> Unit,
-    onEnvValueChange: (String, String) -> Unit,
 ) {
     method.link?.let { link ->
         TextButton(onClick = { onOpenLink(link) }, modifier = Modifier.handCursor()) {
@@ -310,8 +315,7 @@ private fun AuthenticationMethodDetails(
     }
     GatewayEnvVarInputs(
         method = method,
-        envValues = envValues,
-        onEnvValueChange = onEnvValueChange,
+        envFields = envFields,
     )
 }
 
@@ -342,36 +346,33 @@ private fun ManualEnvVarInstructions(method: AuthenticationMethod) {
 @Composable
 private fun GatewayEnvVarInputs(
     method: AuthenticationMethod,
-    envValues: MutableMap<String, String>,
-    onEnvValueChange: (String, String) -> Unit,
+    envFields: Map<String, TextFieldState>,
 ) {
     method.envVars.forEach { envVar ->
-        OutlinedTextField(
-            value = envValues[envVar.name].orEmpty(),
-            onValueChange = { onEnvValueChange(envVar.name, it) },
-            modifier = Modifier.fillMaxWidth(),
-            label = {
-                Text(
-                    buildString {
-                        append(envVar.label ?: envVar.name)
-                        if (envVar.optional) {
-                            append(stringResource(R.string.common_auth_optional_suffix))
-                        }
-                    },
-                )
-            },
-            supportingText = { Text(envVar.name) },
-            singleLine = true,
-            keyboardOptions =
-                KeyboardOptions(
-                    keyboardType = if (envVar.secret) KeyboardType.Password else KeyboardType.Text,
-                ),
-            visualTransformation =
-                if (envVar.secret) {
-                    PasswordVisualTransformation()
-                } else {
-                    VisualTransformation.None
-                },
-        )
+        val field = envFields.getValue(envVar.name)
+        val label =
+            buildString {
+                append(envVar.label ?: envVar.name)
+                if (envVar.optional) {
+                    append(stringResource(R.string.common_auth_optional_suffix))
+                }
+            }
+        if (envVar.secret) {
+            OutlinedSecureTextField(
+                state = field,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(label) },
+                supportingText = { Text(envVar.name) },
+                textObfuscationMode = TextObfuscationMode.Hidden,
+            )
+        } else {
+            OutlinedTextField(
+                state = field,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(label) },
+                supportingText = { Text(envVar.name) },
+                lineLimits = TextFieldLineLimits.SingleLine,
+            )
+        }
     }
 }

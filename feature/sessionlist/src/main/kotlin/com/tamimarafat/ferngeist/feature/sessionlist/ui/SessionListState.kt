@@ -13,7 +13,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -61,7 +60,6 @@ internal class ConnectionUi(
     val showConnectionStatusDialog: MutableState<Boolean>,
     val pendingAuthentication: SessionListPendingAuthentication?,
     val selectedAuthMethodId: MutableState<String?>,
-    val envValues: MutableMap<String, String>,
 )
 
 /** Screen chrome and refresh: the snackbar, the title and scroll, pull-to-refresh, and the launch latch. */
@@ -172,11 +170,6 @@ internal fun rememberSessionListState(
                     ?: pendingAuthentication?.authMethods?.firstOrNull()?.id,
             )
         }
-    val envValues =
-        remember(
-            pendingAuthentication?.serverId,
-            pendingAuthentication?.pendingAction,
-        ) { mutableStateMapOf<String, String>() }
     val isRefreshing = viewModel.refreshing.collectAsState().value
     val pullToRefreshState = rememberPullToRefreshState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -211,7 +204,6 @@ internal fun rememberSessionListState(
                 showConnectionStatusDialog = showConnectionStatusDialog,
                 pendingAuthentication = pendingAuthentication,
                 selectedAuthMethodId = selectedAuthMethodId,
-                envValues = envValues,
             ),
         screen =
             ScreenUi(
@@ -255,23 +247,17 @@ internal fun SessionListEventEffects(
     state: SessionListState,
     pendingAuthentication: SessionListPendingAuthentication?,
     snackbarHostState: SnackbarHostState,
-    envValues: MutableMap<String, String>,
     selectedAuthMethodId: MutableState<String?>,
     hasConsumedLaunchCreate: MutableState<Boolean>,
     openCreateSessionDialogOnLaunch: Boolean,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
 ) {
-    // Re-populate envValues from persisted values whenever the pending auth changes.
-    // This ensures the dialog reflects the most recent server-saved env vars.
+    // Restore the preferred method when the server supplies the latest saved auth values.
     LaunchedEffect(
         pendingAuthentication?.serverId,
         pendingAuthentication?.pendingAction,
         pendingAuthentication?.persistedEnvValues,
     ) {
-        envValues.clear()
-        pendingAuthentication?.persistedEnvValues?.forEach { (name, value) ->
-            envValues[name] = value
-        }
         selectedAuthMethodId.value = pendingAuthentication?.preferredAuthMethodId
             ?: pendingAuthentication?.authMethods?.firstOrNull()?.id
     }

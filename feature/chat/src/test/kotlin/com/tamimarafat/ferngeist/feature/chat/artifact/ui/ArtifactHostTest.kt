@@ -21,6 +21,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.ComposeUiTestConfig
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.core.app.ActivityOptionsCompat
@@ -57,7 +58,7 @@ class ArtifactHostTest {
     private val dispatcher = StandardTestDispatcher()
 
     @get:Rule
-    val compose = createComposeRule(dispatcher)
+    val compose = createComposeRule(ComposeUiTestConfig(effectContext = dispatcher))
 
     @get:Rule
     val temp = TemporaryFolder()

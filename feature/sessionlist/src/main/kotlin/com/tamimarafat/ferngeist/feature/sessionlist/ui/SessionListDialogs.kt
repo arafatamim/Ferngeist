@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.res.stringResource
 import com.tamimarafat.ferngeist.core.common.ui.auth.AuthenticationDialog
 import com.tamimarafat.ferngeist.core.common.ui.diagnostics.ConnectionDiagnosticsSheet
@@ -49,7 +50,6 @@ internal fun SessionListOverlays(
     isAuthenticating: Boolean,
     selectedAuthMethodId: String?,
     onSelectedAuthMethodChange: (String) -> Unit,
-    envValues: MutableMap<String, String>,
     onSubmit: (String, Map<String, String>) -> Unit,
     onReconnect: () -> Unit,
     onDismissAuthentication: () -> Unit,
@@ -105,7 +105,6 @@ internal fun SessionListOverlays(
             isAuthenticating = isAuthenticating,
             selectedAuthMethodId = selectedAuthMethodId,
             onSelectedAuthMethodChange = onSelectedAuthMethodChange,
-            envValues = envValues,
             onSubmit = onSubmit,
             onReconnect = onReconnect,
             onDismiss = onDismissAuthentication,
@@ -170,40 +169,41 @@ private fun PendingAuthenticationDialog(
     isAuthenticating: Boolean,
     selectedAuthMethodId: String?,
     onSelectedAuthMethodChange: (String) -> Unit,
-    envValues: MutableMap<String, String>,
     onSubmit: (String, Map<String, String>) -> Unit,
     onReconnect: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AuthenticationDialog(
-        request =
-            AuthenticationRequest(
-                agentName = pendingAuthentication.agentName,
-                methods =
-                    pendingAuthentication.authMethods.map { method ->
-                        AuthenticationMethod(
-                            id = method.id,
-                            name = method.name,
-                            description = method.description,
-                            type = method.type,
-                            envVars =
-                                method.envVars.map {
-                                    AuthenticationEnvVar(it.name, it.label, it.secret, it.optional)
-                                },
-                            link = method.link,
-                            args = method.args,
-                        )
-                    },
-                errorMessage = pendingAuthentication.authErrorMessage,
-                isAuthenticating = isAuthenticating,
-            ),
-        title = stringResource(R.string.sessionlist_auth_title, pendingAuthentication.serverName),
-        gatewayBacked = pendingAuthentication.gatewayRuntimeId != null,
-        selectedAuthMethodId = selectedAuthMethodId,
-        onSelectedAuthMethodChange = onSelectedAuthMethodChange,
-        envValues = envValues,
-        onSubmit = onSubmit,
-        onReconnect = onReconnect,
-        onDismiss = onDismiss,
-    )
+    key(pendingAuthentication.serverId, pendingAuthentication.pendingAction) {
+        AuthenticationDialog(
+            request =
+                AuthenticationRequest(
+                    agentName = pendingAuthentication.agentName,
+                    methods =
+                        pendingAuthentication.authMethods.map { method ->
+                            AuthenticationMethod(
+                                id = method.id,
+                                name = method.name,
+                                description = method.description,
+                                type = method.type,
+                                envVars =
+                                    method.envVars.map {
+                                        AuthenticationEnvVar(it.name, it.label, it.secret, it.optional)
+                                    },
+                                link = method.link,
+                                args = method.args,
+                            )
+                        },
+                    errorMessage = pendingAuthentication.authErrorMessage,
+                    isAuthenticating = isAuthenticating,
+                ),
+            title = stringResource(R.string.sessionlist_auth_title, pendingAuthentication.serverName),
+            gatewayBacked = pendingAuthentication.gatewayRuntimeId != null,
+            selectedAuthMethodId = selectedAuthMethodId,
+            onSelectedAuthMethodChange = onSelectedAuthMethodChange,
+            initialEnvValues = pendingAuthentication.persistedEnvValues,
+            onSubmit = onSubmit,
+            onReconnect = onReconnect,
+            onDismiss = onDismiss,
+        )
+    }
 }

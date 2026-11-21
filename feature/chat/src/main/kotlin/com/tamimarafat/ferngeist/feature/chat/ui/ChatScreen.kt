@@ -18,7 +18,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -109,7 +108,6 @@ fun ChatScreen(
                 ),
             selectedAuthMethodId = selectedMethod,
             onSelectedAuthMethodChange = { selectedMethod = it },
-            envValues = remember(request.agentName) { mutableStateMapOf() },
             allowEnvironmentAuth = false,
             onSubmit = { methodId, _ -> viewModel.dispatch(ChatIntent.Authenticate(methodId)) },
             onReconnect = {},
