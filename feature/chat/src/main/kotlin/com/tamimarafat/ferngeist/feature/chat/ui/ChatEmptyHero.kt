@@ -38,7 +38,7 @@ internal fun ChatEmptyHero(
             // Registry logo only: custom/manual agents have no genuine icon,
             // and a placeholder glyph would read as branding that isn't there.
             if (iconUrl != null) {
-                AgentMark(iconUrl = iconUrl, size = 28.dp, active = true)
+                AgentMark(iconUrl = iconUrl, size = 48.dp, active = true)
             }
             BasicText(
                 text = title,
