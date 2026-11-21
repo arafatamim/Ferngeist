@@ -404,9 +404,12 @@ class ChatViewModel
                             presence.screenOpened(serverId, trackedSessionId, cwd)
                             // The session list renders the store, and nothing else writes a
                             // row for a session minted here until the next listing.
-                            val minted =
-                                SessionSummary(id = trackedSessionId, cwd = cwd, updatedAt = System.currentTimeMillis())
+                            val createdAt = System.currentTimeMillis()
+                            val minted = SessionSummary(id = trackedSessionId, cwd = cwd, updatedAt = createdAt)
                             presence.chatCreated(serverId, minted)
+                            // Creating is this phone's own activity: without it, reopening the unsent
+                            // session lists a fresh time with no phone turn and reads as another client.
+                            stores.phoneTurns.record(serverId, trackedSessionId, createdAt, emptySet())
                         }
                         // Nothing records the gateway session that owns this chat: cold
                         // closes and reattaches find it through `acpSessionIds` on
