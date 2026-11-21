@@ -33,23 +33,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.AgentLogo
-import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.agentIconTransition
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusWaveLine
 import com.tamimarafat.ferngeist.core.common.ui.chat.rememberStatusLineState
+import com.tamimarafat.ferngeist.core.common.ui.status.AgentMark
+import com.tamimarafat.ferngeist.core.common.ui.status.CardTone
+import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
+import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
+import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.feature.serverlist.R
-import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.CardTone
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.HeroBody
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.StatusLabelLine
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.cardCornerRadius
-import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.containerColor
-import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.contentColor
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.headline
-import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.waveLineColor
 
 private const val CONNECTING_MARK_SCALE = 1.25f
 private const val HERO_CONNECTING_MARK_SCALE = 1.6f

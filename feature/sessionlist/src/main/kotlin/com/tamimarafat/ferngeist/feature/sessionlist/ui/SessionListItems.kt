@@ -62,9 +62,10 @@ import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
+import com.tamimarafat.ferngeist.core.common.ui.status.cardPresentation
+import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
+import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.isActive
-import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
-import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -649,24 +650,14 @@ private fun sessionCardColors(
     isLive: Boolean,
     status: TurnStatus,
 ): CardColors {
-    val scheme = MaterialTheme.colorScheme
+    val tone =
+        cardPresentation(listOf(TurnActivity(status)), live = isLive).tone
     val container by animateColorAsState(
-        targetValue =
-            scheme.turnStatusContainerColor(
-                status,
-                if (isLive) scheme.secondaryContainer else scheme.surfaceContainerHighest,
-            ),
+        targetValue = tone.containerColor,
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "sessionCardContainer",
     )
-    return CardDefaults.cardColors(
-        containerColor = container,
-        contentColor =
-            scheme.turnStatusContentColor(
-                status,
-                if (isLive) scheme.onSecondaryContainer else scheme.onSurface,
-            ),
-    )
+    return CardDefaults.cardColors(containerColor = container, contentColor = tone.contentColor)
 }
 
 /** Toggle for the chats whose folder is gone, collapsed by default so they stay out of the way. */

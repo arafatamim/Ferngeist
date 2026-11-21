@@ -94,7 +94,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
-import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCard
 import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
@@ -102,9 +101,11 @@ import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
+import com.tamimarafat.ferngeist.core.common.ui.status.AgentMark
+import com.tamimarafat.ferngeist.core.common.ui.status.cardPresentation
+import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
+import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.isActive
-import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
-import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -677,29 +678,13 @@ private fun SwitcherRowContent(
     session: SwitcherSession,
     modifier: Modifier,
 ) {
+    val tone = cardPresentation(listOf(session.turnStatus), live = true).tone
     ChatCard(
         updatedAt = session.updatedAt,
         status = session.turnStatus,
         trailingStamp = false,
-        containerColor =
-            MaterialTheme.colorScheme.turnStatusContainerColor(
-                session.turnStatus.status,
-                if (session.isCurrent) {
-                    // Same treatment as a connected server's card: the activated role, not dimmed.
-                    MaterialTheme.colorScheme.secondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainer
-                },
-            ),
-        contentColor =
-            MaterialTheme.colorScheme.turnStatusContentColor(
-                session.turnStatus.status,
-                if (session.isCurrent) {
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-            ),
+        containerColor = tone.containerColor,
+        contentColor = tone.contentColor,
         modifier = modifier,
     ) {
         AgentMark(
@@ -710,6 +695,7 @@ private fun SwitcherRowContent(
             active = session.isCurrent || session.turnStatus.status.isActive,
             status = session.turnStatus.status,
             fallback = Icons.Rounded.SmartToy,
+            fallbackName = session.agentName,
             modifier = Modifier.semantics { contentDescription = session.agentName },
         )
         StatusCardBody(
@@ -744,11 +730,7 @@ private fun SwitcherRowContent(
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = stringResource(R.string.switcher_current_desc),
-                tint =
-                    MaterialTheme.colorScheme.turnStatusContentColor(
-                        session.turnStatus.status,
-                        MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
+                tint = tone.contentColor,
             )
         }
     }

@@ -20,6 +20,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.status.CardPresentation
+import com.tamimarafat.ferngeist.core.common.ui.status.CardVariant
+import com.tamimarafat.ferngeist.core.common.ui.status.cardPresentation
 import com.tamimarafat.ferngeist.core.common.ui.status.statusesFor
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnActivity
@@ -52,13 +55,15 @@ internal fun AgentsTab(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
+    val connections = servers.associate { it.id to ServerConnectionUiState.from(it.id, uiState, liveServerIds) }
     val activity =
         servers.associate { target ->
             target.id to
-                agentCardPresentation(
-                    gatewayAgent = target is LaunchableTarget.GatewayAgent,
+                cardPresentation(
                     chats = turnStatuses.statusesFor(target.id).values,
-                    connection = ServerConnectionUiState.from(target.id, uiState, liveServerIds),
+                    live = connections.getValue(target.id).isConnected,
+                    failed = connections.getValue(target.id).isFailed,
+                    direct = target !is LaunchableTarget.GatewayAgent,
                 )
         }
     // Computers first, direct agents last.
@@ -85,8 +90,8 @@ internal fun AgentsTab(
                     val state = activity.getValue(target.id)
                     DirectAgentRow(
                         target = target,
-                        status = state.status,
-                        connection = state.connection,
+                        status = state.activity.status,
+                        connection = connections.getValue(target.id),
                         tone = state.tone,
                         onClick = { onConnect(target) },
                         onEdit = { onEdit(target) },
@@ -99,7 +104,7 @@ internal fun AgentsTab(
                 return@forEach
             }
             // Promoted agents span both columns, sorted by working and unread-finished chat counts.
-            val (heroes, resting) = targets.partition { activity.getValue(it.id).variant == AgentCardVariant.HERO }
+            val (heroes, resting) = targets.partition { activity.getValue(it.id).variant == CardVariant.HERO }
             heroes
                 .sortedWith(
                     compareByDescending<LaunchableTarget> { activity.getValue(it.id).working }
@@ -109,9 +114,9 @@ internal fun AgentsTab(
                         val state = activity.getValue(target.id)
                         AgentHeroTile(
                             target = target,
-                            status = state.status,
+                            status = state.activity.status,
                             working = state.working,
-                            connection = state.connection,
+                            connection = connections.getValue(target.id),
                             tone = state.tone,
                             onClick = { onConnect(target) },
                             onEdit = { onEdit(target) },
@@ -132,8 +137,8 @@ internal fun AgentsTab(
                             val state = activity.getValue(target.id)
                             AgentTile(
                                 target = target,
-                                status = state.status,
-                                connection = state.connection,
+                                status = state.activity.status,
+                                connection = connections.getValue(target.id),
                                 tone = state.tone,
                                 shape = tileShape(index, pair.size),
                                 onClick = { onConnect(target) },
@@ -156,12 +161,12 @@ internal fun AgentsTab(
 
 @Composable
 private fun AgentsSummary(
-    activity: Collection<AgentCardPresentation>,
+    activity: Collection<CardPresentation>,
     agentCount: Int,
     modifier: Modifier = Modifier,
 ) {
-    val working = activity.count { it.status == TurnStatus.WORKING }
-    val attention = activity.count { it.status == TurnStatus.NEEDS_ATTENTION }
+    val working = activity.count { it.activity.status == TurnStatus.WORKING }
+    val attention = activity.count { it.activity.status == TurnStatus.NEEDS_ATTENTION }
     val parts =
         listOfNotNull(
             pluralStringResource(R.plurals.home_agents_working_count, working, working).takeIf { working > 0 },

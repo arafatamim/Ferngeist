@@ -31,6 +31,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
+import com.tamimarafat.ferngeist.core.common.ui.status.CardPresentation
+import com.tamimarafat.ferngeist.core.common.ui.status.CardVariant
+import com.tamimarafat.ferngeist.core.common.ui.status.cardPresentation
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.homeItemMotion
@@ -58,13 +61,15 @@ internal fun ProjectsTab(
     val collapsed = collapsedProjects(ordered, now, turnStatuses)
     val presentations =
         remember(projects, turnStatuses, connectedChatKeys) {
-            projects.associateWith { projectCardPresentation(it, turnStatuses, connectedChatKeys) }
+            projects.associateWith { project ->
+                cardPresentation(project.chatActivities(turnStatuses), project.hasLiveChat(connectedChatKeys))
+            }
         }
     val gateways = remember(projects) { projects.map { it.gateway }.distinctBy { it.id } }
     val shown = if (expanded) ordered else collapsed
     val hidden = ordered - collapsed.toSet()
     val (heroProjects, restingProjects) =
-        shown.partition { presentations.getValue(it).variant == ProjectCardVariant.HERO }
+        shown.partition { presentations.getValue(it).variant == CardVariant.HERO }
     val showGateway = gateways.size > 1
 
     LazyColumn(
@@ -123,8 +128,8 @@ internal fun ProjectsTab(
 /** Full-width hero rows: one promoted project per item. */
 private fun LazyListScope.projectRows(
     projects: List<ProjectSummary>,
-    presentations: Map<ProjectSummary, ProjectCardPresentation>,
-    content: @Composable LazyItemScope.(ProjectSummary, ProjectCardPresentation) -> Unit,
+    presentations: Map<ProjectSummary, CardPresentation>,
+    content: @Composable LazyItemScope.(ProjectSummary, CardPresentation) -> Unit,
 ) {
     projects.forEach { project ->
         item(key = "project:${project.gateway.id}/${project.repo}") {
@@ -136,8 +141,8 @@ private fun LazyListScope.projectRows(
 /** The two-up grid: a pair of resting projects per item, their inner corners pinched together. */
 private fun LazyListScope.projectTileRows(
     projects: List<ProjectSummary>,
-    presentations: Map<ProjectSummary, ProjectCardPresentation>,
-    content: @Composable LazyItemScope.(ProjectSummary, ProjectCardPresentation, RoundedCornerShape, Modifier) -> Unit,
+    presentations: Map<ProjectSummary, CardPresentation>,
+    content: @Composable LazyItemScope.(ProjectSummary, CardPresentation, RoundedCornerShape, Modifier) -> Unit,
 ) {
     projects.chunked(2).forEach { pair ->
         item(key = "projects:${pair.joinToString { "${it.gateway.id}/${it.repo}" }}") {

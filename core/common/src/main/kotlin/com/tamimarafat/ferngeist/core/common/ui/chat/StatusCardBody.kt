@@ -15,6 +15,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlin.math.roundToInt
 
@@ -119,6 +120,7 @@ private fun SupportingWithLine(
         supporting?.invoke()
         StatusWaveLine(
             state = line,
+            color = waveLineColor,
             modifier = Modifier.weight(1f, fill = false),
             startPadding = if (supporting != null) stampGap else 0.dp,
         )

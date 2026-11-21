@@ -38,13 +38,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
-import com.tamimarafat.ferngeist.core.common.ui.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusWaveLine
 import com.tamimarafat.ferngeist.core.common.ui.chat.rememberStatusLineState
+import com.tamimarafat.ferngeist.core.common.ui.status.AgentMark
+import com.tamimarafat.ferngeist.core.common.ui.status.CardPresentation
+import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
+import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
+import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.projectName
@@ -53,13 +57,10 @@ import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.HeroBody
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.PressSurface
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.StatusLabelLine
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.cardCornerRadius
-import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.containerColor
-import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.contentColor
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.headline
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.overflowIconInset
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.overflowIconShape
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.sharedCardBounds
-import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.waveLineColor
 
 /** Supporting lines sit a step below their headline, whatever tone the card carries. */
 private const val SUPPORTING_ALPHA = 0.75f
@@ -69,7 +70,7 @@ private const val SUPPORTING_ALPHA = 0.75f
 @Composable
 internal fun ProjectHeroTile(
     project: ProjectSummary,
-    presentation: ProjectCardPresentation,
+    presentation: CardPresentation,
     showGateway: Boolean,
     connectedChatKeys: Set<String>,
     turnStatuses: Map<String, TurnActivity>,
@@ -141,7 +142,7 @@ internal fun ProjectHeroTile(
 @Composable
 internal fun ProjectTile(
     project: ProjectSummary,
-    presentation: ProjectCardPresentation,
+    presentation: CardPresentation,
     showGateway: Boolean,
     shape: RoundedCornerShape,
     onClick: () -> Unit,

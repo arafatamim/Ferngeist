@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.serverlist.ui.projects
 
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectChat
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
+import com.tamimarafat.ferngeist.core.common.ui.status.cardPresentation
 import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
@@ -64,32 +65,34 @@ class ProjectChoicesTest {
     }
 
     @Test
-    fun `presentation aggregates the project's own chats by full identity with attention first`() {
+    fun `presentation aggregates the project's own chats by full identity with error first`() {
         val first = project("/repo", 1).chats.single()
         val second = first.copy(summary = first.summary.copy(id = "second"))
         val project = project("/repo", 1).copy(chats = listOf(first, second))
 
         assertEquals(
             TurnActivity(TurnStatus.ERROR),
-            projectCardPresentation(
-                project,
-                mapOf(
-                    "agent//repo" to TurnActivity(TurnStatus.FINISHED),
-                    "agent/second" to TurnActivity(TurnStatus.ERROR),
-                    "other//repo" to TurnActivity(TurnStatus.NEEDS_ATTENTION),
+            cardPresentation(
+                project.chatActivities(
+                    mapOf(
+                        "agent//repo" to TurnActivity(TurnStatus.FINISHED),
+                        "agent/second" to TurnActivity(TurnStatus.ERROR),
+                        "other//repo" to TurnActivity(TurnStatus.NEEDS_ATTENTION),
+                    ),
                 ),
-                emptySet(),
+                live = false,
             ).activity,
         )
         assertEquals(
             TurnActivity(TurnStatus.UNKNOWN),
-            projectCardPresentation(
-                project,
-                mapOf(
-                    "other//repo" to TurnActivity(TurnStatus.FINISHED),
-                    "other/second" to TurnActivity(TurnStatus.WORKING),
+            cardPresentation(
+                project.chatActivities(
+                    mapOf(
+                        "other//repo" to TurnActivity(TurnStatus.FINISHED),
+                        "other/second" to TurnActivity(TurnStatus.WORKING),
+                    ),
                 ),
-                emptySet(),
+                live = false,
             ).activity,
         )
     }
@@ -115,7 +118,10 @@ class ProjectChoicesTest {
             )
         val ordered = projectsByActivity(listOf(project("/recent", 199_999_999L), mixed), statuses)
 
-        assertEquals(TurnActivity(TurnStatus.ERROR), projectCardPresentation(mixed, statuses, emptySet()).activity)
+        assertEquals(
+            TurnActivity(TurnStatus.ERROR),
+            cardPresentation(mixed.chatActivities(statuses), live = false).activity,
+        )
         assertEquals(listOf("/old", "/recent"), ordered.map { it.repo })
         assertEquals(listOf("/old", "/recent"), collapsedProjects(ordered, 200_000_000L, statuses).map { it.repo })
     }

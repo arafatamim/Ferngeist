@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui.cards
 
+import com.tamimarafat.ferngeist.core.common.ui.status.CardTone
+import com.tamimarafat.ferngeist.core.common.ui.status.cardTone
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import org.junit.Assert.assertEquals
 import org.junit.Test

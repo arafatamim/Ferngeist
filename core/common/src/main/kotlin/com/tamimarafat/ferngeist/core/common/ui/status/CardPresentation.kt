@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.core.common.ui
+package com.tamimarafat.ferngeist.core.common.ui.status
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.BorderStroke
@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
@@ -37,10 +38,107 @@ import androidx.compose.ui.util.lerp
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.RoundedPolygon
 import androidx.graphics.shapes.toPath
-import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
+import com.tamimarafat.ferngeist.core.common.ui.AgentLogo
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.aggregateTurnActivity
 import com.tamimarafat.ferngeist.core.model.iconUrl
+
+/** The layout and status shared by agent, project and session cards. */
+enum class CardVariant { DIRECT, HERO, TILE }
+
+data class CardPresentation(
+    val activity: TurnActivity,
+    val working: Int,
+    val unreadFinished: Int,
+    val variant: CardVariant,
+    val tone: CardTone,
+)
+
+/** Working, unread, attention and error chats promote a card; direct agents remain rows. */
+fun cardPresentation(
+    chats: Collection<TurnActivity>,
+    live: Boolean,
+    failed: Boolean = false,
+    direct: Boolean = false,
+): CardPresentation {
+    val working = chats.count { it.status == TurnStatus.WORKING }
+    val unread = chats.count { it.status == TurnStatus.FINISHED }
+    val activity = chats.aggregateTurnActivity()
+    val variant =
+        when {
+            direct -> CardVariant.DIRECT
+            working > 0 ||
+                unread > 0 ||
+                activity.status == TurnStatus.NEEDS_ATTENTION ||
+                activity.status == TurnStatus.ERROR -> CardVariant.HERO
+            else -> CardVariant.TILE
+        }
+    return CardPresentation(
+        activity = activity,
+        working = working,
+        unreadFinished = unread,
+        variant = variant,
+        tone = cardTone(activity.status, variant == CardVariant.HERO, live, failed),
+    )
+}
+
+/** The tones every home card can take; a card's tone and its on-colour always pair. */
+enum class CardTone { PRIMARY, ATTENTION, CONNECTED, FAILED, DEFAULT }
+
+/**
+ * The tone a card takes. What its turn asks for comes first: a wait or a failure is the thing to
+ * act on, so it tints the card whether or not the link that would carry the answer is up. Only
+ * then does the connection speak, and a live hero outranks a plain live tile.
+ */
+fun cardTone(
+    status: TurnStatus,
+    hero: Boolean,
+    live: Boolean,
+    failed: Boolean,
+): CardTone =
+    when {
+        status == TurnStatus.ERROR -> CardTone.FAILED
+        status == TurnStatus.NEEDS_ATTENTION -> CardTone.ATTENTION
+        hero && live -> CardTone.PRIMARY
+        live -> CardTone.CONNECTED
+        failed -> CardTone.FAILED
+        else -> CardTone.DEFAULT
+    }
+
+// Opaque roles pair each card tone with its on-colour; primary stays with the hero.
+val CardTone.containerColor: Color
+    @Composable
+    get() =
+        when (this) {
+            CardTone.PRIMARY -> MaterialTheme.colorScheme.primaryContainer
+            CardTone.ATTENTION -> MaterialTheme.colorScheme.tertiaryContainer
+            CardTone.CONNECTED -> MaterialTheme.colorScheme.secondaryContainer
+            CardTone.FAILED -> MaterialTheme.colorScheme.errorContainer
+            CardTone.DEFAULT -> MaterialTheme.colorScheme.surfaceContainer
+        }
+
+/**
+ * A card's ink for the turn's wave line: the card's own content colour, softened, because the wave is
+ * an indicator beside the label rather than a second line of text. Full ink measured around 12:1.
+ */
+val waveLineColor: Color
+    @Composable
+    get() = LocalContentColor.current.copy(alpha = WAVE_LINE_ALPHA)
+
+private const val WAVE_LINE_ALPHA = 0.45f
+
+val CardTone.contentColor: Color
+    @Composable
+    get() =
+        when (this) {
+            CardTone.PRIMARY -> MaterialTheme.colorScheme.onPrimaryContainer
+            CardTone.ATTENTION -> MaterialTheme.colorScheme.onTertiaryContainer
+            CardTone.CONNECTED -> MaterialTheme.colorScheme.onSecondaryContainer
+            CardTone.FAILED -> MaterialTheme.colorScheme.onErrorContainer
+            CardTone.DEFAULT -> MaterialTheme.colorScheme.onSurface
+        }
 
 /** A step off the card's own tone: dark enough to see, light enough to stay in the background. */
 private const val INACTIVE_VEIL_ALPHA = 0.12f
