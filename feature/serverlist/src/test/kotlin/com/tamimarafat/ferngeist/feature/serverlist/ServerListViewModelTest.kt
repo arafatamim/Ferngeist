@@ -13,6 +13,9 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.ServerConfig
+import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnActivity
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -95,6 +98,25 @@ class ServerListViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
     }
+
+    @Test
+    fun `home promotes an older active chat into the hero and restores recency after it finishes`() =
+        runTest(testDispatcher) {
+            val target = LaunchableTarget.Manual(ServerConfig(id = "agent", name = "Agent", host = "localhost"))
+            val chats = (6 downTo 1).map { SessionSummary(id = "$it", serverId = "agent", updatedAt = it.toLong()) }
+            val statuses = MutableStateFlow(mapOf("agent/1" to TurnActivity(TurnStatus.WORKING)))
+            every { projectCatalog.getRecentSessions(any()) } answers { flowOf(chats.take(firstArg())) }
+            every { projectCatalog.turnStatuses } returns statuses
+            coEvery { launchableTargetRepository.getTarget("agent") } returns target
+            val viewModel = createViewModel()
+
+            viewModel.recentSessions.test {
+                assertEquals(emptyList<RecentSession>(), awaitItem())
+                assertEquals(listOf("1", "6", "5", "4", "3"), awaitItem().map { it.sessionId })
+                statuses.value = mapOf("agent/1" to TurnActivity(TurnStatus.FINISHED))
+                assertEquals(listOf("6", "5", "4", "3", "2"), awaitItem().map { it.sessionId })
+            }
+        }
 
     @Test
     fun `connectAndOpenServer should reuse existing connection if same server is already connected`() =

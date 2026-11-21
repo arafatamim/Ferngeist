@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchOutcome
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchSession
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLauncher
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
+import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -191,14 +192,17 @@ class ServerListViewModel
 
         val recentSessions: StateFlow<List<RecentSession>> =
             combine(
-                projectCatalog.getRecentSessions(RECENT_SESSIONS_LIMIT),
+                projectCatalog.getRecentSessions(Int.MAX_VALUE),
                 projectCatalog.activityUpdatedAt,
-            ) { summaries, activity ->
+                projectCatalog.turnStatuses,
+            ) { summaries, activity, statuses ->
                 summaries
                     .filter { summary ->
                         summary.serverId.isNotBlank().also { valid ->
                             if (!valid) Log.w(LOG_TAG, "Skipping session ${summary.id}: blank serverId")
                         }
+                    }.sortedByDescending { summary ->
+                        statuses["${summary.serverId}/${summary.id}"]?.status?.isActive == true
                     }.mapNotNull { summary ->
                         val target =
                             repos.launchableTargetRepository.getTarget(summary.serverId) ?: return@mapNotNull null
@@ -211,7 +215,7 @@ class ServerListViewModel
                             updatedAt = summary.updatedAt,
                             activityUpdatedAt = activity["${summary.serverId}/${summary.id}"],
                         )
-                    }
+                    }.take(RECENT_SESSIONS_LIMIT)
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         private val _uiState = MutableStateFlow(ServerListUiState())
