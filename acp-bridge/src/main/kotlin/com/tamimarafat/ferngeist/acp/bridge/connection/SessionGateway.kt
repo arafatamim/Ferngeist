@@ -53,6 +53,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
@@ -90,6 +92,9 @@ internal class SessionGateway(
      * and cleared — at the end of its turn so a later turn is not mislabelled.
      */
     private val cancelsRequested = ConcurrentHashMap.newKeySet<String>()
+
+    // shortcut: one lock per session id ever attached, never pruned; prune on teardown if ids grow unbounded.
+    private val attachLocks = ConcurrentHashMap<String, Mutex>()
 
     /** Timing of each in-flight attach, keyed by session id; see [AttachTiming]. */
     private val attachTimings = ConcurrentHashMap<String, AttachTiming>()
@@ -156,8 +161,11 @@ internal class SessionGateway(
      *
      * A bridge following the gateway's numbering under [epoch] (any, when null) first tries a
      * [catchUp].
+     *
+     * Attaches of one session run one at a time: a reconnect's restore and a chat's own load
+     * can overlap, and a failed attach's teardown would close the bridge the other still holds.
+     * A later attach then finds the session loaded, or runs afresh.
      */
-    @OptIn(UnstableApi::class)
     suspend fun attachSession(
         rpc: SessionAttachRpc,
         sessionId: String,
@@ -167,6 +175,16 @@ internal class SessionGateway(
         // The new-chat placeholder is a route value, not a session: an agent that loads or resumes
         // an unknown id may create one under it, and every later tap on that chat mints anew.
         require(sessionId != NEW_SESSION_ARG) { "The new-chat placeholder is not a session id" }
+        return attachLocks.computeIfAbsent(sessionId) { Mutex() }.withLock { attachLocked(rpc, sessionId, cwd, epoch) }
+    }
+
+    @OptIn(UnstableApi::class)
+    private suspend fun attachLocked(
+        rpc: SessionAttachRpc,
+        sessionId: String,
+        cwd: String,
+        epoch: String?,
+    ): SessionPort? {
         getLoadedSession(sessionId)?.let { existing -> return existing }
 
         val client =
