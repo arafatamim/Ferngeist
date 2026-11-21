@@ -211,7 +211,7 @@ private class SwitcherHintPositionProvider(
 
 /**
  * Round live-session count button riding immediately to the right of the
- * composer pill: same primary color and elevation, and a near-pill-height
+ * composer pill: same colors and a near-pill-height
  * circle, so the two read as one control. Attention and errors replace the count.
  * Tap opens the sheet; a horizontal drag moves the whole chat with the
  * finger (Chrome-style) and release commits the switch or springs back.
@@ -321,8 +321,8 @@ internal fun SessionSwitcherBubble(
                     onClick()
                 },
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 shadowElevation = 6.dp,
                 modifier =
                     Modifier
