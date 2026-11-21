@@ -23,6 +23,8 @@ jobs:
         run: |
           TAG="${{ github.event.release.tag_name }}"
           TAG="${TAG#v}"
+          # A preview tag keeps the version and adds -preview; Play still gets versionName.
+          TAG="${TAG%-preview}"
           NAME=$(grep -oP '^\s*versionName = "\K[^"]+' app/build.gradle.kts)
           CODE=$(grep -oP '^\s*versionCode = \K\d+' app/build.gradle.kts)
           if [ "$TAG" != "$NAME" ]; then

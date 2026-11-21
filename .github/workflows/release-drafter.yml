@@ -38,9 +38,17 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
+          # Only a tag already on master may advance it; a tag cut from a feature branch
+          # leaves CHANGES.md to that branch's release instead of merging the branch here.
+          git fetch --quiet origin master
+          if git merge-base --is-ancestor HEAD origin/master; then on_master=1; else on_master=0; fi
           git add CHANGELOG.md
           git commit -m "chore: update CHANGELOG.md for ${{ github.ref_name }}"
-          git push origin HEAD:master
+          if [ "$on_master" = 1 ]; then
+            git push origin HEAD:master
+          else
+            echo "Tag is not on master; master left untouched."
+          fi
 
       - name: Create GitHub release
         env:
