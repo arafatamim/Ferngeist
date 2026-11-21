@@ -174,14 +174,14 @@ internal fun ProjectTile(
             }
             ProjectName(
                 project = project,
-                style = MaterialTheme.typography.titleLargeEmphasized,
+                style = MaterialTheme.typography.titleMediumEmphasized,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
                 maxLines = 2,
             )
             Text(
                 text = projectSupporting(project, showGateway),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = LocalContentColor.current.copy(alpha = SUPPORTING_ALPHA),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

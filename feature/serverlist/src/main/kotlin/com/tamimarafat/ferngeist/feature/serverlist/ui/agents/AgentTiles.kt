@@ -159,7 +159,7 @@ internal fun AgentTile(
             }
             AgentName(
                 target = target,
-                style = MaterialTheme.typography.titleLargeEmphasized,
+                style = MaterialTheme.typography.titleMediumEmphasized,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
                 maxLines = 2,
