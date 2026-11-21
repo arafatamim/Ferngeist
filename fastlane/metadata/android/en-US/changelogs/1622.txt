@@ -1,0 +1,4 @@
+• New home: projects and agents as cards, with filters and live status
+• Unread completions show a dot; errors take priority over attention
+• Image attachments preview before you tap
+• Smoother splash and composer motion

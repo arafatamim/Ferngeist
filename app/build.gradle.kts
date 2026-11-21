@@ -46,10 +46,11 @@ android {
         // Release version. Bump versionName and versionCode together when cutting a
         // release, and tag the release commit as "v$versionName" — the tag, these
         // literals, and the GitHub release asset names ("Ferngeist-$versionName.apk")
-        // must all agree. F-Droid's checkupdates and release.yml parse these literal
-        // values, so they MUST NOT be computed (e.g. via git describe).
-        versionCode = 1621
-        versionName = "1.7.1"
+        // must all agree. A preview tag appends "-preview"; release.yml strips it and
+        // still expects versionName. F-Droid's checkupdates and release.yml parse these
+        // literal values, so they MUST NOT be computed (e.g. via git describe).
+        versionCode = 1622
+        versionName = "1.8.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
