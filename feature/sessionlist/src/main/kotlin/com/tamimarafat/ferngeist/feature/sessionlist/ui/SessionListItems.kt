@@ -62,6 +62,7 @@ import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
+import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
@@ -198,7 +199,12 @@ private fun SessionListContentFor(
             val snackbarScope = rememberCoroutineScope()
             val goneMessage = stringResource(R.string.sessionlist_missing_folder_message)
             SessionListLazyColumn(
-                groupedSessions = groupSessionsByDate(present, state.screen.isRefreshing),
+                groupedSessions =
+                    groupSessionsByDate(present, state.screen.isRefreshing) {
+                        state.rows.presence.turnStatuses[it.id]
+                            ?.status
+                            ?.isActive == true
+                    },
                 missingSessions = missing,
                 onOpenMissing = { snackbarScope.launch { state.screen.snackbarHostState.showSnackbar(goneMessage) } },
                 sessionCount = state.rows.sessions.size,
@@ -228,6 +234,7 @@ private fun SessionListContentFor(
 internal fun groupSessionsByDate(
     sessions: List<SessionSummary>,
     refreshing: Boolean,
+    isLive: (SessionSummary) -> Boolean,
 ): Map<String, List<SessionSummary>> {
     val zoneId = ZoneId.systemDefault()
     val today = Instant.ofEpochMilli(rememberPresentationTime(refreshing)).atZone(zoneId).toLocalDate()
@@ -236,7 +243,7 @@ internal fun groupSessionsByDate(
         remember(locale) {
             DateFormat.getDateInstance(DateFormat.LONG, locale.platformLocale)
         }
-    val groups = datedSessions(sessions, zoneId)
+    val groups = datedSessions(sessions, zoneId, today, isLive)
     // Group by local calendar date, newest first, with unknown dates last.
     return groups.mapKeys { (date, group) ->
         // Recent dates use relative labels; older ones follow the user's locale.

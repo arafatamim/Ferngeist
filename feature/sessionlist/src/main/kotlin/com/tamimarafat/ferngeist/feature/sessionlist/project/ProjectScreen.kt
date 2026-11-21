@@ -49,6 +49,7 @@ import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.git.ui.ProjectGitAction
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.iconUrl
@@ -411,7 +412,10 @@ private fun ProjectChatList(
     val running by viewModel.runningChatKeys.collectAsState()
     val chatsBySummary = rows.associateBy { it.summary }
     val refreshing by viewModel.refreshing.collectAsState()
-    val grouped = groupSessionsByDate(rows.map { it.summary }, refreshing)
+    val grouped =
+        groupSessionsByDate(rows.map { it.summary }, refreshing) {
+            chatsBySummary[it]?.let { chat -> turnStatuses[chat.key]?.status?.isActive } == true
+        }
     val removing by viewModel.removingWorktreeIds.collectAsState()
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

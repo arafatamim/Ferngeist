@@ -24,8 +24,20 @@ class ProjectDateTest {
                 updatedAt = Instant.parse("2026-10-23T18:00:00Z").toEpochMilli(),
             )
         val unknown = SessionSummary(id = "unknown")
-        val groups = datedSessions(listOf(unknown, before, after), ZoneId.of("Asia/Dhaka"))
+        val groups =
+            datedSessions(listOf(unknown, before, after), ZoneId.of("Asia/Dhaka"), LocalDate.of(2026, 10, 24)) { false }
         assertEquals(listOf(LocalDate.of(2026, 10, 24), LocalDate.of(2026, 10, 23), null), groups.keys.toList())
         assertEquals(listOf(after, before, unknown), groups.values.flatten())
+    }
+
+    @Test
+    fun `running chat with stale activity leads today's bucket above a chat that just ended`() {
+        val today = LocalDate.of(2026, 10, 24)
+        val ended = SessionSummary(id = "ended", updatedAt = Instant.parse("2026-10-24T10:00:00Z").toEpochMilli())
+        val running = SessionSummary(id = "running", updatedAt = Instant.parse("2026-10-20T10:00:00Z").toEpochMilli())
+        val unknownRunning = SessionSummary(id = "unknown-running")
+        val groups = datedSessions(listOf(ended, unknownRunning, running), ZoneId.of("UTC"), today) { it != ended }
+        assertEquals(listOf(today), groups.keys.toList())
+        assertEquals(listOf(running, unknownRunning, ended), groups.getValue(today))
     }
 }
