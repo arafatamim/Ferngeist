@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -69,8 +68,8 @@ enum class HomeTab(
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun HomeTabBar(
-    pagerState: PagerState,
+internal fun HomeTabBar(
+    pager: HomePagerMotion,
     quickChatAvailable: Boolean,
     hasGateways: Boolean,
     onQuickChat: () -> Unit,
@@ -79,8 +78,7 @@ fun HomeTabBar(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    val spatial = MaterialTheme.motionScheme.slowSpatialSpec<Float>()
-    val tab = HomeTab.entries[pagerState.targetPage]
+    val tab = HomeTab.entries[pager.state.currentPage]
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -95,7 +93,7 @@ fun HomeTabBar(
                     tab = entry,
                     selected = entry == tab,
                     onClick = {
-                        scope.launch { pagerState.animateScrollToPage(entry.ordinal, animationSpec = spatial) }
+                        scope.launch { pager.select(entry) }
                     },
                 )
             }
@@ -222,10 +220,10 @@ private fun HomeTabItem(
         AnimatedVisibility(
             visible = selected,
             enter =
-                expandHorizontally(motion.slowSpatialSpec(), expandFrom = Alignment.Start) +
+                expandHorizontally(motion.fastSpatialSpec(), expandFrom = Alignment.Start) +
                     fadeIn(motion.fastEffectsSpec()),
             exit =
-                shrinkHorizontally(motion.slowSpatialSpec(), shrinkTowards = Alignment.Start) +
+                shrinkHorizontally(motion.fastSpatialSpec(), shrinkTowards = Alignment.Start) +
                     fadeOut(motion.fastEffectsSpec()),
         ) {
             Text(

@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -57,8 +56,10 @@ import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomePagerMotion
 import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomeTab
 import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomeTabBar
+import com.tamimarafat.ferngeist.feature.serverlist.ui.home.rememberHomePagerMotion
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectLine
 
 /** Quick chat's sheet: projects, agents, their listing statuses, start (agent, cwd), dismiss. */
@@ -249,8 +250,8 @@ private fun ServerListScaffold(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    val pagerState = rememberPagerState { HomeTab.entries.size }
-    val gatewayHealth = rememberGatewayHealth(gatewayHealthFlow, pagerState, isLoading, servers)
+    val pager = rememberHomePagerMotion()
+    val gatewayHealth = rememberGatewayHealth(gatewayHealthFlow, pager.state, isLoading, servers)
     Scaffold(
         // Background surface; the lighter foreground sheet reads as elevated against it.
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -268,7 +269,7 @@ private fun ServerListScaffold(
         Box(Modifier.padding(padding)) {
             ServerListContent(
                 modifier = Modifier,
-                pagerState = pagerState,
+                pager = pager,
                 isLoading = isLoading,
                 servers = servers,
                 heroSession = heroSession,
@@ -291,7 +292,7 @@ private fun ServerListScaffold(
             )
             if (!isLoading && servers.isNotEmpty()) {
                 HomeTabBar(
-                    pagerState = pagerState,
+                    pager = pager,
                     quickChatAvailable = quickChatAvailable,
                     hasGateways = hasGateways,
                     onQuickChat = onQuickChat,
@@ -461,7 +462,7 @@ private fun ServerListDialogsHost(
 @Composable
 private fun ServerListContent(
     modifier: Modifier,
-    pagerState: PagerState,
+    pager: HomePagerMotion,
     isLoading: Boolean,
     servers: List<LaunchableTarget>,
     heroSession: RecentSession?,
@@ -502,7 +503,7 @@ private fun ServerListContent(
                 )
             else ->
                 AgentsBackdrop(
-                    pagerState = pagerState,
+                    pager = pager,
                     heroSession = heroSession,
                     olderSessions = olderSessions,
                     servers = servers,

@@ -6,12 +6,9 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FiniteAnimationSpec
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,8 +24,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerDefaults
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -39,7 +34,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -75,6 +69,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import com.tamimarafat.ferngeist.feature.serverlist.ui.agents.AgentsTab
+import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomePagerMotion
 import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomeTab
 import com.tamimarafat.ferngeist.feature.serverlist.ui.projects.ProjectsGroup
 import kotlinx.coroutines.CoroutineScope
@@ -84,7 +79,7 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun AgentsBackdrop(
-    pagerState: PagerState,
+    pager: HomePagerMotion,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     servers: List<LaunchableTarget>,
@@ -139,7 +134,7 @@ internal fun AgentsBackdrop(
     val projectsListState = rememberLazyListState()
     val agentsListState = rememberLazyListState()
     val listStateFor = { t: HomeTab -> if (t == HomeTab.PROJECTS) projectsListState else agentsListState }
-    val agentsLazyListState = listStateFor(HomeTab.entries[pagerState.currentPage])
+    val agentsLazyListState = listStateFor(HomeTab.entries[pager.state.currentPage])
 
     // Restore the user's sheet position once the recents block has a height.
     LaunchedEffect(recentsPx, sheetFractionRestored) {
@@ -169,7 +164,7 @@ internal fun AgentsBackdrop(
             sheetRevealed = sheetRevealed,
         )
     BackdropLayers(
-        pagerState = pagerState,
+        pager = pager,
         listStateFor = listStateFor,
         heroSession = heroSession,
         olderSessions = olderSessions,
@@ -206,7 +201,7 @@ internal fun AgentsBackdrop(
 
 @Composable
 private fun BackdropLayers(
-    pagerState: PagerState,
+    pager: HomePagerMotion,
     listStateFor: (HomeTab) -> LazyListState,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
@@ -255,7 +250,7 @@ private fun BackdropLayers(
             onRecentsSize = onRecentsPx,
         )
         FrontSheetLayer(
-            pagerState = pagerState,
+            pager = pager,
             listStateFor = listStateFor,
             scope = scope,
             sheetOffset = sheetOffset,
@@ -287,7 +282,7 @@ private fun BackdropLayers(
 
 @Composable
 private fun FrontSheetLayer(
-    pagerState: PagerState,
+    pager: HomePagerMotion,
     listStateFor: (HomeTab) -> LazyListState,
     scope: CoroutineScope,
     sheetOffset: Animatable<Float, AnimationVector1D>,
@@ -322,7 +317,7 @@ private fun FrontSheetLayer(
         contentAlignment = Alignment.TopCenter,
     ) {
         AgentsBackdropSheet(
-            pagerState = pagerState,
+            pager = pager,
             listStateFor = listStateFor,
             modifier =
                 Modifier
@@ -595,7 +590,7 @@ private fun Modifier.sheetDrag(
 
 @Composable
 private fun AgentsBackdropSheet(
-    pagerState: PagerState,
+    pager: HomePagerMotion,
     listStateFor: (HomeTab) -> LazyListState,
     modifier: Modifier,
     headerDragModifier: Modifier,
@@ -625,7 +620,7 @@ private fun AgentsBackdropSheet(
         shadowElevation = 0.dp,
     ) {
         FrontLayerContent(
-            pagerState = pagerState,
+            pager = pager,
             listStateFor = listStateFor,
             servers = servers,
             uiState = uiState,
@@ -701,7 +696,7 @@ private fun BackLayerContent(
 )
 @Composable
 private fun FrontLayerContent(
-    pagerState: PagerState,
+    pager: HomePagerMotion,
     listStateFor: (HomeTab) -> LazyListState,
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
@@ -732,27 +727,16 @@ private fun FrontLayerContent(
     ) {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             val now = rememberPresentationTime(refreshing)
-            val pagePosition = pagerState.currentPage + pagerState.currentPageOffsetFraction
-            val animatedPosition by rememberAnimatedPagePosition(pagerState)
-            val direction = if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1f else -1f
+            val pageDirection = if (LocalLayoutDirection.current == LayoutDirection.Ltr) -1f else 1f
             // Tabs page sideways, so a swipe and a tab tap travel the same path.
             HorizontalPager(
-                state = pagerState,
+                state = pager.state,
                 modifier = Modifier.fillMaxSize(),
                 beyondViewportPageCount = 1,
-                flingBehavior =
-                    PagerDefaults.flingBehavior(
-                        state = pagerState,
-                        snapAnimationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-                    ),
+                flingBehavior = pager.flingBehavior(),
             ) { page ->
                 val shown = HomeTab.entries[page]
-                Box(
-                    modifier =
-                        Modifier.graphicsLayer {
-                            translationX = (pagePosition - animatedPosition) * size.width * direction
-                        },
-                ) {
+                Box(Modifier.graphicsLayer { translationX = pageDirection * pager.overshootPx }) {
                     when (shown) {
                         HomeTab.AGENTS ->
                             AgentsTab(
@@ -790,18 +774,6 @@ private fun FrontLayerContent(
             Box(modifier = Modifier.fillMaxWidth().height(24.dp).then(headerDragModifier))
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun rememberAnimatedPagePosition(pagerState: PagerState): State<Float> {
-    val dragging by pagerState.interactionSource.collectIsDraggedAsState()
-    val pagePosition = pagerState.currentPage + pagerState.currentPageOffsetFraction
-    return animateFloatAsState(
-        targetValue = if (dragging) pagePosition else pagerState.targetPage.toFloat(),
-        animationSpec = if (dragging) snap() else MaterialTheme.motionScheme.slowSpatialSpec(),
-        label = "homePagePosition",
-    )
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
