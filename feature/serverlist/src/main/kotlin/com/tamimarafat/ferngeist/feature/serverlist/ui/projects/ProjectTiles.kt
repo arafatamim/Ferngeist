@@ -1,8 +1,10 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui.projects
 
 import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.animateBounds
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -26,11 +28,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -109,27 +114,30 @@ internal fun ProjectHeroTile(
                 )
             },
             nameRow = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        ProjectName(
-                            project = project,
-                            style = MaterialTheme.typography.headlineSmallEmphasized,
-                            sharedTransitionScope = sharedTransitionScope,
-                            animatedContentScope = animatedContentScope,
-                            maxLines = 2,
-                        )
-                        Text(
-                            text = projectSupporting(project, showGateway),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = LocalContentColor.current.copy(alpha = SUPPORTING_ALPHA),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                LookaheadScope {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            ProjectName(
+                                project = project,
+                                style = MaterialTheme.typography.headlineSmallEmphasized,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                                maxLines = 2,
+                            )
+                            Text(
+                                text = projectSupporting(project, showGateway),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = LocalContentColor.current.copy(alpha = SUPPORTING_ALPHA),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        ProjectAgentMarks(
+                            agents = project.connectedAgents(connectedChatKeys, turnStatuses),
+                            cardColor = presentation.tone.containerColor,
+                            lookaheadScope = this@LookaheadScope,
                         )
                     }
-                    ProjectAgentMarks(
-                        agents = project.connectedAgents(connectedChatKeys, turnStatuses),
-                        cardColor = presentation.tone.containerColor,
-                    )
                 }
             },
             modifier = Modifier.fillMaxWidth().heightIn(min = 136.dp).padding(20.dp),
@@ -314,22 +322,32 @@ private fun ProjectName(
  * lobes, while on top its own outline and ring cut them. The row keeps the plain mark's height,
  * so a mark growing never moves the card's rows; its overhang lands in the card's padding.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ProjectAgentMarks(
     agents: List<ConnectedAgent>,
     cardColor: Color,
+    lookaheadScope: LookaheadScope,
 ) {
+    val spring = MaterialTheme.motionScheme.defaultSpatialSpec<Rect>()
     Layout(
         content = {
             agents.forEach { agent ->
-                AgentMark(
-                    target = agent.target,
-                    size = markSize,
-                    active = true,
-                    status = agent.status,
-                    border = BorderStroke(markRingWidth, cardColor),
-                    reserveOverhang = true,
-                )
+                key(agent.target.id) {
+                    AgentMark(
+                        target = agent.target,
+                        size = markSize,
+                        active = true,
+                        status = agent.status,
+                        border = BorderStroke(markRingWidth, cardColor),
+                        reserveOverhang = true,
+                        modifier =
+                            Modifier.animateBounds(
+                                lookaheadScope,
+                                boundsTransform = BoundsTransform { _, _ -> spring },
+                            ),
+                    )
+                }
             }
         },
     ) { measurables, _ ->

@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -35,7 +36,10 @@ import com.tamimarafat.ferngeist.core.common.ui.status.CardPresentation
 import com.tamimarafat.ferngeist.core.common.ui.status.CardVariant
 import com.tamimarafat.ferngeist.core.common.ui.status.cardPresentation
 import com.tamimarafat.ferngeist.core.model.TurnActivity
+import com.tamimarafat.ferngeist.feature.serverlist.GatewayHealth
 import com.tamimarafat.ferngeist.feature.serverlist.R
+import com.tamimarafat.ferngeist.feature.serverlist.ui.agents.AgentGroupHeader
+import com.tamimarafat.ferngeist.feature.serverlist.ui.agents.DISCONNECTED_ALPHA
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.homeItemMotion
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.tileShape
 
@@ -50,13 +54,15 @@ internal fun ProjectsTab(
     projects: List<ProjectSummary>,
     turnStatuses: Map<String, TurnActivity>,
     connectedChatKeys: Set<String>,
+    gatewayHealth: Map<String, GatewayHealth>,
+    gatewayCount: Int,
     now: Long,
     listState: LazyListState,
     onOpenProject: (ProjectSummary) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+    var expandedDevices by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val ordered = remember(projects, turnStatuses) { projectsByActivity(projects, turnStatuses) }
     val collapsed = collapsedProjects(ordered, now, turnStatuses)
     val presentations =
@@ -66,53 +72,29 @@ internal fun ProjectsTab(
             }
         }
     val gateways = remember(projects) { projects.map { it.gateway }.distinctBy { it.id } }
-    val shown = if (expanded) ordered else collapsed
-    val hidden = ordered - collapsed.toSet()
-    val (heroProjects, restingProjects) =
-        shown.partition { presentations.getValue(it).variant == CardVariant.HERO }
-    val showGateway = gateways.size > 1
-
+    val collapsedSet = collapsed.toSet()
+    val hidden = ordered - collapsedSet
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        projectRows(heroProjects, presentations) { project, presentation ->
-            ProjectHeroTile(
-                project = project,
-                presentation = presentation,
-                showGateway = showGateway,
-                connectedChatKeys = connectedChatKeys,
-                turnStatuses = turnStatuses,
-                onClick = { onOpenProject(project) },
-                sharedTransitionScope = sharedTransitionScope,
-                animatedContentScope = animatedContentScope,
-                modifier = Modifier.padding(horizontal = 16.dp).homeItemMotion(this),
+        val context =
+            ProjectGroupContext(
+                gatewayHealth to gatewayCount,
+                presentations,
+                connectedChatKeys,
+                turnStatuses,
+                onOpenProject,
+                sharedTransitionScope to animatedContentScope,
             )
-        }
-        projectTileRows(restingProjects, presentations) { project, presentation, shape, modifier ->
-            ProjectTile(
-                project = project,
-                presentation = presentation,
-                showGateway = showGateway,
-                shape = shape,
-                onClick = { onOpenProject(project) },
-                sharedTransitionScope = sharedTransitionScope,
-                animatedContentScope = animatedContentScope,
-                modifier = modifier,
-            )
+        ordered.groupBy { it.gateway.id }.forEach { (gatewayId, deviceProjects) ->
+            projectDeviceGroup(deviceProjects, collapsedSet, gatewayId in expandedDevices, context) {
+                expandedDevices =
+                    if (gatewayId in expandedDevices) expandedDevices - gatewayId else expandedDevices + gatewayId
+            }
         }
         if (hidden.isNotEmpty()) {
-            item(key = "more") {
-                MoreProjectsRow(
-                    hidden = hidden,
-                    expanded = expanded,
-                    onToggle = { expanded = !expanded },
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    modifier = Modifier.padding(horizontal = 16.dp).homeItemMotion(this),
-                )
-            }
             item(key = "summary") {
                 ProjectsSummary(projects, gateways.size, Modifier.homeItemMotion(this))
             }
@@ -122,6 +104,74 @@ internal fun ProjectsTab(
         }
         // ponytail: clearance lets the final card scroll above the bottom controls.
         item(key = "bottom-clearance") { Spacer(modifier = Modifier.height(160.dp)) }
+    }
+}
+
+private class ProjectGroupContext(
+    val gateways: Pair<Map<String, GatewayHealth>, Int>,
+    val presentations: Map<ProjectSummary, CardPresentation>,
+    val connectedChatKeys: Set<String>,
+    val turnStatuses: Map<String, TurnActivity>,
+    val onOpenProject: (ProjectSummary) -> Unit,
+    val transitions: Pair<SharedTransitionScope, AnimatedContentScope>,
+)
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun LazyListScope.projectDeviceGroup(
+    allDeviceProjects: List<ProjectSummary>,
+    collapsedSet: Set<ProjectSummary>,
+    expanded: Boolean,
+    context: ProjectGroupContext,
+    onToggle: () -> Unit,
+) {
+    val gatewayId = allDeviceProjects.first().gateway.id
+    val deviceProjects = if (expanded) allDeviceProjects else allDeviceProjects.filter { it in collapsedSet }
+    val hiddenProjects = allDeviceProjects.filter { it !in collapsedSet }
+    val disconnected = context.gateways.first[gatewayId] == GatewayHealth.UNREACHABLE
+    val fade = if (disconnected) Modifier.alpha(DISCONNECTED_ALPHA) else Modifier
+    if (context.gateways.second != 1) {
+        item(key = "device:$gatewayId") {
+            AgentGroupHeader(allDeviceProjects.first().gateway, disconnected, Modifier.homeItemMotion(this))
+        }
+    }
+    val (heroProjects, restingProjects) =
+        deviceProjects.partition { context.presentations.getValue(it).variant == CardVariant.HERO }
+    projectRows(heroProjects, context.presentations) { project, presentation ->
+        ProjectHeroTile(
+            project = project,
+            presentation = presentation,
+            showGateway = false,
+            connectedChatKeys = context.connectedChatKeys,
+            turnStatuses = context.turnStatuses,
+            onClick = { context.onOpenProject(project) },
+            sharedTransitionScope = context.transitions.first,
+            animatedContentScope = context.transitions.second,
+            modifier = Modifier.padding(horizontal = 16.dp).homeItemMotion(this).then(fade),
+        )
+    }
+    projectTileRows(restingProjects, context.presentations, fade) { project, presentation, shape, modifier ->
+        ProjectTile(
+            project = project,
+            presentation = presentation,
+            showGateway = false,
+            shape = shape,
+            onClick = { context.onOpenProject(project) },
+            sharedTransitionScope = context.transitions.first,
+            animatedContentScope = context.transitions.second,
+            modifier = modifier,
+        )
+    }
+    if (hiddenProjects.isNotEmpty()) {
+        item(key = "more:$gatewayId") {
+            MoreProjectsRow(
+                hidden = hiddenProjects,
+                expanded = expanded,
+                onToggle = onToggle,
+                sharedTransitionScope = context.transitions.first,
+                animatedContentScope = context.transitions.second,
+                modifier = Modifier.padding(horizontal = 16.dp).homeItemMotion(this).then(fade),
+            )
+        }
     }
 }
 
@@ -142,12 +192,13 @@ private fun LazyListScope.projectRows(
 private fun LazyListScope.projectTileRows(
     projects: List<ProjectSummary>,
     presentations: Map<ProjectSummary, CardPresentation>,
+    fade: Modifier,
     content: @Composable LazyItemScope.(ProjectSummary, CardPresentation, RoundedCornerShape, Modifier) -> Unit,
 ) {
     projects.chunked(2).forEach { pair ->
         item(key = "projects:${pair.joinToString { "${it.gateway.id}/${it.repo}" }}") {
             Row(
-                modifier = Modifier.padding(horizontal = 16.dp).homeItemMotion(this),
+                modifier = Modifier.padding(horizontal = 16.dp).homeItemMotion(this).then(fade),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 pair.forEachIndexed { index, project ->

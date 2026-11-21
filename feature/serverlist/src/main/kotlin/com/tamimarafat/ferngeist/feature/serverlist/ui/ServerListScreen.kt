@@ -71,7 +71,7 @@ typealias QuickChatSheetSlot = @Composable (
 
 private data class ServerListScreenState(
     val servers: List<LaunchableTarget>,
-    val hasGateways: Boolean,
+    val gatewayCount: Int,
     val uiState: ServerListUiState,
     val isLoading: Boolean,
     val recentSessions: List<RecentSession>,
@@ -88,7 +88,7 @@ private data class ServerListScreenState(
 @Composable
 private fun rememberServerListState(viewModel: ServerListViewModel): ServerListScreenState {
     val servers by viewModel.servers.collectAsStateWithLifecycle()
-    val hasGateways by viewModel.hasGateways.collectAsStateWithLifecycle()
+    val gatewayCount by viewModel.gatewayCount.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle()
@@ -99,7 +99,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
     val snackbarHostState = remember { SnackbarHostState() }
     return ServerListScreenState(
         servers = servers,
-        hasGateways = hasGateways,
+        gatewayCount = gatewayCount,
         uiState = uiState,
         isLoading = isLoading,
         recentSessions = recentSessions,
@@ -136,7 +136,7 @@ fun ServerListScreen(
 ) {
     val screenState = rememberServerListState(viewModel)
     val servers = screenState.servers
-    val hasGateways = screenState.hasGateways
+    val gatewayCount = screenState.gatewayCount
     val uiState = screenState.uiState
     val isLoading = screenState.isLoading
     val recentSessions = screenState.recentSessions
@@ -176,7 +176,7 @@ fun ServerListScreen(
 
     ServerListScaffold(
         snackbarHostState = snackbarHostState,
-        hasGateways = hasGateways,
+        gatewayCount = gatewayCount,
         quickChatAvailable = quickChatAvailable,
         onAboutClick = { showAboutDialog = true },
         onQuickChat = { showQuickChat = true },
@@ -225,7 +225,7 @@ private fun ServerListScaffold(
     snackbarHostState: SnackbarHostState,
     onAboutClick: () -> Unit,
     onQuickChat: () -> Unit,
-    hasGateways: Boolean,
+    gatewayCount: Int,
     quickChatAvailable: Boolean,
     onNavigateToGateways: () -> Unit,
     onNavigateToPairGateway: () -> Unit,
@@ -278,6 +278,7 @@ private fun ServerListScaffold(
                 uiState = uiState,
                 liveServerIds = liveServerIds,
                 gatewayHealth = gatewayHealth,
+                gatewayCount = gatewayCount,
                 connectedChatKeys = connectedChatKeys,
                 turnStatuses = turnStatuses,
                 onResumeSession = onResumeSession,
@@ -292,9 +293,9 @@ private fun ServerListScaffold(
                 HomeTabBar(
                     pager = pager,
                     quickChatAvailable = quickChatAvailable,
-                    hasGateways = hasGateways,
+                    hasGateways = gatewayCount > 0,
                     onQuickChat = onQuickChat,
-                    onGateways = if (hasGateways) onNavigateToGateways else onNavigateToPairGateway,
+                    onGateways = if (gatewayCount > 0) onNavigateToGateways else onNavigateToPairGateway,
                     onAddAgent = onNavigateToAddServer,
                     modifier =
                         Modifier
@@ -456,6 +457,7 @@ private fun ServerListContent(
     uiState: ServerListUiState,
     liveServerIds: Set<String>,
     gatewayHealth: Map<String, GatewayHealth>,
+    gatewayCount: Int,
     connectedChatKeys: Set<String>,
     turnStatuses: Map<String, TurnActivity>,
     onResumeSession: (RecentSession) -> Unit,
@@ -496,6 +498,7 @@ private fun ServerListContent(
                     uiState = uiState,
                     liveServerIds = liveServerIds,
                     gatewayHealth = gatewayHealth,
+                    gatewayCount = gatewayCount,
                     connectedChatKeys = connectedChatKeys,
                     turnStatuses = turnStatuses,
                     onResumeSession = onResumeSession,

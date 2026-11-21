@@ -168,11 +168,11 @@ class ServerListViewModel
                 }
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), emptyMap())
 
-        val hasGateways: StateFlow<Boolean> =
+        val gatewayCount: StateFlow<Int> =
             repos.gatewaySourceRepository
                 .getGateways()
-                .map { gateways -> gateways.isNotEmpty() }
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+                .map { gateways -> gateways.size }
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
         val projectDiscoveryAllowed = projectCatalog.discoveryAllowed
         val projects: StateFlow<List<ProjectSummary>> =
             combine(projectCatalog.state, projectDiscoveryAllowed) { state, allowed ->

@@ -47,6 +47,7 @@ internal fun AgentsTab(
     uiState: ServerListUiState,
     liveServerIds: Set<String>,
     gatewayHealth: Map<String, GatewayHealth>,
+    gatewayCount: Int,
     turnStatuses: Map<String, TurnActivity>,
     listState: LazyListState,
     onConnect: (LaunchableTarget) -> Unit,
@@ -82,8 +83,10 @@ internal fun AgentsTab(
             // Connected is the default, so an unreachable computer is marked and faded.
             val disconnected = gateway != null && gatewayHealth[gateway.id] == GatewayHealth.UNREACHABLE
             val fade = if (disconnected) Modifier.alpha(DISCONNECTED_ALPHA) else Modifier
-            item(key = "group:${gateway?.id}") {
-                AgentGroupHeader(gateway, disconnected, Modifier.homeItemMotion(this))
+            if (gateway == null || gatewayCount != 1) {
+                item(key = "group:${gateway?.id}") {
+                    AgentGroupHeader(gateway, disconnected, Modifier.homeItemMotion(this))
+                }
             }
             if (gateway == null) {
                 items(targets, key = { "agent:${it.id}" }) { target ->
