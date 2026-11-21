@@ -56,10 +56,10 @@ import kotlinx.coroutines.launch
  * Level 1: the session list's filter toolbar is `HorizontalFloatingToolbar` with a FAB, whose
  * expanded default is `ContainerExpandedElevationWithFab` = 1 dp (collapsed is 0).
  */
-private val HomeControlElevation = 1.dp
+private val homeControlElevation = 1.dp
 
 /** One value for both gaps in the bar, so the tab pair is spaced like the tab group to the FAB. */
-private val HomeBarGap = 8.dp
+private val homeBarGap = 8.dp
 
 enum class HomeTab(
     val label: Int,
@@ -89,12 +89,12 @@ internal fun HomeTabBar(
     val tab = HomeTab.entries[pager.state.currentPage]
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(HomeBarGap),
+        horizontalArrangement = Arrangement.spacedBy(homeBarGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
             modifier = Modifier.selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(HomeBarGap),
+            horizontalArrangement = Arrangement.spacedBy(homeBarGap),
         ) {
             HomeTab.entries.forEach { entry ->
                 HomeTabItem(
@@ -212,11 +212,11 @@ private fun HomeTabItem(
         colors = ToggleButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
         elevation =
             ToggleButtonDefaults.elevation(
-                defaultElevation = HomeControlElevation,
-                pressedElevation = HomeControlElevation,
-                focusedElevation = HomeControlElevation,
-                hoveredElevation = HomeControlElevation,
-                disabledElevation = HomeControlElevation,
+                defaultElevation = homeControlElevation,
+                pressedElevation = homeControlElevation,
+                focusedElevation = homeControlElevation,
+                hoveredElevation = homeControlElevation,
+                disabledElevation = homeControlElevation,
             ),
         shapes =
             if (tab == HomeTab.PROJECTS) {
