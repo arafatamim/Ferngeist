@@ -71,6 +71,10 @@ class StatusLineState internal constructor(
     var flat by mutableStateOf(initial != TurnStatus.WORKING)
         private set
 
+    // A line keeps the title above its band; a finished turn's dot is a marker the title may sit beside.
+    var lined by mutableStateOf(initial.showsMark && initial != TurnStatus.FINISHED)
+        private set
+
     // The last lined state keeps the line's colour and spoken state while it leaves.
     var status by mutableStateOf(initial)
         private set
@@ -85,13 +89,21 @@ class StatusLineState internal constructor(
         if (next.showsMark) {
             // Reset only while hidden: a line left fully eaten must not reappear before it returns.
             eaten.snapTo(if (shown) eaten.value else 0f)
+            // A dot already standing stays a dot; anything else arrives as a line.
+            if (next != TurnStatus.FINISHED || !shown) lined = true
             status = next
             shown = true
             eaten.animateTo(0f, eatSpec)
+            if (next == TurnStatus.FINISHED) {
+                // rememberDotContraction's flatten and contraction: the line is a dot by then.
+                delay(FLATTEN_MILLIS + CONTRACTION_MILLIS)
+                lined = false
+            }
         } else if (shown) {
             delay((if (wasFlat) 0L else FLATTEN_MILLIS) + LINGER_MILLIS)
             eaten.animateTo(1f, eatSpec)
             shown = false
+            lined = false
         }
     }
 }
@@ -107,10 +119,12 @@ fun StatusWaveLine(
     state: StatusLineState,
     modifier: Modifier = Modifier,
     startPadding: Dp = 0.dp,
+    color: Color = state.status.lineColor(),
 ) {
     val description = turnStatusLabel(state.status)
-    val color by animateColorAsState(
-        targetValue = state.status.lineColor(),
+    // The turn's own hue is picked for the surface; a card that sets its own container passes ink.
+    val tint by animateColorAsState(
+        targetValue = color,
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "statusLineColor",
     )
@@ -154,7 +168,7 @@ fun StatusWaveLine(
                     // Mirrored so the wave drifts back toward the text rather than away from it.
                     .graphicsLayer { scaleX = -1f }
                     .semantics { description?.let { stateDescription = it } },
-            color = color,
+            color = tint,
             stroke = stroke,
             stopSize = 0.dp,
             amplitude = { if (state.flat) 0f else 1f },

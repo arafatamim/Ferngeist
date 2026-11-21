@@ -7,20 +7,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import kotlin.math.roundToInt
 
 /**
  * A card body for rows with no avatar to carry the turn. At rest the [stamp] sits centred beside
  * the text. While the turn needs showing it rises onto the [headline]'s baseline and a line grows
  * out of the [supporting] text into the space it left, to the card's end: a drifting wave while
  * working, still and recoloured while awaiting the user or failed. Without [supporting] text the
- * line runs alone; a [footer] sits beneath, clear of the stamp.
+ * line runs alone; a [footer] sits beneath, clear of the stamp. A finished turn's dot is a marker,
+ * not a line: it stays put in the line's band while the title and footer close in around it, as
+ * they sit at rest. Both stop short of the stamp's column, which is where the dot is drawn.
  */
 @Composable
 fun StatusCardBody(
@@ -38,6 +43,18 @@ fun StatusCardBody(
         animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
         label = "statusStampRaise",
     )
+    // 0 pins the title to the top of the body, above a line's band; 1 centres it in the body.
+    val centring by animateFloatAsState(
+        targetValue = if (supporting == null && !line.lined) 1f else 0f,
+        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "statusTitleCentring",
+    )
+    // Centred, the content stays centred while the box resizes, so a dot's band leaving with
+    // it does not move the title it already sits level with.
+    val sizeAlignment =
+        remember {
+            Alignment { size, space, _ -> IntOffset(0, ((space.height - size.height) * centring / 2).roundToInt()) }
+        }
     Layout(
         contents =
             listOf(
@@ -55,7 +72,7 @@ fun StatusCardBody(
                 .reserveDotOvershoot()
                 .animateContentSize(
                     animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-                    alignment = Alignment.TopStart,
+                    alignment = sizeAlignment,
                 ).padding(end = dotOvershootSpace),
     ) { slots, constraints ->
         val (headlines, supportings, stamps) = slots
@@ -69,14 +86,18 @@ fun StatusCardBody(
         val supportingWidth = lerp(narrow, constraints.maxWidth, raise.coerceIn(0f, 1f)).coerceAtLeast(0)
         val supportingPlaceable = supportings.first().measure(loose.copy(maxWidth = supportingWidth))
         val footerPlaceable = footers.firstOrNull()?.measure(loose.copy(maxWidth = narrow))
-        val textHeight = headlinePlaceable.height + supportingPlaceable.height + (footerPlaceable?.height ?: 0)
+        val band = supportingPlaceable.height
+        val textHeight = headlinePlaceable.height + band + (footerPlaceable?.height ?: 0)
         val height = maxOf(textHeight, stampPlaceable?.height ?: 0)
+        // The band stays where a line ran; the title drops and the footer rises into it by half.
+        val drop = (band * centring.coerceIn(0f, 1f) / 2).roundToInt()
         layout(constraints.maxWidth, height) {
-            headlinePlaceable.placeRelative(0, 0)
+            headlinePlaceable.placeRelative(0, drop)
             supportingPlaceable.placeRelative(0, headlinePlaceable.height)
-            footerPlaceable?.placeRelative(0, headlinePlaceable.height + supportingPlaceable.height)
+            footerPlaceable?.placeRelative(0, headlinePlaceable.height + band - drop)
             stampPlaceable?.let {
                 val centred = (height - it.height) / 2
+                // The raised line's baseline, not the dropped title's: a dot leaves the stamp up.
                 val onHeadline = (headlinePlaceable[FirstBaseline] - it[FirstBaseline]).coerceAtLeast(0)
                 it.placeRelative(constraints.maxWidth - it.width, lerp(centred, onHeadline, raise))
             }
