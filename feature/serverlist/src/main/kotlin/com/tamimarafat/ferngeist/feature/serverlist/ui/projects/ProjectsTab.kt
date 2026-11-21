@@ -35,15 +35,11 @@ import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.homeItemMotion
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.tileShape
-import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomeFilterChips
-
-private const val LIVE_FILTER = "live"
 
 /**
  * The home sheet's Projects page, laid out like the Agents page: every project with a working,
  * unread-finished, attention or error chat is promoted to a full-width hero tile, the rest sit
- * in a two-up grid, and the overflow hides behind a more row. A chosen filter shows every
- * match; only the default view collapses.
+ * in a two-up grid, and the overflow hides behind a more row.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -57,8 +53,6 @@ internal fun ProjectsTab(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    // null shows everything; otherwise LIVE_FILTER or a gateway id.
-    var filter by rememberSaveable { mutableStateOf<String?>(null) }
     var expanded by rememberSaveable { mutableStateOf(false) }
     val ordered = remember(projects, turnStatuses) { projectsByActivity(projects, turnStatuses) }
     val collapsed = collapsedProjects(ordered, now, turnStatuses)
@@ -67,7 +61,7 @@ internal fun ProjectsTab(
             projects.associateWith { projectCardPresentation(it, turnStatuses, connectedChatKeys) }
         }
     val gateways = remember(projects) { projects.map { it.gateway }.distinctBy { it.id } }
-    val shown = shownProjects(ordered, collapsed, expanded, filter, turnStatuses)
+    val shown = if (expanded) ordered else collapsed
     val hidden = ordered - collapsed.toSet()
     val (heroProjects, restingProjects) =
         shown.partition { presentations.getValue(it).variant == ProjectCardVariant.HERO }
@@ -78,18 +72,6 @@ internal fun ProjectsTab(
         state = listState,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (gateways.size > 1) {
-            item(key = "filters") {
-                HomeFilterChips(
-                    liveValue = LIVE_FILTER,
-                    liveLabel = stringResource(R.string.home_projects_live),
-                    gateways = gateways,
-                    selected = filter,
-                    onSelect = { filter = it },
-                    modifier = Modifier.homeItemMotion(this),
-                )
-            }
-        }
         projectRows(heroProjects, presentations) { project, presentation ->
             ProjectHeroTile(
                 project = project,
@@ -115,7 +97,7 @@ internal fun ProjectsTab(
                 modifier = modifier,
             )
         }
-        if (filter == null && hidden.isNotEmpty()) {
+        if (hidden.isNotEmpty()) {
             item(key = "more") {
                 MoreProjectsRow(
                     hidden = hidden,
@@ -130,29 +112,13 @@ internal fun ProjectsTab(
                 ProjectsSummary(projects, gateways.size, Modifier.homeItemMotion(this))
             }
         }
-        if (shown.isEmpty()) {
-            item(key = if (projects.isEmpty()) "projects-empty" else "filter-empty") {
-                ProjectsEmptyItem(noProjects = projects.isEmpty(), Modifier.animateItem())
-            }
+        if (projects.isEmpty()) {
+            item(key = "projects-empty") { ProjectsEmpty(Modifier.animateItem()) }
         }
         // ponytail: clearance lets the final card scroll above the bottom controls.
         item(key = "bottom-clearance") { Spacer(modifier = Modifier.height(160.dp)) }
     }
 }
-
-/** A chosen filter shows every match; only the default view collapses to the recent five. */
-private fun shownProjects(
-    ordered: List<ProjectSummary>,
-    collapsed: List<ProjectSummary>,
-    expanded: Boolean,
-    filter: String?,
-    turnStatuses: Map<String, TurnActivity>,
-): List<ProjectSummary> =
-    when (filter) {
-        null -> if (expanded) ordered else collapsed
-        LIVE_FILTER -> ordered.filter { it.hasActiveTurn(turnStatuses) }
-        else -> ordered.filter { it.gateway.id == filter }
-    }
 
 /** Full-width hero rows: one promoted project per item. */
 private fun LazyListScope.projectRows(
@@ -207,24 +173,6 @@ private fun ProjectsSummary(
         textAlign = TextAlign.Center,
         modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
     )
-}
-
-/** No projects at all reads differently from a filter that matches none. */
-@Composable
-private fun ProjectsEmptyItem(
-    noProjects: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    if (noProjects) {
-        ProjectsEmpty(modifier)
-    } else {
-        Text(
-            stringResource(R.string.home_projects_filter_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-        )
-    }
 }
 
 @Composable

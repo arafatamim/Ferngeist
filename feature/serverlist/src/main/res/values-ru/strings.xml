@@ -198,17 +198,12 @@
     <!-- Home -->
     <string name="home_projects_empty_title">Проектов пока нет</string>
     <string name="home_projects_empty_body">Чаты, начатые на сопряжённом компьютере, появятся здесь и будут сгруппированы по репозиторию.</string>
-    <string name="home_filter_all">Все</string>
-    <string name="home_agents_working">В работе</string>
     <string name="home_agents_direct">Прямые</string>
     <string name="home_agents_offline">Не в сети</string>
-    <string name="home_agents_filter_empty">Ни один агент не подходит под этот фильтр.</string>
     <plurals name="home_agents_count"><item quantity="one">%d агент</item><item quantity="few">%d агента</item><item quantity="many">%d агентов</item><item quantity="other">%d агента</item></plurals>
     <plurals name="home_agents_attention_count"><item quantity="one">%d ждёт вас</item><item quantity="few">%d ждут вас</item><item quantity="many">%d ждут вас</item><item quantity="other">%d ждут вас</item></plurals>
     <plurals name="home_agents_working_count"><item quantity="one">%d в работе</item><item quantity="few">%d в работе</item><item quantity="many">%d в работе</item><item quantity="other">%d в работе</item></plurals>
     <plurals name="home_agents_chats_working"><item quantity="one">%d чат в работе</item><item quantity="few">%d чата в работе</item><item quantity="many">%d чатов в работе</item><item quantity="other">%d чата в работе</item></plurals>
-    <string name="home_projects_live">Активные</string>
-    <string name="home_projects_filter_empty">Ни один проект не подходит под этот фильтр.</string>
     <plurals name="home_projects_chats_working"><item quantity="one">%d чат в работе</item><item quantity="few">%d чата в работе</item><item quantity="many">%d чатов в работе</item><item quantity="other">%d чата в работе</item></plurals>
     <plurals name="home_projects_more_count"><item quantity="one">%d ещё проект</item><item quantity="few">%d ещё проекта</item><item quantity="many">%d ещё проектов</item><item quantity="other">%d ещё проекта</item></plurals>
     <plurals name="home_projects_summary_chats"><item quantity="one">%d чат</item><item quantity="few">%d чата</item><item quantity="many">%d чатов</item><item quantity="other">%d чата</item></plurals>

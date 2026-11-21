@@ -13,19 +13,14 @@
 
     <string name="home_projects_empty_title">No projects yet</string>
     <string name="home_projects_empty_body">Chats you start on a paired computer show up here, grouped by repository.</string>
-    <string name="home_filter_all">All</string>
-    <string name="home_agents_working">Working</string>
     <string name="home_agents_direct">Direct</string>
     <string name="home_agents_offline">Offline</string>
 
-    <string name="home_agents_filter_empty">No agents match this filter.</string>
     <plurals name="home_agents_count"><item quantity="one">%d agent</item><item quantity="other">%d agents</item></plurals>
     <plurals name="home_agents_attention_count"><item quantity="one">%d needs you</item><item quantity="other">%d need you</item></plurals>
     <plurals name="home_agents_working_count"><item quantity="one">%d working</item><item quantity="other">%d working</item></plurals>
     <plurals name="home_agents_chats_working"><item quantity="one">%d chat working</item><item quantity="other">%d chats working</item></plurals>
 
-    <string name="home_projects_live">Live</string>
-    <string name="home_projects_filter_empty">No projects match this filter.</string>
     <plurals name="home_projects_chats_working"><item quantity="one">%d chat working</item><item quantity="other">%d chats working</item></plurals>
     <plurals name="home_projects_more_count"><item quantity="one">%d more project</item><item quantity="other">%d more projects</item></plurals>
     <plurals name="home_projects_summary_chats"><item quantity="one">%d chat</item><item quantity="other">%d chats</item></plurals>

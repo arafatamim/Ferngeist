@@ -178,17 +178,12 @@
     <!-- Home -->
     <string name="home_projects_empty_title">এখনও কোনো প্রকল্প নেই</string>
     <string name="home_projects_empty_body">পেয়ার করা কম্পিউটারে শুরু করা চ্যাটগুলো এখানে রিপোজিটরি অনুযায়ী গ্রুপ হয়ে দেখাবে।</string>
-    <string name="home_filter_all">সব</string>
-    <string name="home_agents_working">কাজ চলছে</string>
     <string name="home_agents_direct">সরাসরি</string>
     <string name="home_agents_offline">অফলাইন</string>
-    <string name="home_agents_filter_empty">এই ফিল্টারে কোনো এজেন্ট মেলেনি।</string>
     <plurals name="home_agents_count"><item quantity="one">%d টি এজেন্ট</item><item quantity="other">%d টি এজেন্ট</item></plurals>
     <plurals name="home_agents_attention_count"><item quantity="one">%d টি আপনার মনোযোগ চায়</item><item quantity="other">%d টি আপনার মনোযোগ চায়</item></plurals>
     <plurals name="home_agents_working_count"><item quantity="one">%d টি কাজ চলছে</item><item quantity="other">%d টি কাজ চলছে</item></plurals>
     <plurals name="home_agents_chats_working"><item quantity="one">%d টি চ্যাট চলছে</item><item quantity="other">%d টি চ্যাট চলছে</item></plurals>
-    <string name="home_projects_live">সক্রিয়</string>
-    <string name="home_projects_filter_empty">এই ফিল্টারে কোনো প্রকল্প মেলেনি।</string>
     <plurals name="home_projects_chats_working"><item quantity="one">%d টি চ্যাট চলছে</item><item quantity="other">%d টি চ্যাট চলছে</item></plurals>
     <plurals name="home_projects_more_count"><item quantity="one">%d টি আরও প্রকল্প</item><item quantity="other">%d টি আরও প্রকল্প</item></plurals>
     <plurals name="home_projects_summary_chats"><item quantity="one">%d টি চ্যাট</item><item quantity="other">%d টি চ্যাট</item></plurals>

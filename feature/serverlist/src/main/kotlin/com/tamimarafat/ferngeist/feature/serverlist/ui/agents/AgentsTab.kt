@@ -15,19 +15,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.status.statusesFor
-import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -36,9 +29,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.homeItemMotion
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.tileShape
-import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomeFilterChips
 
-private const val WORKING_FILTER = "working"
 internal const val DISCONNECTED_ALPHA = 0.5f
 private const val AGENT_COUNT_THRESHOLD = 6
 
@@ -61,8 +52,6 @@ internal fun AgentsTab(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    // null shows everything; otherwise WORKING_FILTER or a gateway id.
-    var filter by rememberSaveable { mutableStateOf<String?>(null) }
     val activity =
         servers.associate { target ->
             target.id to
@@ -78,26 +67,13 @@ internal fun AgentsTab(
             .groupBy { (it as? LaunchableTarget.GatewayAgent)?.gatewaySource }
             .toList()
             .sortedBy { it.first == null }
-    val shown = filterGroups(groups, filter, activity)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (groups.size > 1) {
-            item(key = "filters") {
-                HomeFilterChips(
-                    liveValue = WORKING_FILTER,
-                    liveLabel = stringResource(R.string.home_agents_working),
-                    gateways = groups.mapNotNull { it.first },
-                    selected = filter,
-                    onSelect = { filter = it },
-                    modifier = Modifier.homeItemMotion(this),
-                )
-            }
-        }
-        shown.forEach { (gateway, targets) ->
+        groups.forEach { (gateway, targets) ->
             // Connected is the default, so an unreachable computer is marked and faded.
             val disconnected = gateway != null && gatewayHealth[gateway.id] == GatewayHealth.UNREACHABLE
             val fade = if (disconnected) Modifier.alpha(DISCONNECTED_ALPHA) else Modifier
@@ -172,38 +148,11 @@ internal fun AgentsTab(
                 }
             }
         }
-        if (shown.isEmpty()) {
-            item(key = "filter-empty") {
-                Text(
-                    stringResource(R.string.home_agents_filter_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp).homeItemMotion(this),
-                )
-            }
-        }
         item(key = "summary") { AgentsSummary(activity.values, servers.size, Modifier.homeItemMotion(this)) }
         // ponytail: clearance lets the final card scroll above the bottom controls.
         item(key = "bottom-clearance") { Spacer(modifier = Modifier.height(160.dp)) }
     }
 }
-
-private fun filterGroups(
-    groups: List<Pair<GatewaySource?, List<LaunchableTarget>>>,
-    filter: String?,
-    activity: Map<String, AgentCardPresentation>,
-): List<Pair<GatewaySource?, List<LaunchableTarget>>> =
-    groups
-        .map { (gateway, targets) ->
-            gateway to
-                targets.filter { target ->
-                    when (filter) {
-                        null -> true
-                        WORKING_FILTER -> activity.getValue(target.id).status.isActive
-                        else -> gateway?.id == filter
-                    }
-                }
-        }.filter { it.second.isNotEmpty() }
 
 @Composable
 private fun AgentsSummary(

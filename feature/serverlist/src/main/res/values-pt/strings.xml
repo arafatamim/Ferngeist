@@ -179,17 +179,12 @@
     <!-- Home -->
     <string name="home_projects_empty_title">Ainda não há projetos</string>
     <string name="home_projects_empty_body">As conversas que você inicia em um computador pareado aparecem aqui, agrupadas por repositório.</string>
-    <string name="home_filter_all">Todos</string>
-    <string name="home_agents_working">Trabalhando</string>
     <string name="home_agents_direct">Diretos</string>
     <string name="home_agents_offline">Sem conexão</string>
-    <string name="home_agents_filter_empty">Nenhum agente corresponde a este filtro.</string>
     <plurals name="home_agents_count"><item quantity="one">%d agente</item><item quantity="other">%d agentes</item><item quantity="many">%d de agentes</item></plurals>
     <plurals name="home_agents_attention_count"><item quantity="one">%d precisa de você</item><item quantity="other">%d precisam de você</item><item quantity="many">%d precisam de você</item></plurals>
     <plurals name="home_agents_working_count"><item quantity="one">%d trabalhando</item><item quantity="other">%d trabalhando</item><item quantity="many">%d trabalhando</item></plurals>
     <plurals name="home_agents_chats_working"><item quantity="one">%d conversa em andamento</item><item quantity="other">%d conversas em andamento</item><item quantity="many">%d de conversas em andamento</item></plurals>
-    <string name="home_projects_live">Ao vivo</string>
-    <string name="home_projects_filter_empty">Nenhum projeto corresponde a este filtro.</string>
     <plurals name="home_projects_chats_working"><item quantity="one">%d conversa em andamento</item><item quantity="other">%d conversas em andamento</item><item quantity="many">%d de conversas em andamento</item></plurals>
     <plurals name="home_projects_more_count"><item quantity="one">%d projeto a mais</item><item quantity="other">%d projetos a mais</item><item quantity="many">%d projetos a mais</item></plurals>
     <plurals name="home_projects_summary_chats"><item quantity="one">%d conversa</item><item quantity="other">%d conversas</item><item quantity="many">%d de conversas</item></plurals>

@@ -179,17 +179,12 @@
     <!-- Home -->
     <string name="home_projects_empty_title">Aún no hay proyectos</string>
     <string name="home_projects_empty_body">Los chats que inicies en un equipo emparejado aparecen aquí, agrupados por repositorio.</string>
-    <string name="home_filter_all">Todos</string>
-    <string name="home_agents_working">Trabajando</string>
     <string name="home_agents_direct">Directos</string>
     <string name="home_agents_offline">Sin conexión</string>
-    <string name="home_agents_filter_empty">Ningún agente coincide con este filtro.</string>
     <plurals name="home_agents_count"><item quantity="one">%d agente</item><item quantity="other">%d agentes</item><item quantity="many">%d de agentes</item></plurals>
     <plurals name="home_agents_attention_count"><item quantity="one">%d te necesita</item><item quantity="other">%d te necesitan</item><item quantity="many">%d te necesitan</item></plurals>
     <plurals name="home_agents_working_count"><item quantity="one">%d trabajando</item><item quantity="other">%d trabajando</item><item quantity="many">%d trabajando</item></plurals>
     <plurals name="home_agents_chats_working"><item quantity="one">%d chat trabajando</item><item quantity="other">%d chats trabajando</item><item quantity="many">%d de chats trabajando</item></plurals>
-    <string name="home_projects_live">En vivo</string>
-    <string name="home_projects_filter_empty">Ningún proyecto coincide con este filtro.</string>
     <plurals name="home_projects_chats_working"><item quantity="one">%d chat trabajando</item><item quantity="other">%d chats trabajando</item><item quantity="many">%d de chats trabajando</item></plurals>
     <plurals name="home_projects_more_count"><item quantity="one">%d proyecto más</item><item quantity="other">%d proyectos más</item><item quantity="many">%d proyectos más</item></plurals>
     <plurals name="home_projects_summary_chats"><item quantity="one">%d chat</item><item quantity="other">%d chats</item><item quantity="many">%d de chats</item></plurals>

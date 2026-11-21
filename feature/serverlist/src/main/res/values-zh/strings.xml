@@ -195,17 +195,12 @@
     <!-- Home -->
     <string name="home_projects_empty_title">还没有项目</string>
     <string name="home_projects_empty_body">你在已配对电脑上开始的对话会显示在这里，并按仓库分组。</string>
-    <string name="home_filter_all">全部</string>
-    <string name="home_agents_working">进行中</string>
     <string name="home_agents_direct">直接</string>
     <string name="home_agents_offline">离线</string>
-    <string name="home_agents_filter_empty">没有符合此筛选条件的代理。</string>
     <plurals name="home_agents_count"><item quantity="other">%d 个代理</item></plurals>
     <plurals name="home_agents_attention_count"><item quantity="other">%d 个需要你处理</item></plurals>
     <plurals name="home_agents_working_count"><item quantity="other">%d 个进行中</item></plurals>
     <plurals name="home_agents_chats_working"><item quantity="other">%d 个对话进行中</item></plurals>
-    <string name="home_projects_live">实时</string>
-    <string name="home_projects_filter_empty">没有符合此筛选条件的项目。</string>
     <plurals name="home_projects_chats_working"><item quantity="other">%d 个对话进行中</item></plurals>
     <plurals name="home_projects_more_count"><item quantity="other">另外 %d 个项目</item></plurals>
     <plurals name="home_projects_summary_chats"><item quantity="other">%d 个对话</item></plurals>
