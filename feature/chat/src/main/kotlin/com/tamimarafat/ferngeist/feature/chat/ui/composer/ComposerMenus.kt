@@ -72,7 +72,7 @@ internal fun ModeMenuButton(
                 modifier = Modifier.widthIn(max = maxWidth).handCursor(),
                 colors =
                     ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         containerColor = Color.Transparent,
                     ),
             ) {

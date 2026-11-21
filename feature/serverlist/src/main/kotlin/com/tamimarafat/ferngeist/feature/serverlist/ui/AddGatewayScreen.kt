@@ -26,9 +26,9 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -473,7 +473,7 @@ private fun ColumnScope.AddGatewayStepCard(
         slide.animateTo(0f, tween(STEP_CARD_SLIDE_MS))
     }
 
-    ElevatedCard(
+    Card(
         modifier =
             Modifier
                 .weight(1f)
@@ -483,7 +483,7 @@ private fun ColumnScope.AddGatewayStepCard(
                         (1f - abs(slide.value))
                 },
         colors =
-            CardDefaults.elevatedCardColors(
+            CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
         shape = RoundedCornerShape(28.dp),

@@ -11,8 +11,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,10 +41,10 @@ internal fun RunFerngeistPairStep() {
         items = listOf(instruction1, instruction2, instruction3, instruction4),
     )
 
-    ElevatedCard(
+    Card(
         colors =
-            CardDefaults.elevatedCardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
         shape = RoundedCornerShape(20.dp),
     ) {
@@ -89,10 +89,10 @@ internal fun ImportPairingStep(
 ) {
     val innerPadding = 14.dp
 
-    ElevatedCard(
+    Card(
         colors =
-            CardDefaults.elevatedCardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
         shape = RoundedCornerShape(20.dp),
     ) {

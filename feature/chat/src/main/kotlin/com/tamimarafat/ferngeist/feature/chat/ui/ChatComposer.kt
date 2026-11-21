@@ -385,9 +385,9 @@ private fun ComposerPanel(
     Surface(
         // Transition between a capsule shape when collapsed and a rounded rectangle when expanded
         shape = if (composerExpanded) MaterialTheme.shapes.large else CircleShape,
-        color = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        shadowElevation = 6.dp,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        shadowElevation = 1.dp,
         modifier = modifier,
     ) {
         Box(
@@ -569,8 +569,8 @@ private fun ExpandedComposerTextField(
     var menuAnchor by remember { mutableStateOf(IntOffset.Zero) }
     val selectionColors =
         TextSelectionColors(
-            handleColor = MaterialTheme.colorScheme.onPrimary,
-            backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f),
+            handleColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            backgroundColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.35f),
         )
     val decorator =
         remember(messageText, mentionState, onMentionSelected, commandInputHint, scrollState) {
@@ -586,7 +586,7 @@ private fun ExpandedComposerTextField(
                         Text(
                             text = stringResource(R.string.chat_composer_hint),
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.55f),
                         )
                     }
                     innerTextField()
@@ -600,7 +600,7 @@ private fun ExpandedComposerTextField(
                             Text(
                                 text = "[$hint]",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.55f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier =
@@ -637,9 +637,9 @@ private fun ExpandedComposerTextField(
             onTextLayout = { getResult -> getResult()?.let { textLayout = it } },
             textStyle =
                 MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                 ),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimaryContainer),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             // The field's IME action is Send, so every action reported here is a send; the default
             // action (dismissing the keyboard) is deliberately skipped, as the button does not
@@ -669,7 +669,7 @@ private fun AttachComposerButton(
                     Icons.Default.AttachFile
                 },
             contentDescription = stringResource(R.string.chat_attach_desc),
-            tint = MaterialTheme.colorScheme.onPrimary,
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
         )
     }
 }
@@ -933,8 +933,8 @@ internal fun PrimaryComposerActionButton(
         enabled = enabled,
         colors =
             IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.onPrimary,
-                contentColor = MaterialTheme.colorScheme.primary,
+                containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                contentColor = MaterialTheme.colorScheme.primaryContainer,
             ),
         shapes = IconButtonDefaults.shapes(),
         modifier = modifier.handCursor(enabled = enabled),

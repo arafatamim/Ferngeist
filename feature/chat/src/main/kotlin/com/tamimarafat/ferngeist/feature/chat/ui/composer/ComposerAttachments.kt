@@ -145,7 +145,7 @@ internal fun FileChipItem(
 ) {
     Surface(
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f),
+        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
         modifier = modifier.height(56.dp),
     ) {
         Row(
@@ -155,20 +155,20 @@ internal fun FileChipItem(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.widthIn(max = 160.dp)) {
                 Text(
                     text = file.name,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = FileAttachmentHelper.formatSize(file.sizeBytes),
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
@@ -177,7 +177,7 @@ internal fun FileChipItem(
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = stringResource(R.string.chat_remove_file_desc),
-                    tint = MaterialTheme.colorScheme.onPrimary,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
             }
         }
@@ -219,7 +219,7 @@ internal fun ThumbnailImageContent(
 ) {
     Surface(
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f),
+        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
         modifier = modifier.size(56.dp),
     ) {
         if (bitmap != null) {
@@ -240,7 +240,7 @@ internal fun ThumbnailImageContent(
                 Icon(
                     imageVector = Icons.Default.AddPhotoAlternate,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.4f),
                     modifier = Modifier.size(24.dp),
                 )
             }
@@ -259,7 +259,7 @@ internal fun BoxScope.ThumbnailRemoveButton(
 ) {
     Surface(
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
         modifier =
             modifier
                 .align(Alignment.TopEnd)
@@ -273,7 +273,7 @@ internal fun BoxScope.ThumbnailRemoveButton(
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = stringResource(R.string.chat_remove_image_desc),
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.size(12.dp),
             )
         }
@@ -393,7 +393,7 @@ private fun AttachmentChip(
 ) {
     Surface(
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f),
+        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
         modifier = modifier.height(56.dp),
     ) {
         Row(
@@ -403,20 +403,20 @@ private fun AttachmentChip(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.widthIn(max = 160.dp)) {
                 Text(
                     text = name,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = detail,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -427,7 +427,7 @@ private fun AttachmentChip(
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = stringResource(R.string.chat_remove_file_desc),
-                    tint = MaterialTheme.colorScheme.onPrimary,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
             }
         }

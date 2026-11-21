@@ -27,7 +27,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +51,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import kotlinx.coroutines.launch
+
+/**
+ * Level 1: the session list's filter toolbar is `HorizontalFloatingToolbar` with a FAB, whose
+ * expanded default is `ContainerExpandedElevationWithFab` = 1 dp (collapsed is 0).
+ */
+private val HomeControlElevation = 1.dp
+
+/** One value for both gaps in the bar, so the tab pair is spaced like the tab group to the FAB. */
+private val HomeBarGap = 8.dp
 
 enum class HomeTab(
     val label: Int,
@@ -81,12 +89,12 @@ internal fun HomeTabBar(
     val tab = HomeTab.entries[pager.state.currentPage]
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(HomeBarGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
             modifier = Modifier.selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+            horizontalArrangement = Arrangement.spacedBy(HomeBarGap),
         ) {
             HomeTab.entries.forEach { entry ->
                 HomeTabItem(
@@ -122,7 +130,9 @@ private fun HomeFab(
     Box {
         FloatingActionButton(
             onClick = { if (quickChat) onQuickChat() else showMenu = true },
-            elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
+            // The vibrant toolbar's FAB role, so the action separates from the tab pills.
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
         ) {
             // The icon swaps with the page; a crossfade keeps the FAB itself from seeming to change.
             Crossfade(targetState = quickChat, animationSpec = MaterialTheme.motionScheme.fastEffectsSpec()) { chat ->
@@ -200,6 +210,14 @@ private fun HomeTabItem(
         checked = selected,
         onCheckedChange = { onClick() },
         colors = ToggleButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        elevation =
+            ToggleButtonDefaults.elevation(
+                defaultElevation = HomeControlElevation,
+                pressedElevation = HomeControlElevation,
+                focusedElevation = HomeControlElevation,
+                hoveredElevation = HomeControlElevation,
+                disabledElevation = HomeControlElevation,
+            ),
         shapes =
             if (tab == HomeTab.PROJECTS) {
                 ButtonGroupDefaults.connectedLeadingButtonShapes().copy(shape = CircleShape)
