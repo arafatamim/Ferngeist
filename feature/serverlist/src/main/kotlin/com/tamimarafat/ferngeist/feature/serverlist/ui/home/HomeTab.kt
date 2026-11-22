@@ -86,7 +86,7 @@ internal fun HomeTabBar(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    val tab = pager.targetTab
+    val tab = pager.selectedTab
     val showTabs = pager.tabs.size > 1
     Row(
         modifier = modifier,
