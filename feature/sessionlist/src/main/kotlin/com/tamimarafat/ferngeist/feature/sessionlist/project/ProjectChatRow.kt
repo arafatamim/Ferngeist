@@ -34,6 +34,7 @@ import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.ChatCard
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionActionsMenu
+import com.tamimarafat.ferngeist.feature.sessionlist.ui.sessionCardTone
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.sessionSharedBounds
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.sessionTitleBounds
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
@@ -57,6 +58,8 @@ internal fun ProjectChatRow(
     val haptics = LocalHapticFeedback.current
     val menuInteractionSource = remember { MutableInteractionSource() }
     var showMenu by rememberSaveable(chat.target.id, chat.summary.id) { mutableStateOf(false) }
+    // One tone drives both the card's ink and its agent mark, as on the agent and project cards.
+    val tone = sessionCardTone(status.status, live)
     val hasMenu = !removing && listOfNotNull(actions.onClose, actions.onRemoveWorktree, actions.onDelete).isNotEmpty()
     val openMenu = {
         if (hasMenu) {
@@ -87,6 +90,7 @@ internal fun ProjectChatRow(
                 size = 40.dp,
                 active = status.status.isActive,
                 status = status.status,
+                tone = tone,
                 modifier = Modifier.semantics { contentDescription = chat.target.name },
             )
             ProjectChatText(

@@ -63,6 +63,7 @@ import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.motion.rememberPressShape
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
+import com.tamimarafat.ferngeist.core.common.ui.status.CardTone
 import com.tamimarafat.ferngeist.core.common.ui.status.cardPresentation
 import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
@@ -666,8 +667,7 @@ private fun sessionCardColors(
     isLive: Boolean,
     status: TurnStatus,
 ): CardColors {
-    val tone =
-        cardPresentation(listOf(TurnActivity(status)), live = isLive).tone
+    val tone = sessionCardTone(status, isLive)
     val container by animateColorAsState(
         targetValue = tone.containerColor,
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
@@ -675,6 +675,12 @@ private fun sessionCardColors(
     )
     return CardDefaults.cardColors(containerColor = container, contentColor = tone.contentColor)
 }
+
+/** The card's tone, shared by its container and the agent mark so both read the same state. */
+internal fun sessionCardTone(
+    status: TurnStatus,
+    live: Boolean,
+): CardTone = cardPresentation(listOf(TurnActivity(status)), live = live).tone
 
 /** Toggle for the chats whose folder is gone, collapsed by default so they stay out of the way. */
 @Composable
