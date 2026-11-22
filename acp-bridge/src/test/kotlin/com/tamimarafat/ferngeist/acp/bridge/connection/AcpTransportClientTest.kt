@@ -149,7 +149,7 @@ class AcpTransportClientTest {
         emitEvent: suspend (AcpManagerEvent) -> Unit = {},
     ): AcpTransportClient =
         AcpTransportClient(
-            connectivityObserver = ConnectivityObserverStub(initialState = online),
+            network = AcpNetwork(testHttpClient, ConnectivityObserverStub(initialState = online)),
             resumeAttachToken = resume,
             scope = scope,
             diagnosticsStore = AcpDiagnosticsStore(),

@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.lifecycle.SavedStateHandle
 import com.agentclientprotocol.model.ContentBlock
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpNetwork
 import com.tamimarafat.ferngeist.acp.bridge.facade.HubChatPresence
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
@@ -28,6 +29,7 @@ import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
 import com.tamimarafat.ferngeist.feature.chat.queue.PendingPromptStore
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.gatewayHttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -163,10 +165,13 @@ internal class InMemoryTurnTimingRepository : TurnTimingRepository {
 @OptIn(ExperimentalCoroutinesApi::class)
 internal fun newTestHub(gatewayRepository: GatewayRepository = FakeGatewayRepository()): ChatConnectionHub =
     ChatConnectionHub(
+        network = AcpNetwork(testHttpClient, FakeConnectivityObserver()),
         gatewayRepository = gatewayRepository,
         scope = CoroutineScope(UnconfinedTestDispatcher()),
-        connectivityObserver = FakeConnectivityObserver(),
     )
+
+/** One client for every test hub, as in production. */
+private val testHttpClient = gatewayHttpClient()
 
 /** JUnit rule that swaps the main dispatcher for tests. */
 @OptIn(ExperimentalCoroutinesApi::class)

@@ -101,7 +101,9 @@ internal class GatewayHttpPipeline(
         response: HttpResponse,
     ): GatewayRequestException {
         val body = response.bodyAsText()
-        parseGatewayErrorBody(body.trim())?.let { recordServerClock(host, response, it) }
+        parseGatewayErrorBody(body.trim())?.let {
+            recordServerClock(host, response.status.value, response.headers[HttpHeaders.Date], it)
+        }
         return gatewayRequestException(response.status.value, response.status.description, endpoint, body)
     }
 
@@ -109,10 +111,10 @@ internal class GatewayHttpPipeline(
      * Opens one WebSocket upgrade, hands the live session to [consume], and tears the socket
      * down when the block returns or is cancelled.
      *
-     * A refused upgrade never reaches its body: the client's WebSocket transform throws before
-     * the error envelope can be read, so the failure carries the status and an empty body. The
-     * `Date` header still teaches the clock, and a 401 gets one re-signed retry — the closest
-     * this path can get to the REST `proof_expired` recovery.
+     * A refused upgrade arrives as [WebSocketUpgradeRefusedException] (see [gatewayHttpClient])
+     * and leaves as a [GatewayRequestException] carrying the status and the error envelope. The
+     * envelope or `Date` header teaches the clock, and a 401 gets one re-signed retry — the
+     * closest this path can get to the REST `proof_expired` recovery.
      */
     internal suspend fun webSocket(
         scheme: String,
@@ -126,26 +128,17 @@ internal class GatewayHttpPipeline(
         repeat(2) { attempt ->
             val authHeaders = proofHeaders(host, credential, GatewayProofRequest(method = "GET", endpoint = endpoint))
             val failure =
-                httpClient
-                    .prepareGet(endpoint) {
-                        authHeaders?.let { applyGatewayAuthHeaders(it) }
-                    }.execute { response ->
-                        if (response.status == HttpStatusCode.SwitchingProtocols) {
-                            consume(response.body<DefaultClientWebSocketSession>())
-                            null
-                        } else {
-                            // The transform that throws on a refused upgrade runs before the body is
-                            // readable, so the envelope is lost; the Date header still teaches the clock.
-                            recordServerClock(host, response, GatewayErrorResponse())
-                            gatewayRequestException(
-                                statusCode = response.status.value,
-                                statusDescription = response.status.description,
-                                endpoint = endpoint,
-                                responseBody = "",
-                            )
-                        }
-                    }
-            if (failure == null) return
+                try {
+                    httpClient
+                        .prepareGet(endpoint) {
+                            authHeaders?.let { applyGatewayAuthHeaders(it) }
+                        }.execute { response -> consume(response.body<DefaultClientWebSocketSession>()) }
+                    return
+                } catch (refused: WebSocketUpgradeRefusedException) {
+                    val rejection = parseGatewayErrorBody(refused.responseBody.trim()) ?: GatewayErrorResponse()
+                    recordServerClock(host, refused.statusCode, refused.dateHeader, rejection)
+                    with(refused) { gatewayRequestException(statusCode, statusDescription, endpoint, responseBody) }
+                }
             if (attempt > 0 || failure.statusCode != HTTP_UNAUTHORIZED) throw failure
         }
     }
@@ -284,7 +277,7 @@ internal class GatewayHttpPipeline(
         }
         val failure = response.bodyAsText()
         val rejection = parseGatewayErrorBody(failure.trim())
-        rejection?.let { recordServerClock(host, response, it) }
+        rejection?.let { recordServerClock(host, response.status.value, response.headers[HttpHeaders.Date], it) }
         if (
             proofCredential != null &&
             response.status.value == HTTP_UNAUTHORIZED &&
@@ -331,15 +324,16 @@ internal class GatewayHttpPipeline(
      */
     private fun recordServerClock(
         host: String,
-        response: HttpResponse,
+        statusCode: Int,
+        dateHeader: String?,
         rejection: GatewayErrorResponse,
     ) {
-        if (response.status.value != HTTP_UNAUTHORIZED && response.status.value != HTTP_FORBIDDEN) {
+        if (statusCode != HTTP_UNAUTHORIZED && statusCode != HTTP_FORBIDDEN) {
             return
         }
         val serverSeconds =
             parseGatewayServerTimeEpochSeconds(rejection.serverTime)
-                ?: parseGatewayHttpDateEpochSeconds(response.headers[HttpHeaders.Date])
+                ?: parseGatewayHttpDateEpochSeconds(dateHeader)
         serverSeconds?.let { clock.recordServerTime(host, it) }
     }
 

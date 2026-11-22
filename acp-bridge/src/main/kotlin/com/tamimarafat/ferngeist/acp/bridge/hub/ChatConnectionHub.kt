@@ -6,7 +6,7 @@ import com.agentclientprotocol.model.PlanEntry
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
-import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpNetwork
 import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.GatewaySessionResumeRejectedException
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
@@ -109,9 +109,9 @@ data class HubLimits(
 @OptIn(ExperimentalCoroutinesApi::class)
 @Suppress("TooManyFunctions")
 class ChatConnectionHub(
+    private val network: AcpNetwork,
     private val gatewayRepository: GatewayRepository,
     private val scope: CoroutineScope,
-    private val connectivityObserver: ConnectivityObserver,
     private val limits: HubLimits = HubLimits(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     /** Saves each tracked chat's state so it draws at once after process death; null keeps none. */
@@ -276,7 +276,7 @@ class ChatConnectionHub(
     )
 
     /** Network availability, so a feature can re-run work that failed while the device was offline. */
-    val networkAvailable: Flow<Boolean> get() = connectivityObserver.isConnected
+    val networkAvailable: Flow<Boolean> get() = network.connectivity.isConnected
 
     /** True when any tracked manager is currently connected. */
     val anyConnected: StateFlow<Boolean> =
@@ -360,7 +360,7 @@ class ChatConnectionHub(
      * tracked (visible in the aggregates) until [abandon] releases it.
      */
     override fun acquireChatManager(serverId: String): AcpConnection =
-        AcpConnection(connectivityObserver, resumeAttachToken, scope) { runtimeFor(serverId, it) }.also { manager ->
+        AcpConnection(network, resumeAttachToken, scope) { runtimeFor(serverId, it) }.also { manager ->
             pendingManagers.addIfAbsent(manager)
             revision.value += 1
         }
@@ -381,7 +381,7 @@ class ChatConnectionHub(
      * torn down when the scope completes.
      */
     fun createBrowserManager(ownerScope: CoroutineScope): AcpConnection =
-        AcpConnection(connectivityObserver, resumeAttachToken, ownerScope).also { manager ->
+        AcpConnection(network, resumeAttachToken, ownerScope).also { manager ->
             browserManagers.addIfAbsent(manager)
             revision.value += 1
             ownerScope.coroutineContext[Job]?.invokeOnCompletion {

@@ -15,6 +15,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpNetwork
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionListingUnavailableException
@@ -22,6 +23,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.isCancellationLikeError
 import com.tamimarafat.ferngeist.acp.bridge.connection.sessionAttachRpc
+import com.tamimarafat.ferngeist.acp.bridge.connection.testHttpClient
 import com.tamimarafat.ferngeist.acp.bridge.facade.mapCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.facade.userFacingSendError
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
@@ -114,7 +116,7 @@ class AcpConnectionTest {
         runTest {
             val connectivityObserver = ConnectivityObserverStub(initialState = true)
             val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
-            val manager = AcpConnection(connectivityObserver, noGatewayResume, scope)
+            val manager = AcpConnection(AcpNetwork(testHttpClient, connectivityObserver), noGatewayResume, scope)
 
             assertEquals(AcpConnectionState.Disconnected, manager.connectionState.value)
             assertFalse(manager.isConnected)
@@ -125,7 +127,7 @@ class AcpConnectionTest {
         runTest {
             val manager =
                 AcpConnection(
-                    connectivityObserver = ConnectivityObserverStub(initialState = true),
+                    network = AcpNetwork(testHttpClient, ConnectivityObserverStub(initialState = true)),
                     resumeAttachToken = noGatewayResume,
                     scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
                 )
@@ -163,7 +165,7 @@ class AcpConnectionTest {
         runTest {
             val connection =
                 AcpConnection(
-                    connectivityObserver = ConnectivityObserverStub(initialState = true),
+                    network = AcpNetwork(testHttpClient, ConnectivityObserverStub(initialState = true)),
                     resumeAttachToken = noGatewayResume,
                     scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
                 )

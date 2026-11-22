@@ -3,6 +3,8 @@ package com.tamimarafat.ferngeist.acp.bridge.hub
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpNetwork
+import com.tamimarafat.ferngeist.acp.bridge.connection.testHttpClient
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatFileContents
@@ -62,9 +64,9 @@ internal fun newHub(
     dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
 ): ChatConnectionHub =
     ChatConnectionHub(
+        network = AcpNetwork(testHttpClient, ConnectivityObserverStub(initialState = true)),
         gatewayRepository = repo,
         scope = CoroutineScope(dispatcher),
-        connectivityObserver = ConnectivityObserverStub(initialState = true),
         limits =
             HubLimits(
                 maxHotConnections = maxHot,

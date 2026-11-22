@@ -10,27 +10,15 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpTransportListener
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.onRemoteTurnEnded
 import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.onRemoteResumed
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
-import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
 import io.ktor.websocket.Frame
-import io.ktor.websocket.WebSocketDeflateExtension
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.io.IOException
-import java.nio.channels.UnresolvedAddressException
-
-// Keeps the WebSocket alive and detects dead peers: the CIO client pings on
-// this interval when no frames are exchanged.
-private const val WEB_SOCKET_PING_INTERVAL_MILLIS = 15_000L
-
-// Smaller frames (streamed deltas, acks) cost more to deflate than they save.
-private const val DEFLATE_MIN_FRAME_BYTES = 1024
 
 // Bounds the WebSocket upgrade handshake. Without this, a peer that accepts
 // the TCP socket but never completes the upgrade (or a dead agent behind a
@@ -39,35 +27,8 @@ private const val DEFLATE_MIN_FRAME_BYTES = 1024
 private const val WEB_SOCKET_CONNECT_TIMEOUT_MS = 30_000L
 private const val MILLIS_PER_SECOND = 1_000L
 
-// One CIO client for every socket in the process. Each client builds its own engine and TLS
-// context, so a client per connection paid for both on every chat, listing and verification
-// socket, and no handshake could resume another's TLS session. Never closed, like the REST client.
-// The gateway turn-status stream shares it for the same reason.
-internal val sharedWebSocketClient: HttpClient by lazy {
-    HttpClient(CIO) {
-        HttpResponseValidator {
-            handleResponseExceptionWithRequest { error, request ->
-                // CIO's unresolved address is an IllegalArgumentException, outside callers' network handlers.
-                if (error is UnresolvedAddressException) {
-                    throw IOException("Unable to resolve server address: ${request.url.host}", error)
-                }
-            }
-        }
-        install(WebSockets) {
-            pingIntervalMillis = WEB_SOCKET_PING_INTERVAL_MILLIS
-            // Offered, not required: a gateway that does not negotiate permessage-deflate leaves the
-            // socket as it was. A session/load replay is hundreds of KB of repetitive JSON.
-            extensions {
-                install(WebSocketDeflateExtension) {
-                    compressIfBiggerThan(DEFLATE_MIN_FRAME_BYTES)
-                }
-            }
-        }
-    }
-}
-
 /** Opens the ACP WebSocket, bounded by [WEB_SOCKET_CONNECT_TIMEOUT_MS]. */
-private suspend fun openWebSocket(wsUrl: String): DefaultClientWebSocketSession {
+private suspend fun HttpClient.openWebSocket(wsUrl: String): DefaultClientWebSocketSession {
     // The handshake is bounded by WEB_SOCKET_CONNECT_TIMEOUT_MS. The
     // TimeoutCancellationException is converted into a plain IOException here so
     // connectInternal's catch treats it as a real connection failure (it rethrows
@@ -75,7 +36,7 @@ private suspend fun openWebSocket(wsUrl: String): DefaultClientWebSocketSession 
     // it can clear the connecting spinner).
     return try {
         withTimeout(WEB_SOCKET_CONNECT_TIMEOUT_MS) {
-            sharedWebSocketClient.webSocketSession {
+            webSocketSession {
                 url(wsUrl)
             }
         }
@@ -93,6 +54,7 @@ private suspend fun openWebSocket(wsUrl: String): DefaultClientWebSocketSession 
 
 /** Owns the socket, SDK client and generation checks for protocol callbacks. */
 internal class AcpSocket(
+    private val httpClient: HttpClient,
     private val scope: CoroutineScope,
     private val listener: AcpTransportListener,
     private val diagnosticsStore: AcpDiagnosticsStore,
@@ -113,7 +75,7 @@ internal class AcpSocket(
         diagnosticsUrl: String = wsUrl,
     ): Boolean {
         diagnosticsStore.startConnect(diagnosticsUrl)
-        val webSocketSession = openWebSocket(wsUrl)
+        val webSocketSession = httpClient.openWebSocket(wsUrl)
         val protocol = startProtocol(webSocketSession, resetState)
         client = Client(protocol)
         activeWebSocket = webSocketSession

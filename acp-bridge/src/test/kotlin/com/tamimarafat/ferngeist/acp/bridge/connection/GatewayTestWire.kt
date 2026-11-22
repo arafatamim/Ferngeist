@@ -14,6 +14,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.ElicitationFlow
 import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.PermissionFlow
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
+import com.tamimarafat.ferngeist.gateway.gatewayHttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -29,11 +30,14 @@ private class ConnectivityStub : ConnectivityObserver {
     override val isConnected: Flow<Boolean> = _isConnected
 }
 
+/** One client for every test, as in production: each would otherwise start its own OkHttp pools. */
+internal val testHttpClient = gatewayHttpClient()
+
 /** A connection whose own [AcpConnection.sessions] serves the bridges it makes, as in production. */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal fun newConnection(scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher())): AcpConnection =
     AcpConnection(
-        connectivityObserver = ConnectivityStub(),
+        network = AcpNetwork(testHttpClient, ConnectivityStub()),
         resumeAttachToken = { _, _ -> error("no gateway resume in this test") },
         scope = scope,
     )

@@ -3,7 +3,9 @@ package com.tamimarafat.ferngeist.acp.bridge.facade
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpNetwork
 import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.testHttpClient
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
@@ -357,7 +359,7 @@ class AcpChatSessionFacadeTest {
 
     private fun newManager(scope: CoroutineScope): AcpConnection =
         AcpConnection(
-            connectivityObserver = ConnectivityObserverStub(initialState = true),
+            network = AcpNetwork(testHttpClient, ConnectivityObserverStub(initialState = true)),
             resumeAttachToken = { _, _ -> error("no gateway resume in this test") },
             scope = scope,
         )
@@ -608,7 +610,7 @@ class AcpChatSessionFacadeTest {
             val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
             val offline =
                 AcpConnection(
-                    connectivityObserver = ConnectivityObserverStub(initialState = false),
+                    network = AcpNetwork(testHttpClient, ConnectivityObserverStub(initialState = false)),
                     resumeAttachToken = { _, _ -> error("no gateway resume in this test") },
                     scope = backgroundScope,
                 )

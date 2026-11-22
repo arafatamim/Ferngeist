@@ -4,7 +4,6 @@ import android.content.Context
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectDiscoveryConsent
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSnapshotStore
-import com.tamimarafat.ferngeist.acp.bridge.connection.transport.gatewayTurnStream
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
@@ -15,6 +14,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -38,9 +38,10 @@ object ProjectCatalogModule {
     @Provides
     @Singleton
     fun provideGatewayTurnStream(
+        httpClient: HttpClient,
         json: Json,
         clock: GatewayClock,
-    ): GatewayTurnStream = gatewayTurnStream(json, clock)
+    ): GatewayTurnStream = GatewayTurnStream(httpClient, json, clock)
 
     @Provides
     fun provideChatCatalog(catalog: ProjectCatalog): ChatCatalog = catalog

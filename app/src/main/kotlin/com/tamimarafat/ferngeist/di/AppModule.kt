@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpNetwork
 import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
@@ -25,6 +26,7 @@ import com.tamimarafat.ferngeist.data.database.migration16To17
 import com.tamimarafat.ferngeist.data.database.migration17To18
 import com.tamimarafat.ferngeist.data.database.migration18To19
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.gatewayHttpClient
 import com.tamimarafat.ferngeist.push.AndroidUnifiedPushClient
 import com.tamimarafat.ferngeist.push.AppForegroundState
 import com.tamimarafat.ferngeist.push.PushRegistrar
@@ -34,8 +36,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.android.Android
-import io.ktor.client.plugins.HttpTimeout
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,15 +43,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
 import java.io.File
 import javax.inject.Singleton
-
-/** Bounds whole-call REST latency so network-backed spinners can never hang. */
-private const val HTTP_REQUEST_TIMEOUT_MS = 30_000L
-
-/** Bounds TCP/TLS establishment for gateway REST calls. */
-private const val HTTP_CONNECT_TIMEOUT_MS = 10_000L
-
-/** Bounds inactivity between response packets for gateway REST calls. */
-private const val HTTP_SOCKET_TIMEOUT_MS = 30_000L
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -111,20 +102,26 @@ object AppModule {
         @ApplicationContext context: Context,
     ): ConnectivityObserver = AndroidConnectivityObserver(context)
 
+    @Provides
+    fun provideAcpNetwork(
+        httpClient: HttpClient,
+        connectivityObserver: ConnectivityObserver,
+    ): AcpNetwork = AcpNetwork(httpClient, connectivityObserver)
+
     /** Tracks every open chat's connection; owns every ACP manager lifetime in the process. */
     @Provides
     @Singleton
     fun provideChatConnectionHub(
         @ApplicationContext context: Context,
-        connectivityObserver: ConnectivityObserver,
+        network: AcpNetwork,
         gatewayRepository: GatewayRepository,
         applicationScope: CoroutineScope,
         appForegroundState: AppForegroundState,
     ): ChatConnectionHub =
         ChatConnectionHub(
+            network = network,
             gatewayRepository = gatewayRepository,
             scope = applicationScope,
-            connectivityObserver = connectivityObserver,
             persistence =
                 HubPersistence(
                     File(context.filesDir, "chat-state"),
@@ -175,21 +172,10 @@ object AppModule {
             ignoreUnknownKeys = true
         }
 
-    /** Provides a singleton Ktor HTTP client with bounded timeouts so REST-backed spinners can never hang. */
+    /** The one HTTP client, REST and WebSockets alike; never closed, it lives as long as the process. */
     @Provides
     @Singleton
-    fun provideHttpClient(): HttpClient =
-        // Android engine (platform HttpURLConnection), not CIO: CIO dials a fresh
-        // connection for every request that is not a pipelined GET and closes it after
-        // the response, so each gateway call in a chat open paid a TCP connect (and a TLS
-        // handshake over HTTPS). HttpURLConnection pools keep-alive connections.
-        HttpClient(Android) {
-            install(HttpTimeout) {
-                requestTimeoutMillis = HTTP_REQUEST_TIMEOUT_MS
-                connectTimeoutMillis = HTTP_CONNECT_TIMEOUT_MS
-                socketTimeoutMillis = HTTP_SOCKET_TIMEOUT_MS
-            }
-        }
+    fun provideHttpClient(): HttpClient = gatewayHttpClient()
 }
 
 private val migration1To2 =

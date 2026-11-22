@@ -39,7 +39,7 @@ private const val RECONNECT_MAX_SHIFT = 30
 private const val MAX_RECONNECT_DELAY_MS = 30_000L
 
 internal class AcpTransportClient(
-    connectivityObserver: ConnectivityObserver,
+    network: AcpNetwork,
     // Mints a fresh attachToken for a gateway session — the gateway resume call, in
     // production. The transport holds this instead of the repository: resume is the only
     // gateway call it ever made, and its caller already owns a repository.
@@ -55,7 +55,7 @@ internal class AcpTransportClient(
     val reconnect =
         ReconnectLoop(
             scope = scope,
-            connectivityObserver = connectivityObserver,
+            connectivityObserver = network.connectivity,
             diagnosticsStore = diagnosticsStore,
             isLive = { sdkClient != null },
             currentConfig = { currentConfig },
@@ -72,6 +72,7 @@ internal class AcpTransportClient(
 
     private val socket =
         AcpSocket(
+            httpClient = network.httpClient,
             scope = scope,
             listener = listener,
             diagnosticsStore = diagnosticsStore,

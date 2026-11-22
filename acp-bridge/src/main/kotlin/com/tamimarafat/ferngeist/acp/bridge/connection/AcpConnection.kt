@@ -42,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @Suppress("TooManyFunctions") // the module's single connection entry point
 class AcpConnection(
-    connectivityObserver: ConnectivityObserver,
+    network: AcpNetwork,
     // Mints a fresh attachToken for a gateway session; see [AcpTransportClient].
     resumeAttachToken: suspend (
         gateway: AcpConnectionConfig.Gateway,
@@ -106,7 +106,7 @@ class AcpConnection(
      */
     private val transportClient =
         AcpTransportClient(
-            connectivityObserver = connectivityObserver,
+            network = network,
             resumeAttachToken = resumeAttachToken,
             scope = scope,
             diagnosticsStore = diagnosticsStore,
