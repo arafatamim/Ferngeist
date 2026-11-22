@@ -431,20 +431,19 @@ private fun GitSheetTabsPage(
     onPickCompare: () -> Unit,
 ) {
     Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
     ) {
-        GitStatusHeader(
-            status = status,
-            compareRef = compare.ref,
-            canCompare = compare.available,
-            onPickCompare = onPickCompare,
-        )
-        if (!history.unsupported) {
-            Spacer(modifier = Modifier.height(12.dp))
-            GitSheetTabs(selected = tab, onSelect = onSelectTab, total = history.total)
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            GitStatusHeader(
+                status = status,
+                compareRef = compare.ref,
+                canCompare = compare.available,
+                onPickCompare = onPickCompare,
+            )
+            if (!history.unsupported) {
+                Spacer(modifier = Modifier.height(12.dp))
+                GitSheetTabs(selected = tab, onSelect = onSelectTab, total = history.total)
+            }
         }
         Spacer(modifier = Modifier.height(16.dp))
         Crossfade(
@@ -453,30 +452,54 @@ private fun GitSheetTabsPage(
             modifier = Modifier.weight(1f),
             label = "GitSheetTab",
         ) { shown ->
-            val shownRoute = if (shown == 1) GitSheetRoute.History else GitSheetRoute.Changes
-            pageStates.SaveableStateProvider(shownRoute.stateKey) {
-                Column {
-                    when {
-                        shown == 1 ->
-                            GitHistoryBody(
-                                history = history,
-                                onCommitClick = onCommitClick,
-                                onLoadGitLog = onLoadGitLog,
-                            )
-                        compare.ref != null ->
-                            GitCompareChangesBody(
-                                target = compare.ref.name,
-                                status = compare.status,
-                                error = compare.error,
-                                onRetry = compare.onRetry,
-                                onFileClick = onFileClick,
-                            )
-                        else -> GitChangesBody(status = status, onFileClick = onFileClick)
-                    }
-                }
-            }
+            GitSheetTabBody(
+                shown = shown,
+                pageStates = pageStates,
+                status = status,
+                history = history,
+                compare = compare,
+                onFileClick = onFileClick,
+                onCommitClick = onCommitClick,
+                onLoadGitLog = onLoadGitLog,
+            )
         }
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+/** One tab's body; History sits tighter because its rows carry their own end padding. */
+@Composable
+private fun GitSheetTabBody(
+    shown: Int,
+    pageStates: SaveableStateHolder,
+    status: ChatGitStatus,
+    history: GitHistoryState,
+    compare: GitCompareUi,
+    onFileClick: (ChatChangedFile) -> Unit,
+    onCommitClick: (String) -> Unit,
+    onLoadGitLog: (more: Boolean) -> Unit,
+) {
+    val shownRoute = if (shown == 1) GitSheetRoute.History else GitSheetRoute.Changes
+    pageStates.SaveableStateProvider(shownRoute.stateKey) {
+        Column(modifier = Modifier.padding(horizontal = if (shown == 1) 8.dp else 16.dp)) {
+            when {
+                shown == 1 ->
+                    GitHistoryBody(
+                        history = history,
+                        onCommitClick = onCommitClick,
+                        onLoadGitLog = onLoadGitLog,
+                    )
+                compare.ref != null ->
+                    GitCompareChangesBody(
+                        target = compare.ref.name,
+                        status = compare.status,
+                        error = compare.error,
+                        onRetry = compare.onRetry,
+                        onFileClick = onFileClick,
+                    )
+                else -> GitChangesBody(status = status, onFileClick = onFileClick)
+            }
+        }
     }
 }
 

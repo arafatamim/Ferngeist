@@ -201,4 +201,10 @@ fun GitHistoryLinearPreview() {
     MaterialTheme { GitHistoryPreviewFrame(previewLinearHistory) }
 }
 
+@Preview(name = "History · narrow", widthDp = 260, heightDp = 480)
+@Composable
+fun GitHistoryNarrowPreview() {
+    MaterialTheme { GitHistoryPreviewFrame(previewBranchyHistory) }
+}
+
 // endregion

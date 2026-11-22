@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -99,6 +100,12 @@ private const val LOAD_MORE_AHEAD = 10
 
 /** A day's count only earns its badge past this many commits; a shorter day's rows are right there. */
 private const val DAY_COUNT_ABOVE = 3
+
+/** The narrow/wide split isWindowCompact() uses; reading the configuration directly keeps previews working. */
+private const val NARROW_WINDOW_DP = 480
+
+@Composable
+private fun showCommitMetadata(): Boolean = LocalConfiguration.current.screenWidthDp >= NARROW_WINDOW_DP
 
 /** The git sheet's Changes | History switch. Siblings, so switching crossfades rather than slides. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -315,6 +322,7 @@ private fun GitCommitRowSkeleton(
     last: Boolean,
 ) {
     val bone = MaterialTheme.colorScheme.surfaceContainerHighest
+    val showMetadata = showCommitMetadata()
     Row(
         modifier = Modifier.fillMaxWidth().height(commitRowHeight).padding(end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -334,13 +342,20 @@ private fun GitCommitRowSkeleton(
                     },
         )
         Spacer(Modifier.width(8.dp))
-        Box(modifier = Modifier.weight(1f)) {
-            Bone(height = 12.dp, modifier = Modifier.fillMaxWidth(boneFractions[index % boneFractions.size]))
+        Row(
+            modifier = Modifier.weight(1f).fillMaxHeight().padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                Bone(height = 12.dp, modifier = Modifier.fillMaxWidth(boneFractions[index % boneFractions.size]))
+            }
+            if (showMetadata) {
+                Spacer(Modifier.width(8.dp))
+                Bone(height = 10.dp, width = 28.dp)
+                Spacer(Modifier.width(8.dp))
+                Bone(height = 24.dp, width = 24.dp, shape = CircleShape)
+            }
         }
-        Spacer(Modifier.width(8.dp))
-        Bone(height = 10.dp, width = 28.dp)
-        Spacer(Modifier.width(8.dp))
-        Bone(height = 24.dp, width = 24.dp, shape = CircleShape)
     }
 }
 
@@ -387,6 +402,8 @@ private fun GitCommitRow(
                     .fillMaxHeight()
                     .padding(vertical = 3.dp),
         ) {
+            // Narrow windows give the subject the whole card; the metadata is the first thing to go.
+            val showMetadata = showCommitMetadata()
             Row(
                 modifier =
                     Modifier
@@ -413,17 +430,19 @@ private fun GitCommitRow(
                     refs.firstOrNull()?.let { RefBadge(it) }
                     if (refs.size > 1) MoreRefsBadge(refs.size - 1)
                 }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = compactCommitDate(nowMillis, commit.commitTimeMillis),
-                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.End,
-                    maxLines = 1,
-                    modifier = Modifier.widthIn(min = 40.dp).clearAndSetSemantics {},
-                )
-                Spacer(Modifier.width(8.dp))
-                AuthorAvatar(name = commit.authorName, email = commit.authorEmail)
+                if (showMetadata) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = compactCommitDate(nowMillis, commit.commitTimeMillis),
+                        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        modifier = Modifier.widthIn(min = 40.dp).clearAndSetSemantics {},
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    AuthorAvatar(name = commit.authorName, email = commit.authorEmail)
+                }
             }
         }
     }
