@@ -498,10 +498,8 @@ class ChatViewModel
                 }
             }
             viewModelScope.launch {
-                val icon = repositories.launchableTargetRepository.getTarget(serverId)?.iconUrl
-                if (icon != null) {
-                    updateState { copy(iconUrl = icon) }
-                }
+                val target = repositories.launchableTargetRepository.getTarget(serverId) ?: return@launch
+                updateState { copy(iconUrl = target.iconUrl, agentName = target.name) }
             }
         }
 

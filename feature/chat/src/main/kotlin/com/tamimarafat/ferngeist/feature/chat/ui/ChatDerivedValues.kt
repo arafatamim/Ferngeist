@@ -174,9 +174,12 @@ private fun rememberChatConfigDerived(
     // --- Derived values from config options ---
     val activeModel =
         remember(state.configOptions) {
-            state.configOptions
-                .firstOrNull { it.category is ChatConfigCategory.Model }
-                ?.displayValueLabel()
+            val label = { category: ChatConfigCategory ->
+                state.configOptions.firstOrNull { it.category == category }?.displayValueLabel()
+            }
+            val model = label(ChatConfigCategory.Model)
+            val effort = label(ChatConfigCategory.ThoughtLevel)
+            if (model != null && effort != null) "$model ($effort)" else model
         }
     val modeOption =
         remember(state.configOptions) {

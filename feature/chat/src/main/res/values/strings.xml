@@ -11,6 +11,7 @@
     <string name="chat_commands">Commands</string>
     <string name="chat_no_options_available">No options available</string>
     <string name="chat_enabled">Enabled</string>
+    <string name="chat_effort_desc">Reasoning effort</string>
     <string name="chat_disabled">Disabled</string>
     <string name="chat_not_selected">Not selected</string>
     <string name="chat_send_desc">Send</string>

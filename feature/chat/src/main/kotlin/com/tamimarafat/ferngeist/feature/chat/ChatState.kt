@@ -66,4 +66,6 @@ data class ChatState(
      * empty-session hero. Null for manual agents or when unresolved.
      */
     val iconUrl: String? = null,
+    /** The agent's display name: the initial its mark falls back to when it has no logo. */
+    val agentName: String? = null,
 )
