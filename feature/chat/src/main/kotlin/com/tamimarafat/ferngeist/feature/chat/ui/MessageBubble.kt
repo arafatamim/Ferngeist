@@ -91,6 +91,7 @@ import com.tamimarafat.ferngeist.feature.chat.MarkdownRenderedDocument
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SegmentBlock
 import com.tamimarafat.ferngeist.feature.chat.artifact.ui.ResourceLinkCards
+import com.tamimarafat.ferngeist.feature.chat.artifact.ui.localAttachmentSurface
 import com.tamimarafat.ferngeist.feature.chat.artifact.ui.localTurnPaths
 import com.tamimarafat.ferngeist.feature.chat.displayBlocks
 import com.tamimarafat.ferngeist.feature.chat.markdown.InlineChips
@@ -287,15 +288,20 @@ internal fun UserMessageBubble(
                 .widthIn(max = 420.dp)
                 .alpha(sendingPulse),
     ) {
-        UserMessageContent(
-            message = message,
-            textColor = contentColor,
-            onRetry = onRetry,
-            onImageClick = { onImageClick(it) },
-            maxLines = maxLines,
-            reduceMotion = reduceMotion,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-        )
+        // The bubble's attachments sit on paper, not on a sibling of the bubble's own tone: a tinted
+        // card melts into the container, and a raised neutral one is nearly the same colour.
+        val paper = MaterialTheme.colorScheme.surface
+        CompositionLocalProvider(localAttachmentSurface provides paper) {
+            UserMessageContent(
+                message = message,
+                textColor = contentColor,
+                onRetry = onRetry,
+                onImageClick = { onImageClick(it) },
+                maxLines = maxLines,
+                reduceMotion = reduceMotion,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            )
+        }
     }
 }
 

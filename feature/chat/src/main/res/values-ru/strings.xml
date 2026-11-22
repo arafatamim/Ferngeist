@@ -47,7 +47,6 @@
     <string name="chat_tool_status_in_progress">Выполняется</string>
     <string name="chat_tool_status_completed">Завершено</string>
     <string name="chat_tool_status_failed">Ошибка</string>
-    <string name="chat_image_label">Изображение (%1$s)</string>
     <string name="chat_image_desc">Изображение</string>
     <string name="chat_image_load_remote">Нажмите, чтобы загрузить изображение с %1$s</string>
     <string name="chat_permission_request">Запрос разрешения</string>
@@ -89,7 +88,7 @@
     <string name="chat_commands_no_results">Команды не найдены.</string>
     <string name="chat_commands_search_hint">поиск команд</string>
 
-    <string name="chat_audio_content">Аудио (%1$s)</string>
+    <string name="chat_audio_desc">Аудио</string>
     <string name="chat_audio_play_desc">Воспроизвести аудио</string>
     <string name="chat_audio_pause_desc">Приостановить аудио</string>
     <string name="chat_audio_failed">Не удалось воспроизвести аудио (%1$s)</string>

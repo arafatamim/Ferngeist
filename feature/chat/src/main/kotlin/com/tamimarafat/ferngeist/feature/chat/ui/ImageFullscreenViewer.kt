@@ -49,7 +49,7 @@ import com.tamimarafat.ferngeist.feature.chat.ui.image.rememberDecodedImageBitma
  *
  * Opens as a platform dialog with a dark scrim background. The image is decoded
  * from the [ChatImageData] base64 payload on [Dispatchers.Default] (same sampling
- * strategy as the thumbnail in [ImageAttachmentItem]) and displayed centered with
+ * strategy as the attachment card's own preview) and displayed centered with
  * [ContentScale.Fit]. An animated scale+fade entrance and a close affordance in
  * the top-right corner make dismissal discoverable; tapping the scrim or pressing
  * back also dismisses.

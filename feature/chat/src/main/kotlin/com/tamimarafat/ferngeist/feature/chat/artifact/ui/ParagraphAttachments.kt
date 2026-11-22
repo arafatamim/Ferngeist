@@ -7,9 +7,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,7 +19,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -39,14 +35,6 @@ import com.tamimarafat.ferngeist.feature.chat.ui.localWorkspaceFiles
 import com.tamimarafat.ferngeist.feature.chat.ui.localWorkspaceRoot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-
-// A design call: big enough for an icon and two lines of name, small enough for a row of three.
-private val cardSize = 128.dp
-
-// An image card is enlarged to twice the width, its shape the image's own within these bounds.
-private val previewWidth = cardSize * 2
-private const val MIN_PREVIEW_ASPECT = 0.75f
-private const val MAX_PREVIEW_ASPECT = 2f
 
 /** One card: the host [path], its [label], and the size an agent reported until the host's stat answers. */
 private data class CardSpec(
@@ -165,7 +153,7 @@ private fun Card(
     val context = LocalContext.current
     // Leaving composition cancels a fetch in flight, and the cache drops its partial bytes.
     val scope = rememberCoroutineScope()
-    val previewPx = with(LocalDensity.current) { (previewWidth / MIN_PREVIEW_ASPECT).roundToPx() }
+    val previewPx = with(LocalDensity.current) { (attachmentPreviewWidth / MIN_PREVIEW_ASPECT).roundToPx() }
     // A preview that cannot be fetched or decoded leaves the plain card; a tap still opens the file.
     val preview by produceState<ImageBitmap?>(null, path, stat, host) {
         if (showsPreview(path, stat)) {
@@ -191,13 +179,7 @@ private fun Card(
             }
         },
         onDownload = { host.download(path, label.substringAfterLast('/').substringAfterLast('\\')) },
-        modifier =
-            preview?.let {
-                Modifier
-                    .widthIn(max = previewWidth)
-                    .fillMaxWidth()
-                    .aspectRatio((it.width.toFloat() / it.height).coerceIn(MIN_PREVIEW_ASPECT, MAX_PREVIEW_ASPECT))
-            } ?: Modifier.widthIn(max = cardSize).fillMaxWidth().aspectRatio(1f),
+        modifier = attachmentCardModifier(preview?.let { it.width.toFloat() / it.height }),
         preview = preview,
     )
 }

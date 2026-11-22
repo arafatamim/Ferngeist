@@ -31,9 +31,11 @@ import com.tamimarafat.ferngeist.core.git.syntax.rememberHighlightedCode
 import com.tamimarafat.ferngeist.core.git.syntax.styledCode
 import com.tamimarafat.ferngeist.core.model.content.chatFile
 import com.tamimarafat.ferngeist.core.model.content.chatResourceLink
+import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.artifact.ui.AttachmentCard
 import com.tamimarafat.ferngeist.feature.chat.artifact.ui.ResourceLinkCards
-import com.tamimarafat.ferngeist.feature.chat.ui.message.FileAttachmentCard
+import com.tamimarafat.ferngeist.feature.chat.artifact.ui.attachmentCardModifier
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -67,8 +69,31 @@ internal fun ResourceContentBlock(resource: EmbeddedResourceResource) {
     when (resource) {
         is EmbeddedResourceResource.TextResourceContents -> EmbeddedTextAttachment(resource)
         is EmbeddedResourceResource.BlobResourceContents ->
-            ContentBlock.Resource(resource).chatFile()?.let { FileAttachmentCard(it.name, it.sizeBytes) }
+            ContentBlock.Resource(resource).chatFile()?.let { file ->
+                FileAttachmentCard(file.name, file.sizeBytes)
+            }
     }
+}
+
+/**
+ * A supplied file as the transcript's attachment card: its type badge, its name, and its size when
+ * the block reports one. [onOpen] is absent while there is nothing to open behind a tap.
+ */
+@Composable
+internal fun FileAttachmentCard(
+    name: String,
+    sizeBytes: Long?,
+    onOpen: (() -> Unit)? = null,
+) {
+    AttachmentCard(
+        path = name,
+        label = name,
+        size = sizeBytes?.let(FileAttachmentHelper::formatSize),
+        loading = false,
+        failed = false,
+        onOpen = onOpen,
+        modifier = attachmentCardModifier(aspect = null),
+    )
 }
 
 @Composable
@@ -89,7 +114,7 @@ private fun EmbeddedTextAttachment(
     FileAttachmentCard(
         name = resource.uri.substringAfterLast('/').ifBlank { "file" },
         sizeBytes = size,
-        onClick = { open = true },
+        onOpen = { open = true },
     )
     if (open) EmbeddedTextReader(resource, onDismiss = { open = false })
 }

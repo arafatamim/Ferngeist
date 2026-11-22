@@ -43,7 +43,6 @@
     <string name="chat_tool_status_in_progress">চলমান</string>
     <string name="chat_tool_status_completed">সম্পন্ন</string>
     <string name="chat_tool_status_failed">ব্যর্থ</string>
-    <string name="chat_image_label">ছবি (%1$s)</string>
     <string name="chat_image_desc">ছবি</string>
     <string name="chat_image_load_remote">%1$s থেকে ছবি লোড করতে আলতো চাপুন</string>
     <string name="chat_permission_request">অনুমতির অনুরোধ</string>
@@ -84,7 +83,7 @@
     <string name="chat_commands_no_results">মিলছে এমন কোনো কমান্ড নেই।</string>
     <string name="chat_commands_search_hint">কমান্ড অনুসন্ধান করুন</string>
 
-    <string name="chat_audio_content">অডিও বিষয়বস্তু (%1$s)</string>
+    <string name="chat_audio_desc">অডিও</string>
     <string name="chat_audio_play_desc">অডিও চালান</string>
     <string name="chat_audio_pause_desc">অডিও বিরতি দিন</string>
     <string name="chat_audio_failed">অডিও চালানো যায়নি (%1$s)</string>

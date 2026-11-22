@@ -47,7 +47,6 @@
     <string name="chat_tool_status_in_progress">进行中</string>
     <string name="chat_tool_status_completed">已完成</string>
     <string name="chat_tool_status_failed">失败</string>
-    <string name="chat_image_label">图片 (%1$s)</string>
     <string name="chat_image_desc">图片</string>
     <string name="chat_image_load_remote">点按以加载来自 %1$s 的图片</string>
     <string name="chat_permission_request">权限请求</string>
@@ -91,7 +90,7 @@
     <string name="chat_commands_no_results">没有匹配的命令。</string>
     <string name="chat_commands_search_hint">搜索命令</string>
 
-    <string name="chat_audio_content">音频内容 (%1$s)</string>
+    <string name="chat_audio_desc">音频</string>
     <string name="chat_audio_play_desc">播放音频</string>
     <string name="chat_audio_pause_desc">暂停音频</string>
     <string name="chat_audio_failed">无法播放音频 (%1$s)</string>

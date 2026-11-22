@@ -14,8 +14,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * Decodes a base64-encoded [ChatImageData] into a sampled [ImageBitmap] on
- * [decodeDispatcher], using the same sampling strategy as the thumbnail in
- * [ImageAttachmentItem]. Returns `null` when the payload cannot be decoded.
+ * [decodeDispatcher], using the same sampling strategy as the attachment card's
+ * own preview. Returns `null` when the payload cannot be decoded.
  */
 @Composable
 internal fun rememberDecodedImageBitmap(

@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat.ui.message
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -24,24 +25,54 @@ internal fun UserContentBlocks(
 ) {
     val display = remember(blocks) { blocks.cappedUserContent() }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        display.forEach { block ->
-            when (block) {
-                is ContentBlock.Text ->
-                    if (block.text.isNotBlank()) {
-                        QuoteSelectionContainer {
-                            Text(
-                                text = block.text,
-                                style = documentMarkdownTypography().bodyLarge,
-                                color = textColor,
-                                maxLines = maxLines,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                else -> ContentBlockRenderer(block, onImageClick)
+        display.attachmentRuns().forEach { run ->
+            val text = run.singleOrNull() as? ContentBlock.Text
+            if (text != null) {
+                PromptText(text, textColor, maxLines)
+            } else {
+                // Adjacent attachments share one row, as the transcript's artifact cards do: two
+                // small cards belong beside each other, not stacked down the bubble.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    run.forEach { ContentBlockRenderer(it, onImageClick) }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun PromptText(
+    block: ContentBlock.Text,
+    textColor: Color,
+    maxLines: Int,
+) {
+    if (block.text.isBlank()) return
+    QuoteSelectionContainer {
+        Text(
+            text = block.text,
+            style = documentMarkdownTypography().bodyLarge,
+            color = textColor,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** [this] split into prose and the runs of adjacent attachments between it, in block order. */
+private fun List<ContentBlock>.attachmentRuns(): List<List<ContentBlock>> {
+    val runs = mutableListOf<MutableList<ContentBlock>>()
+    for (block in this) {
+        val last = runs.lastOrNull()
+        if (block is ContentBlock.Text || last == null || last.first() is ContentBlock.Text) {
+            runs += mutableListOf(block)
+        } else {
+            last += block
+        }
+    }
+    return runs
 }
 
 /** One display budget for all prose, retaining each attachment at its original position. */

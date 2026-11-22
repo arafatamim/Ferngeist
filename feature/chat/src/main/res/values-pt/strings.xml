@@ -43,7 +43,6 @@
     <string name="chat_tool_status_in_progress">Em andamento</string>
     <string name="chat_tool_status_completed">Concluído</string>
     <string name="chat_tool_status_failed">Falhou</string>
-    <string name="chat_image_label">Imagem (%1$s)</string>
     <string name="chat_image_desc">Imagem</string>
     <string name="chat_image_load_remote">Toque para carregar a imagem de %1$s</string>
     <string name="chat_permission_request">Solicitação de permissão</string>
@@ -84,7 +83,7 @@
     <string name="chat_commands_no_results">Nenhum comando correspondente.</string>
     <string name="chat_commands_search_hint">pesquisar comandos</string>
 
-    <string name="chat_audio_content">Conteúdo de áudio (%1$s)</string>
+    <string name="chat_audio_desc">Áudio</string>
     <string name="chat_audio_play_desc">Reproduzir áudio</string>
     <string name="chat_audio_pause_desc">Pausar áudio</string>
     <string name="chat_audio_failed">Não foi possível reproduzir o áudio (%1$s)</string>

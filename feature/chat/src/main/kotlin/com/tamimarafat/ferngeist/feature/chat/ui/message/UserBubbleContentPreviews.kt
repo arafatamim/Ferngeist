@@ -81,7 +81,7 @@ internal fun UserBubbleEmbeddedTextPreview() =
                 listOf(
                     ContentBlock.Resource(
                         EmbeddedResourceResource.TextResourceContents(
-                            text = "fun main() {\n    println(\"hello\")\n}",
+                            text = "fun main() {\n    greet(\"hello\")\n}",
                             uri = "file:///tmp/Main.kt",
                             mimeType = "text/plain",
                         ),
@@ -119,6 +119,38 @@ internal fun UserBubbleMixedContentPreview() =
                     ),
                 ),
         ),
+    )
+
+/** The mixed prompt's attachments, to show them under each delivery state. */
+private fun previewAttachments(): List<ContentBlock> =
+    listOf(
+        ContentBlock.Image(data = PREVIEW_IMAGE_BASE64, mimeType = PREVIEW_PNG_MIME),
+        ContentBlock.Resource(
+            EmbeddedResourceResource.BlobResourceContents(
+                blob = "",
+                uri = "file:///tmp/spec.pdf",
+                mimeType = "application/pdf",
+            ),
+        ),
+        ContentBlock.Audio(data = PREVIEW_IMAGE_BASE64, mimeType = "audio/mp4"),
+    )
+
+/** Held in the pending strip: the attachments must read as this bubble's, not as foreign slabs. */
+@Preview(name = "Attachments, queued", widthDp = 420)
+@Composable
+internal fun UserBubbleAttachmentsQueuedPreview() =
+    UserBubblePreview(
+        message = userMessage(PREVIEW_PROMPT, previewAttachments(), MessageDeliveryStatus.QUEUED),
+        maxLines = 3,
+    )
+
+/** The prompt never went out: the attachments sit inside the error container, so they must join it. */
+@Preview(name = "Attachments, failed", widthDp = 420)
+@Composable
+internal fun UserBubbleAttachmentsFailedPreview() =
+    UserBubblePreview(
+        message = userMessage(PREVIEW_PROMPT, previewAttachments(), MessageDeliveryStatus.FAILED),
+        maxLines = 3,
     )
 
 /** Pinned in the pending queue: clamped to 3 lines with an ellipsis. */
