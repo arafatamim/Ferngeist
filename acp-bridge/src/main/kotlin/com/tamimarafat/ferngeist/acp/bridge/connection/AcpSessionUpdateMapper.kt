@@ -7,6 +7,7 @@ import com.agentclientprotocol.model.StopReason
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.promptClientId
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.CommandInfo
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoiceGroup
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
@@ -190,6 +191,7 @@ internal object AcpSessionUpdateMapper {
                     id = sdkOption.id.value,
                     name = sdkOption.name,
                     description = sdkOption.description,
+                    category = mapSdkConfigCategory(sdkOption.category?.value),
                     origin = SessionConfigOrigin.NativeConfigOption,
                     currentValue = sdkOption.currentValue.value,
                     choices = choices,
@@ -202,10 +204,20 @@ internal object AcpSessionUpdateMapper {
                     id = sdkOption.id.value,
                     name = sdkOption.name,
                     description = sdkOption.description,
+                    category = mapSdkConfigCategory(sdkOption.category?.value),
                     origin = SessionConfigOrigin.NativeConfigOption,
                     currentValue = sdkOption.currentValue,
                 )
             }
+        }
+
+    private fun mapSdkConfigCategory(raw: String?): SessionConfigCategory? =
+        when (raw) {
+            null -> null
+            SessionConfigCategory.Mode.rawValue -> SessionConfigCategory.Mode
+            SessionConfigCategory.Model.rawValue -> SessionConfigCategory.Model
+            SessionConfigCategory.ThoughtLevel.rawValue -> SessionConfigCategory.ThoughtLevel
+            else -> SessionConfigCategory.Custom(raw)
         }
 
     @OptIn(UnstableApi::class)

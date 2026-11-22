@@ -154,6 +154,7 @@ internal fun mapConfigCategory(acp: SessionConfigCategory): ChatConfigCategory =
     when (acp) {
         SessionConfigCategory.Mode -> ChatConfigCategory.Mode
         SessionConfigCategory.Model -> ChatConfigCategory.Model
+        SessionConfigCategory.ThoughtLevel -> ChatConfigCategory.ThoughtLevel
         is SessionConfigCategory.Custom -> ChatConfigCategory.Custom(acp.rawValue)
     }
 

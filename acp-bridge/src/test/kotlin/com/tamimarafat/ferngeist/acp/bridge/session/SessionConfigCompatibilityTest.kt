@@ -90,6 +90,30 @@ class SessionConfigCompatibilityTest {
     }
 
     @Test
+    fun `sdk option mapping keeps the agent's thought level category`() {
+        val mapped =
+            AcpSessionUpdateMapper.mapSdkConfigOption(
+                com.agentclientprotocol.model.SessionConfigOption.select(
+                    id = "reasoning_effort",
+                    name = "Effort",
+                    currentValue = "high",
+                    options =
+                        com.agentclientprotocol.model.SessionConfigSelectOptions.Flat(
+                            listOf(
+                                com.agentclientprotocol.model.SessionConfigSelectOption(
+                                    value = com.agentclientprotocol.model.SessionConfigValueId("high"),
+                                    name = "High",
+                                ),
+                            ),
+                        ),
+                    category = com.agentclientprotocol.model.SessionConfigOptionCategory.THOUGHT_LEVEL,
+                ),
+            )
+
+        assertEquals(SessionConfigCategory.ThoughtLevel, mapped.category)
+    }
+
+    @Test
     fun `bridge updates synthetic legacy mode through set config option`() =
         runTest {
             val bridge = SessionBridge("test_session", null)

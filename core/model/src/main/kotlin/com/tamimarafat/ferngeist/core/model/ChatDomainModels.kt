@@ -45,6 +45,11 @@ sealed interface ChatConfigCategory {
         override val rawValue: String = "model"
     }
 
+    /** Reasoning effort. */
+    data object ThoughtLevel : ChatConfigCategory {
+        override val rawValue: String = "thought_level"
+    }
+
     data class Custom(
         override val rawValue: String,
     ) : ChatConfigCategory

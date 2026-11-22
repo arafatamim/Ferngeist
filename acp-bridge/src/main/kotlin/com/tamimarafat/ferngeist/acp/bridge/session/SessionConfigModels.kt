@@ -16,6 +16,12 @@ sealed interface SessionConfigCategory {
         override val rawValue: String = "model"
     }
 
+    /** ACP's reserved category for reasoning effort. */
+    @Serializable
+    data object ThoughtLevel : SessionConfigCategory {
+        override val rawValue: String = "thought_level"
+    }
+
     @Serializable
     data class Custom(
         override val rawValue: String,
