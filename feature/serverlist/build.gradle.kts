@@ -24,7 +24,6 @@ android {
     defaultConfig {
         minSdk = 30
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        multiDexEnabled = true
         consumerProguardFiles("consumer-rules.pro")
     }
 
@@ -47,10 +46,11 @@ kotlin {
     }
 }
 
-val mockkAgent by configurations.creating {
-    isCanBeConsumed = false
-    isTransitive = false
-}
+val mockkAgent =
+    configurations.create("mockkAgent") {
+        isCanBeConsumed = false
+        isTransitive = false
+    }
 
 dependencies {
     mockkAgent(libs.byte.buddy.agent)
