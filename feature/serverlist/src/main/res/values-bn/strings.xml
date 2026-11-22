@@ -168,10 +168,6 @@
     <!-- A session the agent has not named yet. Never travels as a session title. -->
     <string name="serverlist_untitled_session">শিরোনামহীন সেশন</string>
     <string name="serverlist_section_projects">প্রকল্প</string>
-    <plurals name="serverlist_project_chats">
-        <item quantity="one">%d টি চ্যাট</item>
-        <item quantity="other">%d টি চ্যাট</item>
-    </plurals>
     <string name="serverlist_show_less">কম দেখুন</string>
     <string name="serverlist_quick_chat">নতুন দ্রুত চ্যাট</string>
 

@@ -168,11 +168,6 @@
     <!-- A session the agent has not named yet. Never travels as a session title. -->
     <string name="serverlist_untitled_session">Sessão sem título</string>
     <string name="serverlist_section_projects">Projetos</string>
-    <plurals name="serverlist_project_chats">
-        <item quantity="one">%d conversa</item>
-        <item quantity="other">%d conversas</item>
-        <item quantity="many">%d de conversas</item>
-    </plurals>
     <string name="serverlist_show_less">Mostrar menos</string>
     <string name="serverlist_quick_chat">Nova conversa rápida</string>
 

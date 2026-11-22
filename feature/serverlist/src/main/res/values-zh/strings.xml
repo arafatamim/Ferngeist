@@ -186,9 +186,6 @@
     <!-- A session the agent has not named yet. Never travels as a session title. -->
     <string name="serverlist_untitled_session">无标题会话</string>
     <string name="serverlist_section_projects">项目</string>
-    <plurals name="serverlist_project_chats">
-        <item quantity="other">%d 个对话</item>
-    </plurals>
     <string name="serverlist_show_less">收起</string>
     <string name="serverlist_quick_chat">新建快速聊天</string>
 

@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
-import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusWaveLine
 import com.tamimarafat.ferngeist.core.common.ui.chat.rememberStatusLineState
 import com.tamimarafat.ferngeist.core.common.ui.status.AgentMark
@@ -54,6 +53,8 @@ import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
+import com.tamimarafat.ferngeist.core.common.ui.time.compactRelativeTime
+import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.typography.featuredContentEditorialStyle
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.projectName
@@ -184,7 +185,6 @@ internal fun ProjectTile(
                         color = waveLineColor,
                     )
                 }
-                ChatCardStamp(project.updatedAt, presentation.activity)
             }
             ProjectName(
                 project = project,
@@ -392,5 +392,5 @@ private fun projectSupporting(
 ): String =
     listOfNotNull(
         project.gateway.name.takeIf { showGateway },
-        pluralStringResource(R.plurals.serverlist_project_chats, project.chats.size, project.chats.size),
+        project.updatedAt?.let { compactRelativeTime(it, rememberPresentationTime()) },
     ).joinToString(" · ")

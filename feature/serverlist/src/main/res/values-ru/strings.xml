@@ -186,12 +186,6 @@
     <!-- A session the agent has not named yet. Never travels as a session title. -->
     <string name="serverlist_untitled_session">Сессия без названия</string>
     <string name="serverlist_section_projects">Проекты</string>
-    <plurals name="serverlist_project_chats">
-        <item quantity="one">%d чат</item>
-        <item quantity="few">%d чата</item>
-        <item quantity="many">%d чатов</item>
-        <item quantity="other">%d чата</item>
-    </plurals>
     <string name="serverlist_show_less">Показать меньше</string>
     <string name="serverlist_quick_chat">Новый быстрый чат</string>
 
