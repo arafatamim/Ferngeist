@@ -2,7 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import android.content.ContentResolver
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
 import android.util.Base64
 import com.tamimarafat.ferngeist.core.model.ChatImageData
@@ -10,6 +10,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.nio.ByteBuffer
 
 /**
  * Pure helpers for converting image bytes into [ChatImageData], shared between
@@ -38,28 +40,20 @@ object ImageAttachmentHelper {
         bytes: ByteArray,
         _mimeType: String,
     ): ChatImageData? {
-        val decodeOptions =
-            BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-            }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions)
-
-        if (decodeOptions.outWidth <= 0 || decodeOptions.outHeight <= 0) return null
-
-        val sampleSize =
-            computeSampleSize(
-                outWidth = decodeOptions.outWidth,
-                outHeight = decodeOptions.outHeight,
-                maxDimension = MAX_IMAGE_DIMENSION,
-            )
-
+        // ImageDecoder, unlike BitmapFactory, applies the EXIF orientation: camera photos are stored
+        // sideways with a rotation tag, which the JPEG re-encode below would otherwise drop.
         val bitmap =
-            BitmapFactory.decodeByteArray(
-                bytes,
-                0,
-                bytes.size,
-                BitmapFactory.Options().apply { inSampleSize = sampleSize },
-            ) ?: return null
+            try {
+                ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _ ->
+                    // Software: the JPEG re-encode below reads the pixels.
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    decoder.setTargetSampleSize(
+                        computeSampleSize(info.size.width, info.size.height, MAX_IMAGE_DIMENSION),
+                    )
+                }
+            } catch (_: IOException) {
+                null
+            } ?: return null
 
         val jpegBytes =
             ByteArrayOutputStream().use { stream ->

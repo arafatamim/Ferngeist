@@ -21,6 +21,9 @@
     <string name="chat_attach_nothing_found">No image or file to attach</string>
     <string name="chat_remove_image_desc">Remove image</string>
     <plurals name="chat_images_dropped_capped">
+    <string name="chat_attach_photos_desc">Attach photos</string>
+    <string name="chat_attach_camera_desc">Take a photo</string>
+    <string name="chat_camera_unavailable">Couldn\'t open the camera.</string>
         <item quantity="one">Dropped %1$d undecodable image; limit is %2$d per message</item>
         <item quantity="other">Dropped %1$d undecodable images; limit is %2$d per message</item>
     </plurals>

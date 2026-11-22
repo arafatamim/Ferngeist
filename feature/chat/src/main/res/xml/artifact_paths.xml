@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only immutable artifact shares: a viewer gets one verified copy, never a host path or another app directory. -->
+<!-- Only immutable artifact shares: a viewer gets one verified copy, never a host path or another app directory.
+     The one exception is camera-captures: an empty file the camera app is granted to write a photo into. -->
 <paths>
     <cache-path name="artifacts" path="artifact-shares/" />
+    <cache-path name="camera" path="camera-captures/" />
 </paths>
