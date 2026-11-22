@@ -315,7 +315,7 @@ internal fun ChatComposerBar(
         with(density) { (if (composerExpanded) expandedHeight else composerFabSize).roundToPx() }
     LaunchedEffect(restingHeightPx) { onHeightChanged(restingHeightPx) }
     val boundsSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Rect>()
-    val boundsTransform = BoundsTransform { _, _ -> boundsSpec }
+    val boundsTransform = remember(boundsSpec) { BoundsTransform { _, _ -> boundsSpec } }
     val crossfadeIn = fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec())
     val crossfadeOut = fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec())
     BoxWithConstraints(modifier = modifier) {

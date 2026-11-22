@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -59,7 +60,7 @@ internal fun ChatMessageList(
     appBarScrollConnection: NestedScrollConnection,
     renderedLastMessageId: String?,
     listTopPadding: Dp,
-    listBottomPadding: Dp,
+    listBottomPadding: State<Dp>,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     onRetryMessage: ((String) -> Unit)? = null,
@@ -75,7 +76,7 @@ internal fun ChatMessageList(
     SideEffect { scroll.rows = rows }
     val promptHeights = remember { mutableStateMapOf<String, Int>() }
     val fadePx = with(LocalDensity.current) { pinnedPromptFadeDistance.roundToPx() }
-    val runway = rememberRunway(scroll, windowed, itemKey, listBottomPadding)
+    val runway = rememberRunway(scroll, windowed, itemKey, listBottomPadding.value)
     val workingTree = state.git.turnWorkingTree()
 
     Box(modifier = Modifier.fillMaxSize()) {

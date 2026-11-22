@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -395,7 +396,7 @@ private fun BoxScope.ChatScreenContentOverlays(
         )
     }
 
-    ChatBottomFade(bandHeight = screenState.insets.bottomFadeBandHeight)
+    ChatBottomFade(band = screenState.insets.bottomFadeBandHeight)
 }
 
 // How much of the surface colour the bottom fade reaches at the very bottom of
@@ -418,7 +419,9 @@ private const val BOTTOM_FADE_MAX_ALPHA = 0.75f
  * faintly readable rather than dissolving it away.
  */
 @Composable
-private fun BoxScope.ChatBottomFade(bandHeight: Dp) {
+private fun BoxScope.ChatBottomFade(band: State<Dp>) {
+    // Read here, not by the caller: the band follows the keyboard frame by frame.
+    val bandHeight = band.value
     if (bandHeight <= 0.dp) return
     val surface = MaterialTheme.colorScheme.surface
     Box(
@@ -447,7 +450,7 @@ private fun BoxScope.ChatScreenSnackbar(screenState: ChatScreenState) {
                 .padding(
                     start = 16.dp,
                     end = 16.dp,
-                    bottom = screenState.insets.snackbarBottomPadding,
+                    bottom = screenState.insets.snackbarBottomPadding.value,
                 ).zIndex(2f),
     )
 }

@@ -6,18 +6,24 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 
-internal data class ComposerInsets(
-    val imeBottomPx: Int,
+/**
+ * The bottom clearances follow the keyboard frame by frame, so they are states read where they are
+ * used. Reading the IME inset here, at screen level, recomposed the whole chat screen on every
+ * frame of the keyboard animation, which runs alongside the FAB-to-composer transform.
+ */
+internal class ComposerInsets(
     val showComposerToolbar: Boolean,
-    val listBottomPadding: Dp,
-    val bottomFadeBandHeight: Dp,
-    val snackbarBottomPadding: Dp,
+    val listBottomPadding: State<Dp>,
+    val bottomFadeBandHeight: State<Dp>,
+    val snackbarBottomPadding: State<Dp>,
 )
 
 @Composable
@@ -26,9 +32,8 @@ internal fun rememberComposerInsets(
     composerContentHeightPx: MutableState<Int>,
 ): ComposerInsets {
     val density = LocalDensity.current
-    val imeBottomPx = WindowInsets.ime.getBottom(density)
-    val navBottomPx = WindowInsets.navigationBars.getBottom(density)
-    val systemBottomInsetPx = if (imeBottomPx > navBottomPx) imeBottomPx else navBottomPx
+    val ime = WindowInsets.ime
+    val navigationBars = WindowInsets.navigationBars
 
     // Composer is hidden on error + empty state, and while the initial load
     // has no content yet. Cached messages stay typable during markdown
@@ -36,64 +41,34 @@ internal fun rememberComposerInsets(
     val showComposerToolbar =
         !(state.error != null && state.messages.isEmpty()) &&
             (!state.isLoading || state.messages.isNotEmpty())
-    val composerContentHeightDp = with(density) { composerContentHeightPx.value.toDp() }
-    val systemBottomInsetDp = with(density) { systemBottomInsetPx.toDp() }
 
-    // Bottom padding for message list: composer height + floating offset + 36dp, plus any
-    // system inset the floating composer does not already sit above. The window does not
-    // resize for the IME (edge-to-edge + targetSdk 37), so without this the follow-to-bottom
-    // path targets the un-inset screen bottom and the last message settles behind the keyboard.
-    val listBottomPadding =
-        remember(showComposerToolbar, composerContentHeightDp, systemBottomInsetDp) {
-            if (!showComposerToolbar) {
-                0.dp
-            } else {
-                composerContentHeightDp +
-                    FloatingToolbarDefaults.ScreenOffset +
-                    36.dp +
-                    systemBottomInsetDp
-            }
+    // The composer plus the system inset it floats above, and the 0dp a hidden composer clears.
+    fun clearance(extra: Dp): State<Dp> =
+        derivedStateOf {
+            if (!showComposerToolbar) return@derivedStateOf 0.dp
+            val systemBottomInsetPx = maxOf(ime.getBottom(density), navigationBars.getBottom(density))
+            with(density) { (composerContentHeightPx.value + systemBottomInsetPx).toDp() } +
+                FloatingToolbarDefaults.ScreenOffset +
+                extra
         }
 
-    // Snackbar also needs to sit above the composer bar but with less extra padding (16dp)
-    val snackbarBottomPadding =
-        remember(showComposerToolbar, composerContentHeightDp, systemBottomInsetDp) {
-            if (!showComposerToolbar) {
-                0.dp
-            } else {
-                composerContentHeightDp +
-                    systemBottomInsetDp +
-                    FloatingToolbarDefaults.ScreenOffset +
-                    16.dp
-            }
-        }
-
-    // How far the fade climbs from the bottom of the screen: the composer (plus
-    // the system bar beneath it) rises this far, and the band starts a little
-    // above the composer's own top edge so content begins to dim just before it
-    // slides under the pill.
-    //
-    // [bottomFadeLead] must stay under the 36dp of clearance the list keeps
-    // above the composer (see [listBottomPadding]), otherwise the last message
-    // would be tinted while at rest.
-    val bottomFadeBandHeight =
-        remember(showComposerToolbar, composerContentHeightDp, systemBottomInsetDp) {
-            if (!showComposerToolbar) {
-                0.dp
-            } else {
-                composerContentHeightDp +
-                    systemBottomInsetDp +
-                    FloatingToolbarDefaults.ScreenOffset +
-                    bottomFadeLead
-            }
-        }
-    return ComposerInsets(
-        imeBottomPx = imeBottomPx,
-        showComposerToolbar = showComposerToolbar,
-        listBottomPadding = listBottomPadding,
-        bottomFadeBandHeight = bottomFadeBandHeight,
-        snackbarBottomPadding = snackbarBottomPadding,
-    )
+    return remember(showComposerToolbar, density, ime, navigationBars, composerContentHeightPx) {
+        ComposerInsets(
+            showComposerToolbar = showComposerToolbar,
+            // Bottom padding for message list: composer height + floating offset + 36dp, plus any
+            // system inset the floating composer does not already sit above. The window does not
+            // resize for the IME (edge-to-edge + targetSdk 37), so without this the follow-to-bottom
+            // path targets the un-inset screen bottom and the last message settles behind the keyboard.
+            listBottomPadding = clearance(36.dp),
+            // How far the fade climbs from the bottom of the screen: the band starts a little
+            // above the composer's own top edge so content begins to dim just before it slides
+            // under the pill. [bottomFadeLead] must stay under the 36dp of clearance the list
+            // keeps above the composer, otherwise the last message would be tinted while at rest.
+            bottomFadeBandHeight = clearance(bottomFadeLead),
+            // Snackbar also needs to sit above the composer bar but with less extra padding.
+            snackbarBottomPadding = clearance(16.dp),
+        )
+    }
 }
 
 // How far above the composer's top edge the bottom fade begins. Kept under
