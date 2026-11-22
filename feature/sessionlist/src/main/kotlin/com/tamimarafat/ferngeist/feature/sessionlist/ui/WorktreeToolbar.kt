@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -201,6 +202,7 @@ internal fun AgentFiltersSheet(
     onSelectScope: (WorktreeScope) -> Unit,
     onNewWorktree: () -> Unit,
     onRemoveWorktree: (String) -> Unit,
+    onStartChat: (() -> Unit)? = null,
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     val coroutineScope = rememberCoroutineScope()
@@ -236,7 +238,7 @@ internal fun AgentFiltersSheet(
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
         ) {
             Text(
-                text = stringResource(R.string.sessionlist_filters),
+                text = stringResource(sheetTitle(onStartChat)),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = 8.dp, bottom = 12.dp),
             )
@@ -274,17 +276,49 @@ internal fun AgentFiltersSheet(
                     Text(stringResource(R.string.sessionlist_scope_other_project))
                 }
             }
-            if (worktreesEnabled) {
-                Spacer(Modifier.height(16.dp))
-                Text(stringResource(R.string.sessionlist_filter_worktree), style = MaterialTheme.typography.titleSmall)
-                WorktreeRows(
-                    scope = scope,
-                    options = options,
-                    onSelectScope = onSelectScope,
-                    onNewWorktree = { thenClose(onNewWorktree) },
-                    onRemoveWorktree = { id -> thenClose { onRemoveWorktree(id) } },
-                )
-            }
+            SheetWorktreeAndStart(
+                worktreesEnabled,
+                scope,
+                options,
+                onSelectScope,
+                onNewWorktree,
+                onRemoveWorktree,
+                onStartChat,
+                thenClose,
+            )
+        }
+    }
+}
+
+private fun sheetTitle(onStartChat: (() -> Unit)?): Int =
+    if (onStartChat == null) R.string.sessionlist_filters else R.string.sessionlist_new_session_desc
+
+@Composable
+private fun SheetWorktreeAndStart(
+    worktreesEnabled: Boolean,
+    scope: WorktreeScope,
+    options: List<ScopeOption>,
+    onSelectScope: (WorktreeScope) -> Unit,
+    onNewWorktree: () -> Unit,
+    onRemoveWorktree: (String) -> Unit,
+    onStartChat: (() -> Unit)?,
+    thenClose: (() -> Unit) -> Unit,
+) {
+    if (worktreesEnabled) {
+        Spacer(Modifier.height(16.dp))
+        Text(stringResource(R.string.sessionlist_filter_worktree), style = MaterialTheme.typography.titleSmall)
+        WorktreeRows(
+            scope = scope,
+            options = options,
+            onSelectScope = onSelectScope,
+            onNewWorktree = { thenClose(onNewWorktree) },
+            onRemoveWorktree = { id -> thenClose { onRemoveWorktree(id) } },
+        )
+    }
+    if (onStartChat != null) {
+        Spacer(Modifier.height(16.dp))
+        Button(onClick = { thenClose(onStartChat) }) {
+            Text(stringResource(R.string.sessionlist_empty_action))
         }
     }
 }

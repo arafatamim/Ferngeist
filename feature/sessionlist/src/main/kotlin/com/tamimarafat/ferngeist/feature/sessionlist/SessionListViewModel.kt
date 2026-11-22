@@ -611,6 +611,10 @@ class SessionListViewModel
             pendingCreateAfterCwd = true
         }
 
+        fun cancelPendingCreateAfterCwd() {
+            pendingCreateAfterCwd = false
+        }
+
         /** Removes [cwd] from the recent list without affecting the current filter. */
         fun removeRecentCwd(cwd: String) {
             viewModelScope.launch {

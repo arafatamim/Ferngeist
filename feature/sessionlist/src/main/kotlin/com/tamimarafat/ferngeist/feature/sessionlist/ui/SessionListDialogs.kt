@@ -27,6 +27,7 @@ internal fun SessionListOverlays(
     currentCwd: String?,
     onCwdDialogValueChange: (String) -> Unit,
     onDismissCwdDialog: () -> Unit,
+    onCancelCwdDialog: () -> Unit,
     updateCurrentCwd: (String) -> Unit,
     removeRecentCwd: (String) -> Unit,
     showWorktreeSheet: Boolean,
@@ -63,6 +64,7 @@ internal fun SessionListOverlays(
             currentCwd = currentCwd,
             onCwdDialogValueChange = onCwdDialogValueChange,
             onDismiss = onDismissCwdDialog,
+            onCancel = onCancelCwdDialog,
             updateCurrentCwd = updateCurrentCwd,
             removeRecentCwd = removeRecentCwd,
         )
@@ -121,6 +123,7 @@ private fun SessionCwdDialog(
     currentCwd: String?,
     onCwdDialogValueChange: (String) -> Unit,
     onDismiss: () -> Unit,
+    onCancel: () -> Unit,
     updateCurrentCwd: (String) -> Unit,
     removeRecentCwd: (String) -> Unit,
 ) {
@@ -142,7 +145,10 @@ private fun SessionCwdDialog(
             } else {
                 null
             },
-        onDismiss = onDismiss,
+        onDismiss = {
+            onCancel()
+            onDismiss()
+        },
         onRemoveRecentCwd = removeRecentCwd,
         rootOf = rootOf,
     )

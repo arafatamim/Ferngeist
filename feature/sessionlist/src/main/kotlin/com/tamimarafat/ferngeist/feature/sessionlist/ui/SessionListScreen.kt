@@ -127,6 +127,7 @@ fun SessionListScreen(
         currentCwd = currentCwd,
         onCwdDialogValueChange = { state.project.cwdDialogValue.value = it },
         onDismissCwdDialog = { state.project.showCwdDialog.value = false },
+        onCancelCwdDialog = viewModel::cancelPendingCreateAfterCwd,
         updateCurrentCwd = { viewModel.updateCurrentCwd(it) },
         removeRecentCwd = viewModel::removeRecentCwd,
         showWorktreeSheet = state.worktree.showWorktreeSheet.value,
@@ -177,6 +178,11 @@ fun SessionListScreen(
             state.project.cwdDialogValue.value = currentCwd.orEmpty()
             state.project.showCwdDialog.value = true
         },
+        onShowCwdForNewChat = {
+            state.project.cwdDialogValue.value = currentCwd.orEmpty()
+            viewModel.setPendingCreateAfterCwd()
+            state.project.showCwdDialog.value = true
+        },
         onSelectRepo = viewModel::updateCurrentCwd,
         onShowConnectionStatusDialog = { state.connection.showConnectionStatusDialog.value = true },
         showBackButton = showBackButton,
@@ -221,6 +227,7 @@ private fun SessionListScaffold(
     showBackButton: Boolean,
     sharedBoundsEnabled: Boolean,
     onShowCwdDialog: () -> Unit,
+    onShowCwdForNewChat: () -> Unit,
     onSelectRepo: (String) -> Unit,
     onShowConnectionStatusDialog: () -> Unit,
     onNavigateBack: () -> Unit,
@@ -248,6 +255,7 @@ private fun SessionListScaffold(
             collapse,
         )
     var showFilters by rememberSaveable { mutableStateOf(false) }
+    var choosingChatLocation by rememberSaveable { mutableStateOf(false) }
     val scope = state.repoScope.scope
     val scopeName = scopeChipLabel(scope, state.repoScope.scopeOptions)
     val projectFilter =
@@ -305,7 +313,10 @@ private fun SessionListScaffold(
                             agentIconUrl = null,
                             scopeName = scopeName,
                             project = projectFilter,
-                            onEdit = { showFilters = true },
+                            onEdit = {
+                                choosingChatLocation = false
+                                showFilters = true
+                            },
                             onClearAgent = {},
                             onClearScope = { onSelectScope(WorktreeScope.All) },
                         )
@@ -318,12 +329,18 @@ private fun SessionListScaffold(
                     worktreesEnabled = state.repoScope.scopeEnabled,
                     scope = scope,
                     options = state.repoScope.scopeOptions,
-                    onNewChat = createSession,
+                    onNewChat = {
+                        choosingChatLocation = true
+                        showFilters = true
+                    },
                     filterButton = {
                         FiltersButton(
                             expanded = state.repoScope.toolbarExpanded.value,
                             count = filterCount,
-                            onClick = { showFilters = true },
+                            onClick = {
+                                choosingChatLocation = false
+                                showFilters = true
+                            },
                         )
                     },
                 )
@@ -337,7 +354,10 @@ private fun SessionListScaffold(
                 onRemoveWorktree = onRemoveWorktree,
                 onCloseSession = onCloseSession,
                 onDeleteSession = onDeleteSession,
-                createSession = createSession,
+                createSession = {
+                    choosingChatLocation = true
+                    showFilters = true
+                },
                 onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -354,16 +374,23 @@ private fun SessionListScaffold(
                 options = state.repoScope.scopeOptions,
                 onDismiss = { showFilters = false },
                 onSelectProject = onSelectRepo,
-                onOtherProject = onShowCwdDialog,
+                onOtherProject = chooseCwdAction(choosingChatLocation, onShowCwdForNewChat, onShowCwdDialog),
                 onSelectScope = onSelectScope,
                 onNewWorktree = createWorktreeSession,
                 onRemoveWorktree = { onRemoveWorktree(null, it) },
+                onStartChat = createSession.takeIf { choosingChatLocation },
             )
         }
 
         SessionListRefreshIndicator(state)
     }
 }
+
+private fun chooseCwdAction(
+    choosingChatLocation: Boolean,
+    onShowCwdForNewChat: () -> Unit,
+    onShowCwdDialog: () -> Unit,
+): () -> Unit = if (choosingChatLocation) onShowCwdForNewChat else onShowCwdDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 private fun Modifier.sessionListContainer(
