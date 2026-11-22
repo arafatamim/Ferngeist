@@ -56,7 +56,8 @@ import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
 import com.tamimarafat.ferngeist.core.common.ui.time.compactRelativeTime
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
-import com.tamimarafat.ferngeist.core.common.ui.typography.featuredContentEditorialStyle
+import com.tamimarafat.ferngeist.core.common.ui.typography.connectedContentEditorialStyle
+import com.tamimarafat.ferngeist.core.common.ui.typography.heroContentEditorialStyle
 import com.tamimarafat.ferngeist.core.common.ui.typography.restingContentEditorialStyle
 import com.tamimarafat.ferngeist.core.common.ui.typography.restingTitleAutoSize
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -124,11 +125,12 @@ internal fun ProjectHeroTile(
                             ProjectName(
                                 project = project,
                                 style =
-                                    if (featured) {
-                                        featuredContentEditorialStyle
-                                    } else {
-                                        MaterialTheme.typography.headlineSmallEmphasized
-                                    },
+                                    heroContentEditorialStyle(
+                                        featured = featured,
+                                        urgent =
+                                            presentation.activity.status == TurnStatus.ERROR ||
+                                                presentation.activity.status == TurnStatus.NEEDS_ATTENTION,
+                                    ),
                                 sharedTransitionScope = sharedTransitionScope,
                                 animatedContentScope = animatedContentScope,
                                 maxLines = 2,
@@ -191,7 +193,12 @@ internal fun ProjectTile(
             }
             ProjectName(
                 project = project,
-                style = restingContentEditorialStyle,
+                style =
+                    if (presentation.tone == CardTone.CONNECTED) {
+                        connectedContentEditorialStyle
+                    } else {
+                        restingContentEditorialStyle
+                    },
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
                 maxLines = 2,

@@ -68,6 +68,7 @@ import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
+import com.tamimarafat.ferngeist.core.common.ui.typography.cardTitleWeight
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.TurnActivity
@@ -395,6 +396,7 @@ private fun SessionListLazyColumn(
 private fun RowScope.SessionCardText(
     session: SessionSummary,
     status: TurnActivity,
+    live: Boolean,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -419,7 +421,10 @@ private fun RowScope.SessionCardText(
         headline = {
             Text(
                 text = sessionTitleOrNull(session.title) ?: stringResource(R.string.sessionlist_untitled),
-                style = MaterialTheme.typography.titleMedium,
+                style =
+                    MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = cardTitleWeight(status.status, live),
+                    ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier =
@@ -579,6 +584,7 @@ private fun SessionCard(
             SessionCardText(
                 session = session,
                 status = status,
+                live = isLive,
                 worktree = worktree,
                 worktreeBranch = worktreeBranch,
                 worktreeRepo = worktreeRepo,

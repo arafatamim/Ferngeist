@@ -27,6 +27,7 @@ import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
 import com.tamimarafat.ferngeist.core.common.ui.status.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.status.isActive
+import com.tamimarafat.ferngeist.core.common.ui.typography.cardTitleWeight
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
@@ -91,6 +92,7 @@ internal fun ProjectChatRow(
             ProjectChatText(
                 chat,
                 status,
+                live,
                 worktree,
                 worktreeBranch,
                 Modifier.sessionTitleBounds(
@@ -116,6 +118,7 @@ internal fun ProjectChatRow(
 private fun RowScope.ProjectChatText(
     chat: ProjectChat,
     status: TurnActivity,
+    live: Boolean,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     titleModifier: Modifier,
@@ -126,7 +129,10 @@ private fun RowScope.ProjectChatText(
         headline = {
             Text(
                 text = sessionTitleOrNull(chat.summary.title) ?: stringResource(R.string.sessionlist_untitled),
-                style = MaterialTheme.typography.titleMedium,
+                style =
+                    MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = cardTitleWeight(status.status, live),
+                    ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = titleModifier,

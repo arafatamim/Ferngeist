@@ -42,7 +42,8 @@ import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
-import com.tamimarafat.ferngeist.core.common.ui.typography.featuredContentEditorialStyle
+import com.tamimarafat.ferngeist.core.common.ui.typography.connectedContentEditorialStyle
+import com.tamimarafat.ferngeist.core.common.ui.typography.heroContentEditorialStyle
 import com.tamimarafat.ferngeist.core.common.ui.typography.restingContentEditorialStyle
 import com.tamimarafat.ferngeist.core.common.ui.typography.restingTitleAutoSize
 import com.tamimarafat.ferngeist.core.model.GatewaySource
@@ -108,11 +109,12 @@ internal fun AgentHeroTile(
                         AgentName(
                             target = target,
                             style =
-                                if (featured) {
-                                    featuredContentEditorialStyle
-                                } else {
-                                    MaterialTheme.typography.headlineSmallEmphasized
-                                },
+                                heroContentEditorialStyle(
+                                    featured = featured,
+                                    urgent =
+                                        status == TurnStatus.ERROR ||
+                                            status == TurnStatus.NEEDS_ATTENTION,
+                                ),
                             sharedTransitionScope = sharedTransitionScope,
                             animatedContentScope = animatedContentScope,
                             maxLines = 2,
@@ -176,7 +178,12 @@ internal fun AgentTile(
             }
             AgentName(
                 target = target,
-                style = restingContentEditorialStyle,
+                style =
+                    if (connection.isConnected) {
+                        connectedContentEditorialStyle
+                    } else {
+                        restingContentEditorialStyle
+                    },
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
                 maxLines = 2,
