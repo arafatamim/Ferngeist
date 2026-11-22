@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui.home
 
+import android.content.Context
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.snap
@@ -19,9 +20,17 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalContext
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+private val Context.homePreferences by preferencesDataStore(name = "home_preferences")
+private val LAST_HOME_TAB = stringPreferencesKey("last_home_tab")
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -29,9 +38,20 @@ internal fun rememberHomePagerMotion(hasProjects: Boolean): HomePagerMotion {
     // Projects is a page only while there is something to list; Agents alone needs no switcher.
     val tabs = if (hasProjects) HomeTab.entries else listOf(HomeTab.AGENTS)
     val state = rememberPagerState { tabs.size }
+    val context = LocalContext.current
     val spring = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
     val motion = remember(state, spring, tabs) { HomePagerMotion(state, spring, tabs) }
     LaunchedEffect(motion) { motion.followRestingPage() }
+    LaunchedEffect(state, hasProjects) {
+        if (hasProjects) {
+            val savedTab = context.homePreferences.data.first()[LAST_HOME_TAB]
+            val initialPage = tabs.indexOfFirst { it.name == savedTab }.coerceAtLeast(0)
+            state.scrollToPage(initialPage)
+            snapshotFlow { state.settledPage }.collect { page ->
+                context.homePreferences.edit { it[LAST_HOME_TAB] = tabs[page.coerceIn(0, tabs.lastIndex)].name }
+            }
+        }
+    }
     return motion
 }
 
