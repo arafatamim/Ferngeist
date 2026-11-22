@@ -58,7 +58,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
@@ -359,6 +358,7 @@ private fun CustomAgentActionsMenu(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AgentCardBody(
     agent: GatewayAgent,
@@ -376,8 +376,7 @@ private fun AgentCardBody(
             AgentMark(iconUrl = agent.preferredIcon, size = 32.dp, active = false, fallbackName = agent.displayName)
             Text(
                 agent.displayName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMediumEmphasized,
             )
         }
         Text(

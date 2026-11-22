@@ -43,7 +43,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -185,7 +184,7 @@ private fun FallbackGlyph(
             text = initial,
             color = tint.copy(alpha = tint.alpha * 0.6f),
             fontSize = with(LocalDensity.current) { size.toSp() },
-            fontFamily = FontFamily.SansSerif,
+            fontFamily = MaterialTheme.typography.displayLarge.fontFamily,
             fontWeight = FontWeight.Black,
             modifier =
                 Modifier.clearAndSetSemantics {

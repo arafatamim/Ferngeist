@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Description
@@ -35,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
@@ -189,11 +191,7 @@ internal fun ToolCallDetailsBody(toolCall: ToolCallDisplay) {
     if (toolCall.kind == ToolKind.EXECUTE) {
         val rawInput = toolCall.rawInput
         val displayText = rawInput?.toString()
-        if (!displayText.isNullOrBlank()) {
-            ContentBlockRenderer(
-                block = ContentBlock.Text(displayText),
-            )
-        }
+        if (!displayText.isNullOrBlank()) RawToolText(displayText)
     }
 
     val reported = toolCall.content.orEmpty()
@@ -217,9 +215,7 @@ internal fun ToolCallDetailsBody(toolCall: ToolCallDisplay) {
     } else {
         val rawOutput = toolCall.rawOutput
         if (rawOutput != null) {
-            ContentBlockRenderer(
-                block = ContentBlock.Text(rawOutput.toString()),
-            )
+            RawToolText(rawOutput.toString())
         } else {
             Text(
                 text = stringResource(GitR.string.chat_no_tool_output),
@@ -227,6 +223,14 @@ internal fun ToolCallDetailsBody(toolCall: ToolCallDisplay) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+/** A call's raw JSON input or output: code, so monospaced and copyable rather than parsed as markdown. */
+@Composable
+private fun RawToolText(text: String) {
+    SelectionContainer {
+        Text(text = text, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
     }
 }
 

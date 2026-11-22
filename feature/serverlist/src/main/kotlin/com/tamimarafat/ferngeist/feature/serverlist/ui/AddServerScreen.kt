@@ -52,7 +52,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.formContentMaxWidth
@@ -169,6 +168,7 @@ private fun AddServerContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AddServerTopAppBar(
     isEditMode: Boolean,
@@ -185,7 +185,7 @@ private fun AddServerTopAppBar(
                             R.string.serverlist_add_server_title_new
                         },
                     ),
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleLargeEmphasized,
             )
         },
         navigationIcon = {
@@ -286,6 +286,7 @@ private fun ProtocolSection(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun StdioHintCard() {
     Surface(
@@ -302,9 +303,8 @@ private fun StdioHintCard() {
         ) {
             Text(
                 text = stringResource(R.string.serverlist_add_server_stdio_hint),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMediumEmphasized,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                fontWeight = FontWeight.SemiBold,
             )
             Surface(
                 shape = RoundedCornerShape(10.dp),
@@ -327,6 +327,7 @@ private fun StdioHintCard() {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ServerAuthSection(
     preferredAuthMethodId: String?,
@@ -365,8 +366,7 @@ private fun ServerAuthSection(
                     )
                     Text(
                         text = methodId,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.bodyMediumEmphasized,
                     )
                     if (isEditMode) {
                         OutlinedButton(onClick = clearPreferredAuthMethod, modifier = Modifier.handCursor()) {
@@ -426,8 +426,7 @@ private fun SaveServerButton(
                         R.string.serverlist_add_server_btn_add
                     },
                 ),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelLargeEmphasized,
         )
     }
 }
@@ -528,8 +527,12 @@ private fun ProtocolOption(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    style =
+                        if (isSelected) {
+                            MaterialTheme.typography.labelLargeEmphasized
+                        } else {
+                            MaterialTheme.typography.labelLarge
+                        },
                 )
                 Text(
                     text = code,
@@ -541,6 +544,7 @@ private fun ProtocolOption(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SectionCard(
     title: String,
@@ -582,8 +586,7 @@ internal fun SectionCard(
                 Column {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleSmallEmphasized,
                     )
                     if (subtitle != null) {
                         Text(

@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.EmbeddedResourceResource
@@ -118,7 +119,7 @@ private fun EmbeddedTextReader(
                         val colors = localSyntaxColors.current
                         val body =
                             remember(text, highlighted, label, colors) { styledCode(text, highlighted, label, colors) }
-                        Text(body, style = MaterialTheme.typography.bodySmall)
+                        Text(body, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
                     }
                 }
             }

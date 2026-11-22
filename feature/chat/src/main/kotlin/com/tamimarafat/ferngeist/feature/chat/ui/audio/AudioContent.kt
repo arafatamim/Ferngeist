@@ -66,7 +66,7 @@ private fun AudioProgress(
         text =
             "${DateUtils.formatElapsedTime(position / MILLIS_PER_SECOND)} / " +
                 DateUtils.formatElapsedTime(duration / MILLIS_PER_SECOND),
-        style = MaterialTheme.typography.labelSmall,
+        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
     )
 }
 

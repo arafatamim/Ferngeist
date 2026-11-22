@@ -74,6 +74,11 @@ internal fun ProjectsTab(
     val gateways = remember(projects) { projects.map { it.gateway }.distinctBy { it.id } }
     val collapsedSet = collapsed.toSet()
     val hidden = ordered - collapsedSet
+    val featured =
+        ordered.firstOrNull { project ->
+            presentations.getValue(project).variant == CardVariant.HERO &&
+                (project in collapsedSet || project.gateway.id in expandedDevices)
+        }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
@@ -83,8 +88,8 @@ internal fun ProjectsTab(
             ProjectGroupContext(
                 gatewayHealth to gatewayCount,
                 presentations,
-                connectedChatKeys,
-                turnStatuses,
+                featured,
+                { project -> project.connectedAgents(connectedChatKeys, turnStatuses) },
                 onOpenProject,
                 sharedTransitionScope to animatedContentScope,
             )
@@ -110,8 +115,8 @@ internal fun ProjectsTab(
 private class ProjectGroupContext(
     val gateways: Pair<Map<String, GatewayHealth>, Int>,
     val presentations: Map<ProjectSummary, CardPresentation>,
-    val connectedChatKeys: Set<String>,
-    val turnStatuses: Map<String, TurnActivity>,
+    val featured: ProjectSummary?,
+    val connectedAgents: (ProjectSummary) -> List<ConnectedAgent>,
     val onOpenProject: (ProjectSummary) -> Unit,
     val transitions: Pair<SharedTransitionScope, AnimatedContentScope>,
 )
@@ -141,8 +146,8 @@ private fun LazyListScope.projectDeviceGroup(
             project = project,
             presentation = presentation,
             showGateway = false,
-            connectedChatKeys = context.connectedChatKeys,
-            turnStatuses = context.turnStatuses,
+            featured = project == context.featured,
+            connectedAgents = context.connectedAgents(project),
             onClick = { context.onOpenProject(project) },
             sharedTransitionScope = context.transitions.first,
             animatedContentScope = context.transitions.second,

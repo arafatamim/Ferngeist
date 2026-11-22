@@ -7,6 +7,7 @@
 
 package com.tamimarafat.ferngeist.feature.chat.markdown
 
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -16,6 +17,14 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+/** A reading measure shared by transcripts, tool output and rendered files. */
+internal val markdownReadingWidth = 420.dp
+
+/** Epilogue's tall x-height crowds Material's 20sp leading; 22sp gives body text the guide's ~1.5×. */
+private val documentBodyLineHeight = 22.sp
 
 @Immutable
 internal data class MarkdownColors(
@@ -78,19 +87,21 @@ internal object MarkdownTheme {
  * The compact document scale chat bubbles use; the file preview shares it so a README reads the
  * same in both places.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun documentMarkdownTypography(): MarkdownTypography {
     val typography = MaterialTheme.typography
     return remember(typography) {
+        val body = typography.bodyMedium.copy(lineHeight = documentBodyLineHeight)
         MarkdownTypography(
-            headlineLarge = typography.titleLarge,
-            headlineMedium = typography.titleMedium,
-            headlineSmall = typography.titleSmall,
-            titleLarge = typography.titleMedium,
-            titleMedium = typography.bodyMedium,
-            titleSmall = typography.bodySmall,
-            bodyLarge = typography.bodyMedium,
-            bodyMedium = typography.bodyMedium,
+            headlineLarge = typography.headlineMediumEmphasized,
+            headlineMedium = typography.headlineSmallEmphasized,
+            headlineSmall = typography.titleLargeEmphasized,
+            titleLarge = typography.titleMediumEmphasized,
+            titleMedium = typography.bodyLargeEmphasized,
+            titleSmall = typography.bodyMediumEmphasized,
+            bodyLarge = body,
+            bodyMedium = body,
             labelMedium = typography.labelSmall,
         )
     }

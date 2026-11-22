@@ -42,6 +42,7 @@ import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
+import com.tamimarafat.ferngeist.core.common.ui.typography.featuredContentEditorialStyle
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -68,6 +69,7 @@ internal fun AgentHeroTile(
     onDelete: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    featured: Boolean,
     modifier: Modifier = Modifier,
 ) {
     AgentSurface(
@@ -103,7 +105,12 @@ internal fun AgentHeroTile(
                     Box(Modifier.weight(1f)) {
                         AgentName(
                             target = target,
-                            style = MaterialTheme.typography.headlineSmallEmphasized,
+                            style =
+                                if (featured) {
+                                    featuredContentEditorialStyle
+                                } else {
+                                    MaterialTheme.typography.headlineSmallEmphasized
+                                },
                             sharedTransitionScope = sharedTransitionScope,
                             animatedContentScope = animatedContentScope,
                             maxLines = 2,
@@ -159,7 +166,7 @@ internal fun AgentTile(
             }
             AgentName(
                 target = target,
-                style = MaterialTheme.typography.titleMediumEmphasized,
+                style = MaterialTheme.typography.titleMedium,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
                 maxLines = 2,

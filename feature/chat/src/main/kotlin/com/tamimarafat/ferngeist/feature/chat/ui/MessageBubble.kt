@@ -95,6 +95,7 @@ import com.tamimarafat.ferngeist.feature.chat.markdown.MarkdownBlocks
 import com.tamimarafat.ferngeist.feature.chat.markdown.RunReveal
 import com.tamimarafat.ferngeist.feature.chat.markdown.documentMarkdownTypography
 import com.tamimarafat.ferngeist.feature.chat.markdown.localInlineChips
+import com.tamimarafat.ferngeist.feature.chat.markdown.markdownReadingWidth
 import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
 import com.tamimarafat.ferngeist.feature.chat.markdown.revealLength
 import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
@@ -807,8 +808,8 @@ internal fun RenderedMarkdown(
         QuoteSelectionContainer {
             Text(
                 text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = modifier.fillMaxWidth(),
+                style = documentMarkdownTypography().bodyLarge,
+                modifier = modifier.widthIn(max = markdownReadingWidth).fillMaxWidth(),
             )
         }
     }

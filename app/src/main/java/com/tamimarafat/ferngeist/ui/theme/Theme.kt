@@ -46,7 +46,7 @@ fun FerngeistTheme(
             colorScheme = colorScheme,
             // Physics-based motion as the app-wide default (springs over fixed-duration easing).
             motionScheme = MotionScheme.expressive(),
-            typography = appTypography,
+            typography = appTypography(darkTheme),
             content = content,
         )
     }

@@ -30,6 +30,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -56,7 +57,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.formContentMaxWidth
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
@@ -378,6 +378,7 @@ private fun rememberGatewaySteps(): List<GatewayPairingStep> {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AddGatewayTopBar(
     stepIndex: Int,
@@ -398,8 +399,7 @@ private fun AddGatewayTopBar(
             }
             Text(
                 text = stringResource(R.string.serverlist_add_gateway_title),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleLargeEmphasized,
             )
         }
 
@@ -407,7 +407,7 @@ private fun AddGatewayTopBar(
 
         Text(
             text = stringResource(R.string.serverlist_add_gateway_step_count, stepIndex + 1, totalSteps),
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
             color = MaterialTheme.colorScheme.primary,
         )
 
@@ -518,6 +518,7 @@ private fun ColumnScope.AddGatewayStepCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun StepHeader(step: GatewayPairingStep) {
     Surface(
@@ -536,8 +537,7 @@ private fun StepHeader(step: GatewayPairingStep) {
 
     Text(
         text = step.title,
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
+        style = MaterialTheme.typography.headlineMediumEmphasized,
     )
 
     Text(
@@ -593,6 +593,7 @@ private fun StepBody(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AddGatewayBottomBar(
     stepIndex: Int,
@@ -621,6 +622,7 @@ private fun AddGatewayBottomBar(
                         }
                     else -> stringResource(R.string.serverlist_add_gateway_pair)
                 },
+                style = MaterialTheme.typography.labelLargeEmphasized,
             )
             if (stepIndex < totalSteps - 1) {
                 Spacer(modifier = Modifier.size(8.dp))

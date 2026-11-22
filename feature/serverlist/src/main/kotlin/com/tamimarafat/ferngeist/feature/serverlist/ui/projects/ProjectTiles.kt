@@ -54,7 +54,7 @@ import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
-import com.tamimarafat.ferngeist.core.model.TurnActivity
+import com.tamimarafat.ferngeist.core.common.ui.typography.featuredContentEditorialStyle
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -77,11 +77,11 @@ internal fun ProjectHeroTile(
     project: ProjectSummary,
     presentation: CardPresentation,
     showGateway: Boolean,
-    connectedChatKeys: Set<String>,
-    turnStatuses: Map<String, TurnActivity>,
+    connectedAgents: List<ConnectedAgent>,
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    featured: Boolean,
     modifier: Modifier = Modifier,
 ) {
     PressSurface(
@@ -119,7 +119,12 @@ internal fun ProjectHeroTile(
                         Column(Modifier.weight(1f)) {
                             ProjectName(
                                 project = project,
-                                style = MaterialTheme.typography.headlineSmallEmphasized,
+                                style =
+                                    if (featured) {
+                                        featuredContentEditorialStyle
+                                    } else {
+                                        MaterialTheme.typography.headlineSmallEmphasized
+                                    },
                                 sharedTransitionScope = sharedTransitionScope,
                                 animatedContentScope = animatedContentScope,
                                 maxLines = 2,
@@ -133,7 +138,7 @@ internal fun ProjectHeroTile(
                             )
                         }
                         ProjectAgentMarks(
-                            agents = project.connectedAgents(connectedChatKeys, turnStatuses),
+                            agents = connectedAgents,
                             cardColor = presentation.tone.containerColor,
                             lookaheadScope = this@LookaheadScope,
                         )
@@ -183,7 +188,7 @@ internal fun ProjectTile(
             }
             ProjectName(
                 project = project,
-                style = MaterialTheme.typography.titleMediumEmphasized,
+                style = MaterialTheme.typography.titleMedium,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
                 maxLines = 2,

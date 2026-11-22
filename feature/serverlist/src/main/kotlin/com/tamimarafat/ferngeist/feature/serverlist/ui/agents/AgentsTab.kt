@@ -79,6 +79,7 @@ internal fun AgentsTab(
         state = listState,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        var featuredAvailable = true
         groups.forEach { (gateway, targets) ->
             // Connected is the default, so an unreachable computer is marked and faded.
             val disconnected = gateway != null && gatewayHealth[gateway.id] == GatewayHealth.UNREACHABLE
@@ -113,6 +114,8 @@ internal fun AgentsTab(
                     compareByDescending<LaunchableTarget> { activity.getValue(it.id).working }
                         .thenByDescending { activity.getValue(it.id).unreadFinished },
                 ).forEach { target ->
+                    val featured = featuredAvailable
+                    featuredAvailable = false
                     item(key = "agent:${target.id}") {
                         val state = activity.getValue(target.id)
                         AgentHeroTile(
@@ -121,6 +124,7 @@ internal fun AgentsTab(
                             working = state.working,
                             connection = connections.getValue(target.id),
                             tone = state.tone,
+                            featured = featured,
                             onClick = { onConnect(target) },
                             onEdit = { onEdit(target) },
                             onDelete = { onDelete(target.id) },

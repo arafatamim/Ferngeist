@@ -132,7 +132,7 @@ private fun ProviderTrailing(
             val colors = MaterialTheme.colorScheme
             Text(
                 stringResource(R.string.common_quota_used, NumberFormat.getPercentInstance(locale).format(used)),
-                style = MaterialTheme.typography.titleMediumEmphasized,
+                style = MaterialTheme.typography.titleMediumEmphasized.copy(fontFeatureSettings = "tnum"),
                 color = if (used >= 1f || window.isOverPace()) colors.error else colors.onSurface,
             )
         }

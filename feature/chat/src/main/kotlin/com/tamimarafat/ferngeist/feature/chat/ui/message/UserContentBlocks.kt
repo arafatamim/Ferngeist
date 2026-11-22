@@ -2,7 +2,6 @@ package com.tamimarafat.ferngeist.feature.chat.ui.message
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -11,6 +10,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.feature.chat.markdown.documentMarkdownTypography
 import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
 import com.tamimarafat.ferngeist.feature.chat.ui.content.ContentBlockRenderer
 
@@ -31,7 +31,7 @@ internal fun UserContentBlocks(
                         QuoteSelectionContainer {
                             Text(
                                 text = block.text,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = documentMarkdownTypography().bodyLarge,
                                 color = textColor,
                                 maxLines = maxLines,
                                 overflow = TextOverflow.Ellipsis,

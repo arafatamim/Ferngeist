@@ -50,7 +50,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.AgentLogo
@@ -62,6 +61,8 @@ import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
+import com.tamimarafat.ferngeist.core.common.ui.typography.WidthFittedText
+import com.tamimarafat.ferngeist.core.common.ui.typography.resumeTitleEditorialStyles
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -71,6 +72,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ui.agents.ServerSubtitle
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SectionHeader(
     title: String,
@@ -78,8 +80,7 @@ internal fun SectionHeader(
 ) {
     Text(
         text = title,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
+        style = MaterialTheme.typography.titleMediumEmphasized,
         modifier = modifier.padding(vertical = 4.dp),
     )
 }
@@ -230,20 +231,22 @@ private fun ContinueSessionCardContent(
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                // On the last line, so the title keeps the card's full width.
+                // As before, recent cards stamp only a turn's state, never a resting time.
+                ChatCardStamp(
+                    updatedAt = null,
+                    status = status,
+                    workingColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color =
+                        MaterialTheme.colorScheme.turnStatusContentColor(
+                            status.status,
+                            MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
                 )
             }
         }
-        // As before, recent cards stamp only a turn's state, never a resting time.
-        ChatCardStamp(
-            updatedAt = null,
-            status = status,
-            workingColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            color =
-                MaterialTheme.colorScheme.turnStatusContentColor(
-                    status.status,
-                    MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-        )
     }
 }
 
@@ -395,12 +398,9 @@ private fun SharedSessionTitle(
     animatedContentScope: AnimatedContentScope,
 ) {
     with(sharedTransitionScope) {
-        Text(
+        WidthFittedText(
             text = sessionTitleOrNull(session.title) ?: stringResource(R.string.serverlist_untitled_session),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            styles = resumeTitleEditorialStyles,
             modifier =
                 Modifier.sharedBounds(
                     sharedContentState =

@@ -197,6 +197,11 @@ internal fun LabelValueRow(
     // The label takes the slack and wraps, so on narrow screens the value is never pushed off.
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(label, style = style, modifier = Modifier.weight(1f))
-        Text(value, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Tabular figures: context and quota values tick while the sheet is open, so digits must not shift.
+        Text(
+            value,
+            style = style.copy(fontFeatureSettings = "tnum"),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

@@ -166,7 +166,7 @@ internal fun ChatTopBar(
     // mid-scroll.
     val titleStyle =
         lerp(
-            MaterialTheme.typography.headlineSmall,
+            MaterialTheme.typography.headlineSmallEmphasized,
             MaterialTheme.typography.titleLarge,
             collapsedFraction,
         )

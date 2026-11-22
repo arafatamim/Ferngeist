@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.input.TextObfuscationMode
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedSecureTextField
@@ -31,7 +32,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.R
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
@@ -212,7 +212,7 @@ private fun AuthDialogConfirmButton(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AuthMethodOption(
     method: AuthenticationMethod,
@@ -246,7 +246,7 @@ private fun AuthMethodOption(
                         .padding(top = 2.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(text = method.name, fontWeight = FontWeight.SemiBold)
+                Text(text = method.name, style = MaterialTheme.typography.bodyMediumEmphasized)
                 Text(
                     text =
                         method.description

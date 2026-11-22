@@ -26,13 +26,13 @@ fun rememberWorkingElapsed(status: TurnActivity): String? {
     return age?.let(::elapsedOf)?.let { formatElapsed(it, MeasureFormat.FormatWidth.NARROW) }
 }
 
-/** An unread finish as "3m ago", or "Just now" under a minute; null once read, expired, or not finished. */
+/** An unread finish as "3m ago", or the compact "now" under a minute; null once read, expired, or not finished. */
 @Composable
 fun rememberFinishedAgo(status: TurnActivity): String? {
     val age = rememberTurnAge(status.since.takeIf { status.status == TurnStatus.FINISHED }) ?: return null
     val elapsed =
         elapsedOf(age)?.takeIf { it.hours > 0 || it.minutes > 0 }
-            ?: return stringResource(R.string.common_just_now)
+            ?: return stringResource(R.string.chat_git_date_now)
     // Only the largest unit: seconds beside minutes would make a finished chat tick like a running one.
     val coarse = if (elapsed.hours > 0) Elapsed(elapsed.hours, 0, 0) else Elapsed(0, elapsed.minutes, 0)
     return stringResource(R.string.common_status_ago, formatElapsed(coarse, MeasureFormat.FormatWidth.NARROW))

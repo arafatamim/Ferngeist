@@ -251,7 +251,7 @@ private fun HomeTabItem(
             Text(
                 label,
                 modifier = Modifier.padding(start = 8.dp, end = 6.dp),
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLargeEmphasized,
             )
         }
     }

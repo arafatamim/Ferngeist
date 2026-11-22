@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,12 +26,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.gateway.GatewayPairingPayload
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun RunFerngeistPairStep() {
     val instruction1 = stringResource(R.string.serverlist_add_gateway_instruction_1)
@@ -57,8 +59,7 @@ internal fun RunFerngeistPairStep() {
         ) {
             Text(
                 text = stringResource(R.string.serverlist_add_gateway_command_label),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMediumEmphasized,
             )
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -67,8 +68,7 @@ internal fun RunFerngeistPairStep() {
                 Text(
                     text = "ferngeist-gateway pair",
                     modifier = Modifier.padding(14.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
                 )
             }
             Text(

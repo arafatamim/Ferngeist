@@ -357,7 +357,8 @@ private fun ProjectTopBar(
 ) {
     val collapse = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
     // Same as the session list: the title eases between the two rows' sizes as the bar collapses.
-    val titleStyle = lerp(MaterialTheme.typography.headlineMedium, MaterialTheme.typography.titleLarge, collapse)
+    val titleStyle =
+        lerp(MaterialTheme.typography.headlineMediumEmphasized, MaterialTheme.typography.titleLarge, collapse)
     TwoRowsTopAppBar(
         title = { expanded ->
             SessionListTopBarTitle(

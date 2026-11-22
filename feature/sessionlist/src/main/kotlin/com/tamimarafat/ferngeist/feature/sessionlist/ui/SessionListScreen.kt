@@ -250,7 +250,7 @@ private fun SessionListScaffold(
     // as the user scrolls — gives a smooth visual transition in the top bar.
     val titleStyle =
         lerp(
-            MaterialTheme.typography.headlineMedium, // expanded
+            MaterialTheme.typography.headlineMediumEmphasized, // expanded
             MaterialTheme.typography.titleLarge, // collapsed
             collapse,
         )

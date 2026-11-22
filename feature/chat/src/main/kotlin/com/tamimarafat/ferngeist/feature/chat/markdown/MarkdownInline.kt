@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat.markdown
 
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.runtime.Composable
@@ -9,6 +10,8 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -72,7 +75,7 @@ internal fun RevealInlines(
     modifier: Modifier,
     reveal: BlockReveal?,
 ) {
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+    BoxWithConstraints(modifier = modifier.widthIn(max = markdownReadingWidth).fillMaxWidth()) {
         val chips = settledChips(reveal)
         val (text, inlineContent) = inlines.toChipText(styles.inline, chips, constraints.maxWidth)
         RevealText(
@@ -206,7 +209,7 @@ internal fun MarkdownHeading(
     modifier: Modifier,
     reveal: BlockReveal?,
 ) {
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+    BoxWithConstraints(modifier = modifier.widthIn(max = markdownReadingWidth).fillMaxWidth()) {
         val chips = settledChips(reveal)
         val (text, inlineContent) = block.children.toChipText(styles.inline, chips, constraints.maxWidth)
         RevealText(
@@ -215,14 +218,14 @@ internal fun MarkdownHeading(
             inlineContent = inlineContent,
             style =
                 when (block.level) {
-                    1 -> MarkdownTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold)
-                    2 -> MarkdownTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
-                    3 -> MarkdownTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
-                    4 -> MarkdownTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
-                    5 -> MarkdownTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                    else -> MarkdownTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
+                    1 -> MarkdownTheme.typography.headlineLarge
+                    2 -> MarkdownTheme.typography.headlineMedium
+                    3 -> MarkdownTheme.typography.headlineSmall
+                    4 -> MarkdownTheme.typography.titleLarge
+                    5 -> MarkdownTheme.typography.titleMedium
+                    else -> MarkdownTheme.typography.titleSmall
                 },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().semantics { heading() },
         )
     }
 }
