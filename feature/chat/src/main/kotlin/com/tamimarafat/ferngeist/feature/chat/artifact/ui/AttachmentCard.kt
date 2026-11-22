@@ -2,13 +2,11 @@ package com.tamimarafat.ferngeist.feature.chat.artifact.ui
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -43,7 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -55,12 +53,10 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.motion.rememberPressShape
 import com.tamimarafat.ferngeist.core.git.ui.fileIconFor
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.artifact.reference.extensionOf
-
-// Custom clickable press feedback, inside Expressive's 0.95–0.98 band.
-private const val PRESSED_SCALE = 0.96f
 
 // Opaque enough that the name stays legible over any image.
 private const val SCRIM_ALPHA = 0.88f
@@ -95,14 +91,19 @@ internal fun AttachmentCard(
     )
     // The card sits in the message's selection container, where its text would be selectable
     // and the menu popup's text, laid out in another window, crashes the selection sort.
+    val interactionSource = remember { MutableInteractionSource() }
+    // M3 press feedback: the corners spring in while held, as on the chat cards.
+    val shape = rememberPressShape(MaterialTheme.shapes.large, interactionSource)
     DisableSelection {
         Box(modifier) {
             Surface(
-                shape = MaterialTheme.shapes.large,
+                shape = shape,
                 color = container,
                 contentColor = if (failed) colors.onErrorContainer else colors.onSurface,
                 modifier =
                     Modifier.fillMaxSize().cardGestures(
+                        shape = shape,
+                        interactionSource = interactionSource,
                         label = label,
                         state = if (failed) unavailable else size,
                         download = download,
@@ -132,31 +133,24 @@ internal fun AttachmentCard(
 }
 
 /**
- * Tap, long press and a spring-scaled press, clipped to the card's shape, with one accessible node
+ * Tap, long press and the shared press morph, clipped to [shape], with one accessible node
  * named [label], described by [state] when set, offering [download] as an action.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Modifier.cardGestures(
+    shape: Shape,
+    interactionSource: MutableInteractionSource,
     label: String,
     state: String?,
     download: String,
     onOpen: () -> Unit,
     onLongPress: () -> Unit,
     onDownload: () -> Unit,
-): Modifier {
-    val presses = remember { MutableInteractionSource() }
-    val pressed by presses.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        if (pressed) PRESSED_SCALE else 1f,
-        MaterialTheme.motionScheme.fastSpatialSpec(),
-    )
-    return graphicsLayer {
-        scaleX = scale
-        scaleY = scale
-    }.clip(MaterialTheme.shapes.large)
+): Modifier =
+    clip(shape)
         .combinedClickable(
-            interactionSource = presses,
+            interactionSource = interactionSource,
             indication = ripple(),
             onClick = onOpen,
             onLongClick = onLongPress,
@@ -172,7 +166,6 @@ private fun Modifier.cardGestures(
                     },
                 )
         }
-}
 
 /** The image face while a [preview] is in hand and the file is readable, otherwise the badge face. */
 @Composable

@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.R
@@ -35,11 +36,12 @@ fun ChatCard(
     workingColor: Color = MaterialTheme.colorScheme.primary,
     // Off when the content places [ChatCardStamp] itself, as a [StatusCardBody] does.
     trailingStamp: Boolean = true,
+    shape: Shape = MaterialTheme.shapes.medium,
     content: @Composable RowScope.() -> Unit,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
+        shape = shape,
         color = containerColor,
         contentColor = contentColor,
     ) {

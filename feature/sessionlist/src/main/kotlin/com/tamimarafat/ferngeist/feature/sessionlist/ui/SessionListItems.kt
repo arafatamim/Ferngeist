@@ -61,6 +61,7 @@ import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.motion.rememberPressShape
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.common.ui.status.cardPresentation
 import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
@@ -619,21 +620,30 @@ internal fun ChatCard(
     content: @Composable RowScope.() -> Unit,
 ) {
     val colors = sessionCardColors(live, status.status)
+    val interactionSource = remember { MutableInteractionSource() }
+    // M3 press feedback: the card's corners spring in while held, on the theme's spatial motion.
+    val shape = rememberPressShape(MaterialTheme.shapes.medium, interactionSource)
     SharedChatCard(
         updatedAt = updatedAt,
         status = status,
         trailingStamp = trailingStamp,
         containerColor = colors.containerColor,
         contentColor = colors.contentColor,
+        shape = shape,
         modifier =
             modifier
                 .fillMaxWidth()
-                .clip(CardDefaults.shape)
+                .clip(shape)
                 .alpha(if (dimmed) REMOVING_CARD_ALPHA else 1f)
                 .handCursor()
                 // Right-click is the mouse equivalent of a long press: same menu, same gate.
                 .onSecondaryClick(onClick = onOpenMenu)
-                .combinedClickable(enabled = !removing, onClick = onClick, onLongClick = onOpenMenu),
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    enabled = !removing,
+                    onClick = onClick,
+                    onLongClick = onOpenMenu,
+                ),
     ) {
         content()
         if (removing) {

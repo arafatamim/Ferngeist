@@ -17,9 +17,11 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -73,6 +75,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -99,6 +102,7 @@ import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
 import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.motion.rememberPressShape
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.common.ui.status.AgentMark
@@ -633,6 +637,9 @@ private fun SwitcherRow(
     // (`state.progress` can't do this: it reads 1f whenever the settled and target anchors
     // coincide, i.e. at rest, and flips denominator mid-drag when the target flips.)
     val rowWidth = remember { mutableIntStateOf(0) }
+    val interactionSource = remember { MutableInteractionSource() }
+    // Same press morph as the session list's cards: the corners spring in while held.
+    val shape = rememberPressShape(MaterialTheme.shapes.medium, interactionSource)
     SwipeToDismissBox(
         state = dismissState,
         modifier =
@@ -647,15 +654,15 @@ private fun SwitcherRow(
     ) {
         SwitcherRowContent(
             session = session,
-            // clip() on the card, not the swipe box: the Surface draws the rounded
-            // medium shape, and without this the click ripple is a full-width rect
+            shape = shape,
+            // clip() on the card, not the swipe box: the Surface and the ripple both
+            // follow this shape, so without it a press ripples as a full-width rect
             // that spills past the corners.
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.medium)
+                    .clip(shape)
                     .handCursor()
-                    .clickable(onClick = if (session.isCurrent) onCurrentClick else onSwitch)
                     .onGloballyPositioned { rowWidth.intValue = it.size.width }
                     .graphicsLayer {
                         // requireOffset throws during semantics collection before
@@ -668,7 +675,11 @@ private fun SwitcherRow(
                             }
                         val fraction = abs(offset) / rowWidth.intValue.coerceAtLeast(1)
                         alpha = 1f - fraction.coerceIn(0f, 1f)
-                    },
+                    }.clickable(
+                        interactionSource = interactionSource,
+                        indication = LocalIndication.current,
+                        onClick = if (session.isCurrent) onCurrentClick else onSwitch,
+                    ),
         )
     }
 }
@@ -676,6 +687,7 @@ private fun SwitcherRow(
 @Composable
 private fun SwitcherRowContent(
     session: SwitcherSession,
+    shape: Shape,
     modifier: Modifier,
 ) {
     val tone = cardPresentation(listOf(session.turnStatus), live = true).tone
@@ -685,6 +697,7 @@ private fun SwitcherRowContent(
         trailingStamp = false,
         containerColor = tone.containerColor,
         contentColor = tone.contentColor,
+        shape = shape,
         modifier = modifier,
     ) {
         AgentMark(
