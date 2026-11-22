@@ -10,6 +10,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.SmartToy
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CheckableDropdownMenuItem
 import androidx.compose.material3.DropdownMenuGroup
@@ -55,11 +57,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.AgentLogo
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
@@ -92,34 +97,26 @@ internal fun ModeMenuButton(
             tooltip = { PlainTooltip { Text(stringResource(R.string.chat_mode)) } },
             state = rememberTooltipState(),
         ) {
-            TextButton(
-                onClick = { onExpandedChange(true) },
-                modifier = Modifier.widthIn(max = maxWidth).handCursor(),
-                colors =
-                    ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        containerColor = Color.Transparent,
-                    ),
-            ) {
-                // The bar, and the panel hugging it, take their width from this label, so sizing
-                // the swap here is what makes the whole pill resize smoothly on a mode change.
-                val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<IntSize>()
-                val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
-                AnimatedContent(
-                    targetState = currentModeLabel,
-                    transitionSpec = {
-                        (fadeIn(effects) + slideInVertically { it / 2 })
-                            .togetherWith(fadeOut(effects) + slideOutVertically { -it / 2 })
-                            .using(SizeTransform { _, _ -> spatial })
-                    },
-                    label = "ModeLabel",
-                ) { label ->
-                    Text(
-                        text = label,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+            // Decided from the space the bar offers, not the label's own drawn size: an overflow
+            // check would flip back and forth as the icon frees the room the label then needs.
+            BoxWithConstraints {
+                val labelWidth =
+                    with(LocalDensity.current) {
+                        rememberTextMeasurer()
+                            .measure(currentModeLabel, MaterialTheme.typography.labelLarge, maxLines = 1)
+                            .size.width
+                            .toDp()
+                    }
+                val labelFits =
+                    labelWidth + ButtonDefaults.TextButtonContentPadding.horizontalSum() <=
+                        minOf(this.maxWidth, maxWidth)
+                ModeTextButton(
+                    label = currentModeLabel,
+                    // Narrow bars show the mode as an icon; the menu still names every mode.
+                    iconOnly = !labelFits,
+                    maxWidth = maxWidth,
+                    onClick = { onExpandedChange(true) },
+                )
             }
         }
         DropdownMenuPopup(
@@ -135,6 +132,48 @@ internal fun ModeMenuButton(
         }
     }
 }
+
+/** The mode button's face: the mode's name, or [Icons.Rounded.Tune] named after it when [iconOnly]. */
+@Composable
+private fun ModeTextButton(
+    label: String,
+    iconOnly: Boolean,
+    maxWidth: Dp,
+    onClick: () -> Unit,
+) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.widthIn(max = maxWidth).handCursor(),
+        colors =
+            ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                containerColor = Color.Transparent,
+            ),
+    ) {
+        // The bar, and the panel hugging it, take their width from this label, so sizing
+        // the swap here is what makes the whole pill resize smoothly on a mode change.
+        val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<IntSize>()
+        val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+        AnimatedContent(
+            targetState = label.takeUnless { iconOnly },
+            transitionSpec = {
+                (fadeIn(effects) + slideInVertically { it / 2 })
+                    .togetherWith(fadeOut(effects) + slideOutVertically { -it / 2 })
+                    .using(SizeTransform { _, _ -> spatial })
+            },
+            label = "ModeLabel",
+        ) { shown ->
+            if (shown == null) {
+                Icon(Icons.Rounded.Tune, contentDescription = label)
+            } else {
+                Text(text = shown, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+private fun PaddingValues.horizontalSum(): Dp =
+    calculateLeftPadding(LayoutDirection.Ltr) + calculateRightPadding(LayoutDirection.Ltr)
 
 /**
  * The dropdown content inside [ModeMenuButton], rendering each available mode

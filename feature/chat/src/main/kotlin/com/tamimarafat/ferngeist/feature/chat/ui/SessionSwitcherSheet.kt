@@ -12,8 +12,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
@@ -77,6 +81,7 @@ import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -216,6 +221,20 @@ private class SwitcherHintPositionProvider(
     }
 }
 
+// The drop's size as it leaves the toolbar, and the edge it leaves from.
+private const val DROP_MIN_SCALE = 0.3f
+private val dropOrigin = TransformOrigin(1f, 0.5f)
+
+// A gentle overshoot, so the drop settles as it pinches off like a water drop.
+private fun <T> dropSpec() = spring<T>(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow)
+
+// The slot the drop takes from the composer grows without the bounce, so the bar beside it
+// narrows smoothly instead of wobbling.
+private fun dropWidthSpec() = spring<IntSize>(stiffness = Spring.StiffnessMediumLow)
+
+// Gap to the composer, inside the bubble so it opens and closes with the drop.
+private val switcherBubbleGap = 8.dp
+
 /**
  * Round live-session count button leading the composer's toolbar: same colors
  * and a near-toolbar-height
@@ -244,24 +263,20 @@ internal fun SessionSwitcherBubble(
 ) {
     AnimatedVisibility(
         visible = visible,
-        // Size-only transitions, deliberately no fade/scale: those run content
-        // through a compositing buffer sized to the composable bounds, which
-        // omits the out-of-bounds elevation shadow on every animated frame
-        // (graphicsLayer KDoc). A pure wipe reveals/hides circle and shadow
-        // together with nothing to omit. `clip = false` stays as belt and
-        // braces against the bounds clip (EnterExitTransition.kt:1012).
+        // A drop pinching off the toolbar: it grows out from behind the toolbar's
+        // leading edge and overshoots as it separates. Deliberately no fade: alpha
+        // runs content through a compositing buffer sized to the composable bounds,
+        // which omits the out-of-bounds elevation shadow on every animated frame
+        // (graphicsLayer KDoc). Scale and translation draw the shadow as is.
+        // `clip = false` keeps the bounds clip off it (EnterExitTransition.kt:1012).
         enter =
-            expandHorizontally(
-                expandFrom = Alignment.End,
-                clip = false,
-                animationSpec = spring(stiffness = Spring.StiffnessMedium),
-            ),
+            expandHorizontally(dropWidthSpec(), expandFrom = Alignment.End, clip = false) +
+                slideInHorizontally(dropSpec()) { it / 2 } +
+                scaleIn(dropSpec(), initialScale = DROP_MIN_SCALE, transformOrigin = dropOrigin),
         exit =
-            shrinkHorizontally(
-                shrinkTowards = Alignment.End,
-                clip = false,
-                animationSpec = spring(stiffness = Spring.StiffnessMedium),
-            ),
+            shrinkHorizontally(dropWidthSpec(), shrinkTowards = Alignment.End, clip = false) +
+                slideOutHorizontally(dropSpec()) { it / 2 } +
+                scaleOut(dropSpec(), targetScale = DROP_MIN_SCALE, transformOrigin = dropOrigin),
         modifier = modifier,
     ) {
         val tooltipState = rememberTooltipState()
@@ -334,6 +349,7 @@ internal fun SessionSwitcherBubble(
                 shadowElevation = FloatingToolbarDefaults.ContainerExpandedElevation,
                 modifier =
                     Modifier
+                        .padding(end = switcherBubbleGap)
                         .size(collapsedComposerHeight - switcherBubbleOpticalInset)
                         .graphicsLayer { translationY = attentionHop * density.density }
                         .semantics {

@@ -24,10 +24,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
@@ -41,12 +41,11 @@ import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestion
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionState
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.matchingSuggestions
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
-// Settle wait before the switcher bubble slides in after a collapse: covers
-// the keyboard dismissal plus the pill shrink, so the entrance reads purely
-// horizontal instead of summing with the row's downward travel.
-private const val SWITCHER_COLLAPSE_SETTLE_DELAY_MS = 250L
+// The FAB transform starts within a frame or two of a collapse; past this none is coming.
+private const val TRANSFORM_START_TIMEOUT_MS = 100L
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -68,22 +67,6 @@ internal fun BoxScope.ChatComposerHost(
             coroutineScope = coroutineScope,
             viewModel = viewModel,
         )
-    // Staggers the bubble entrance after a collapse: closing clears focus, so
-    // the keyboard dismisses and the whole row travels down while the pill
-    // shrinks. Entering mid-travel sums to a diagonal (the "top-right"
-    // fly-in); waiting out the settle keeps the slide purely horizontal.
-    // Skipped on first open — the row never traveled, so no wait is needed.
-    var switcherEntranceReady by remember { mutableStateOf(true) }
-    var composerWasExpanded by remember { mutableStateOf(false) }
-    LaunchedEffect(screenState.mutations.composerMode.value.isExpanded) {
-        if (screenState.mutations.composerMode.value.isExpanded) {
-            composerWasExpanded = true
-            switcherEntranceReady = false
-        } else if (composerWasExpanded) {
-            delay(SWITCHER_COLLAPSE_SETTLE_DELAY_MS)
-            switcherEntranceReady = true
-        }
-    }
     val switcherDrag =
         rememberSwitcherDragHandlers(
             switcherState = switcherState,
@@ -141,7 +124,6 @@ internal fun BoxScope.ChatComposerHost(
                     viewModel = viewModel,
                     switcherState = switcherState,
                     switcherHintSeen = switcherHintSeen,
-                    switcherEntranceReady = switcherEntranceReady,
                     callbacks = callbacks,
                     switcherDrag = switcherDrag,
                     onSwitcherClick = onSwitcherClick,
@@ -163,7 +145,6 @@ private fun ChatComposerRow(
     viewModel: ChatViewModel,
     switcherState: SwitcherUiState,
     switcherHintSeen: Boolean,
-    switcherEntranceReady: Boolean,
     callbacks: ComposerCallbacks,
     switcherDrag: SwitcherDragHandlers,
     onSwitcherClick: () -> Unit,
@@ -174,25 +155,46 @@ private fun ChatComposerRow(
     modifier: Modifier = Modifier,
 ) {
     val mentionState = rememberComposerSuggestionState(screenState)
+    val composerExpanded = screenState.mutations.composerMode.value.isExpanded
+    // A collapse composes the bubble one frame before the FAB transform reports itself active,
+    // which would flash the bubble above the still-tall panel. Hold it back until the transform
+    // has started, or briefly when none runs (closing the fullscreen dialog).
+    var transformStarted by remember { mutableStateOf(true) }
+    LaunchedEffect(composerExpanded) {
+        if (composerExpanded) {
+            transformStarted = false
+        } else if (!transformStarted) {
+            withTimeoutOrNull(TRANSFORM_START_TIMEOUT_MS) {
+                snapshotFlow { sharedTransitionScope.isTransitionActive }.first { it }
+            }
+            transformStarted = true
+        }
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement =
-            Arrangement.spacedBy(
-                space = 8.dp,
-                // The FAB anchors the row to the screen's trailing edge, where M3 places it.
-                alignment = Alignment.End,
-            ),
+        // The FAB anchors the row to the screen's trailing edge, where M3 places it. The gap to
+        // the bubble lives in the bubble, so it grows with the entrance instead of snapping in.
+        horizontalArrangement = Arrangement.End,
         modifier =
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = FloatingToolbarDefaults.ScreenOffset),
     ) {
-        if (!screenState.mutations.composerMode.value.isExpanded) {
+        // Opening drops the bubble outright: the panel takes the full row the moment it lays
+        // out, so an exit animation would be shoved to the row's start and play there.
+        if (!composerExpanded) {
             SessionSwitcherBubble(
                 count = switcherState.liveTotalCount,
                 status = switcherState.badgeStatus,
                 groups = switcherState.groups,
-                visible = switcherState.hasOthers && switcherEntranceReady,
+                // The exiting panel keeps its full-width layout until the FAB transform ends, so an
+                // earlier entrance lands beside the wide panel and jumps once the bar shrinks back.
+                // Waiting for it also lets the keyboard's dismissal settle, so the entrance does
+                // not sum with the row's downward travel into a diagonal.
+                visible =
+                    switcherState.hasOthers &&
+                        transformStarted &&
+                        !sharedTransitionScope.isTransitionActive,
                 hintSeen = switcherHintSeen,
                 onHintSeen = { viewModel.dispatch(ChatIntent.MarkSwitcherHintSeen) },
                 onClick = onSwitcherClick,
@@ -205,10 +207,10 @@ private fun ChatComposerRow(
         ChatComposerBar(
             // `weight(fill = false)`: a Row measures its non-weighted children first, so the
             // switcher bubble claims its square and the composer takes what is left. Without
-            // it the composer is measured first against the full row and — being content-driven
-            // and allowed to reach 92% of that width — clamps to the whole row on a narrow
-            // window, leaving the switcher a zero-width sliver. `fill = false` keeps the pill
-            // hugging its actions instead of stretching to the share.
+            // it the composer is measured first against the full row and, being content-driven,
+            // clamps to the whole row on a narrow window, leaving the switcher a zero-width
+            // sliver. `fill = false` keeps the pill hugging its actions instead of stretching
+            // to the share.
             modifier = modifier.weight(1f, fill = false),
             state = screenState.state,
             toolbarConfigOptions = screenState.derived.toolbarConfigOptions,

@@ -135,8 +135,6 @@ import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.rememberCom
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.selectOptionFor
 import kotlin.math.roundToInt
 
-private const val COLLAPSED_MAX_TOOLBAR_FRACTION = 0.92f
-
 // Height of the collapsed toolbar. Shared with the session switcher bubble so its circle
 // always matches the toolbar beside it.
 internal val collapsedComposerHeight = FloatingToolbarDefaults.ContainerSize
@@ -320,7 +318,16 @@ internal fun ChatComposerBar(
     val crossfadeOut = fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec())
     BoxWithConstraints(modifier = modifier) {
         val expandedWidth = maxWidth
-        val toolbarMaxWidth = maxWidth * COLLAPSED_MAX_TOOLBAR_FRACTION - composerFabSize - toolbarToFabGap
+        // The row already insets the bar from the screen edge and the switcher bubble, so the
+        // toolbar may take everything beside the FAB; any further margin only starves the label.
+        // Animated because inside the shared-transition lookahead `maxWidth` jumps straight to its
+        // target: when the switcher bubble enters beside the bar the toolbar would snap narrower
+        // in one frame while the bubble's slot is still growing. Same spring as that slot.
+        val toolbarMaxWidth by animateDpAsState(
+            maxWidth - composerFabSize - toolbarToFabGap,
+            spring(stiffness = Spring.StiffnessMediumLow),
+            label = "ToolbarMaxWidth",
+        )
         // The FAB and the expanded composer are one shared element: expanding grows the FAB's
         // bounds into the panel's (an M3 container transform) while one cross-fades into the other.
         // The scope comes from a parent whose bounds hold still: this bar moves and resizes as it
