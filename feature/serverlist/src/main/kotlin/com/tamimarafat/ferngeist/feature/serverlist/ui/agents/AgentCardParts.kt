@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Devices
@@ -111,12 +112,14 @@ internal fun AgentName(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     maxLines: Int = 1,
+    autoSize: TextAutoSize? = null,
 ) {
     Text(
         text = target.name,
         style = style,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
+        autoSize = autoSize,
         modifier =
             Modifier.sharedCardBounds(
                 ServerNameSharedBoundsKey(target.id),

@@ -42,7 +42,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
@@ -59,6 +58,7 @@ import com.tamimarafat.ferngeist.core.common.ui.time.compactRelativeTime
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.typography.featuredContentEditorialStyle
 import com.tamimarafat.ferngeist.core.common.ui.typography.restingContentEditorialStyle
+import com.tamimarafat.ferngeist.core.common.ui.typography.restingTitleAutoSize
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -207,10 +207,6 @@ internal fun ProjectTile(
         }
     }
 }
-
-// A name grows to the cap and wraps before it shrinks: two lines is the floor, not ellipsis.
-private val restingTitleAutoSize =
-    TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 24.sp, stepSize = 0.5.sp)
 
 /** The overflow behind the collapsed view: the names it hides, then the reveal it toggles. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

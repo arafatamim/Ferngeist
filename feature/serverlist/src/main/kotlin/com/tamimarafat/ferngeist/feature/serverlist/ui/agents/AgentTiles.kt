@@ -43,6 +43,8 @@ import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
 import com.tamimarafat.ferngeist.core.common.ui.typography.featuredContentEditorialStyle
+import com.tamimarafat.ferngeist.core.common.ui.typography.restingContentEditorialStyle
+import com.tamimarafat.ferngeist.core.common.ui.typography.restingTitleAutoSize
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -174,10 +176,11 @@ internal fun AgentTile(
             }
             AgentName(
                 target = target,
-                style = MaterialTheme.typography.titleMedium,
+                style = restingContentEditorialStyle,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
                 maxLines = 2,
+                autoSize = restingTitleAutoSize,
             )
         }
     }

@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.core.common.ui.typography
 
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +45,10 @@ val restingContentEditorialStyle =
 
 // Anybody's file carries wdth and wght only, so the one-degree slant is a text shear: tan(1°).
 private const val RESTING_SLANT_SKEW = -0.0175f
+
+/** The auto-size every resting card title shares: grows to the cap, wraps before it shrinks. */
+val restingTitleAutoSize =
+    TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 24.sp, stepSize = 0.5.sp)
 
 private const val RESUME_WIDEST = 88
 private const val RESUME_NARROWEST = 56
