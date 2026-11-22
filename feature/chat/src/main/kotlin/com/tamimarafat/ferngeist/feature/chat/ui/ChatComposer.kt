@@ -75,7 +75,6 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
@@ -98,6 +97,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -125,12 +127,9 @@ import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionStat
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModeMenuButton
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModelEffortButton
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ToolbarOptionsButton
-import com.tamimarafat.ferngeist.feature.chat.ui.composer.composerModelButtonMinWidth
-import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.ComposerDragHandle
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.ComposerMode
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.FullscreenComposerDialog
-import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.composerDragHandleHeight
-import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.composerDragHandleWidth
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.composerPanelDrag
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.rememberComposerBackProgress
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.selectOptionFor
 import kotlin.math.roundToInt
@@ -144,8 +143,7 @@ private val composerFabSize = 80.dp
 private val toolbarToFabGap = 8.dp
 private const val COMPOSER_CONTAINER_KEY = "composer-container"
 private val composerPanelPadding = 12.dp
-internal val composerPanelContentPadding =
-    PaddingValues(start = composerPanelPadding, end = composerPanelPadding, bottom = composerPanelPadding)
+internal val composerPanelContentPadding = PaddingValues(composerPanelPadding)
 
 // Between the medium (56dp) and large (96dp) icon-button tokens: a notch above medium.
 private val composerSendButtonSize = 64.dp
@@ -247,6 +245,9 @@ internal fun ChatComposerBar(
         onModeChange(ComposerMode.COLLAPSED)
         onFocusCleared()
     }
+    val changePanelMode: (ComposerMode) -> Unit = { nextMode ->
+        if (nextMode == ComposerMode.COLLAPSED) closeComposer() else onModeChange(nextMode)
+    }
     val backProgress = rememberComposerBackProgress(enabled = mode == ComposerMode.EXPANDED, onClose = closeComposer)
     val editor: @Composable (Boolean, Boolean, Boolean) -> Unit = { fullscreen, fillEditor, editorDropTargetActive ->
         focusEditor()
@@ -260,7 +261,6 @@ internal fun ChatComposerBar(
             queueing = queueing,
             fullscreen = fullscreen,
             fillEditor = fillEditor,
-            dragDistance = dragDistance,
             onToggleFullscreen = { onModeChange(if (fullscreen) ComposerMode.EXPANDED else ComposerMode.FULLSCREEN) },
             onClose = closeComposer,
             onSend = onSend,
@@ -293,7 +293,7 @@ internal fun ChatComposerBar(
             onAttachUris = onAttachUris,
             snackbarHostState = snackbarHostState,
             dragDistance = dragDistance,
-            onDismiss = closeComposer,
+            onModeChange = changePanelMode,
         ) { hovered -> editor(true, true, hovered) }
         return
     }
@@ -416,6 +416,7 @@ internal fun ChatComposerBar(
                         expandedWidth = expandedWidth,
                         expandedHeight = expandedHeight,
                         dragDistance = dragDistance,
+                        onModeChange = changePanelMode,
                         backProgress = { backProgress.value },
                         onContentHeightPx = { expandedContentHeightPx = it },
                         modifier =
@@ -447,7 +448,8 @@ internal fun ChatComposerBar(
 private fun ComposerPanel(
     expandedWidth: Dp,
     expandedHeight: Dp,
-    dragDistance: FloatState,
+    dragDistance: MutableFloatState,
+    onModeChange: (ComposerMode) -> Unit,
     backProgress: () -> Float,
     onContentHeightPx: (Int) -> Unit,
     modifier: Modifier,
@@ -468,10 +470,11 @@ private fun ComposerPanel(
         color = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurface,
         modifier =
-            modifier.size(
-                lerp(expandedWidth, composerFabSize, progress),
-                lerp(height + dragHeight, composerFabSize, progress),
-            ),
+            modifier
+                .size(
+                    lerp(expandedWidth, composerFabSize, progress),
+                    lerp(height + dragHeight, composerFabSize, progress),
+                ).composerPanelDrag(fullscreen = false, dragDistance, onModeChange),
     ) {
         Box(contentAlignment = Alignment.TopCenter) {
             // Keep the editor's measured width stable as its surface narrows.
@@ -550,7 +553,6 @@ internal fun ExpandedComposerContent(
     queueing: Boolean,
     fullscreen: Boolean,
     fillEditor: Boolean,
-    dragDistance: MutableFloatState,
     onToggleFullscreen: () -> Unit,
     onClose: () -> Unit,
     onSend: () -> Unit,
@@ -600,7 +602,6 @@ internal fun ExpandedComposerContent(
     ) {
         ExpandedComposerHeader(
             fullscreen = fullscreen,
-            dragDistance = dragDistance,
             onToggleFullscreen = onToggleFullscreen,
             onClose = onClose,
             agentIconUrl = agentIconUrl,
@@ -659,7 +660,6 @@ internal fun ExpandedComposerContent(
 @Composable
 private fun ExpandedComposerHeader(
     fullscreen: Boolean,
-    dragDistance: MutableFloatState,
     onToggleFullscreen: () -> Unit,
     onClose: () -> Unit,
     agentIconUrl: String?,
@@ -668,38 +668,39 @@ private fun ExpandedComposerHeader(
     effortOption: ChatConfigOption.Select?,
     onSetConfigOption: (String, String) -> Unit,
 ) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val sideWidth = ((maxWidth - composerDragHandleWidth) / 2).coerceAtLeast(0.dp)
-        val effortWidth = if (effortOption == null) 0.dp else 50.dp
-        // Give the controls a separate row when the selector cannot fit beside the handle.
-        val controlsBelowHandle = modelOption != null && sideWidth < composerModelButtonMinWidth + effortWidth
-        val controlsTop = if (controlsBelowHandle) composerDragHandleHeight else composerPanelPadding
-        val selectorWidth = if (controlsBelowHandle) maxWidth else sideWidth
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = controlsTop),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CloseComposerButton(onClose = onClose, fullscreen = fullscreen)
-            if (modelOption != null) {
-                Spacer(Modifier.weight(1f))
-                ModelEffortButton(
-                    agentIconUrl = agentIconUrl,
-                    agentName = agentName,
-                    modelOption = modelOption,
-                    effortOption = effortOption,
-                    onSetConfigOption = onSetConfigOption,
-                    modifier = Modifier.widthIn(max = selectorWidth),
-                )
-            }
-        }
-        ComposerDragHandle(
-            fullscreen = fullscreen,
-            dragDistance = dragDistance,
-            onToggle = onToggleFullscreen,
-            onDismiss = onClose,
-            modifier = Modifier.align(Alignment.TopCenter),
+    val resizeLabel =
+        stringResource(
+            if (fullscreen) R.string.chat_composer_restore_desc else R.string.chat_composer_fullscreen_desc,
         )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CloseComposerButton(
+            onClose = onClose,
+            fullscreen = fullscreen,
+            modifier =
+                Modifier.semantics {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction(resizeLabel) {
+                                onToggleFullscreen()
+                                true
+                            },
+                        )
+                },
+        )
+        if (modelOption != null) {
+            Spacer(Modifier.weight(1f))
+            ModelEffortButton(
+                agentIconUrl = agentIconUrl,
+                agentName = agentName,
+                modelOption = modelOption,
+                effortOption = effortOption,
+                onSetConfigOption = onSetConfigOption,
+            )
+        }
     }
 }
 

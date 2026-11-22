@@ -36,6 +36,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
@@ -65,7 +66,7 @@ class ComposerFullscreenTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun dragHandle_movesPanelBeforeReleaseAndKeepsDraftThroughFullscreen() {
+    fun draggingEditor_movesPanelBeforeReleaseAndKeepsDraftThroughFullscreen() {
         compose.setContent {
             MaterialExpressiveTheme {
                 Box(Modifier.fillMaxSize().testTag("chat-pane"), contentAlignment = Alignment.BottomCenter) {
@@ -74,20 +75,16 @@ class ComposerFullscreenTest {
             }
         }
 
-        val handle = compose.onNodeWithContentDescription("Expand composer to full screen")
-        val beforeDrag = handle.getUnclippedBoundsInRoot().top
+        val editor = compose.onNode(hasSetTextAction())
         val inlineClose = compose.onNodeWithContentDescription("Close composer")
-        assertTrue(
-            "The handle should start above the close button",
-            inlineClose.getUnclippedBoundsInRoot().top - beforeDrag >= 8.dp,
-        )
-        handle.performTouchInput {
+        val beforeDrag = inlineClose.getUnclippedBoundsInRoot().top
+        editor.performTouchInput {
             down(center)
             moveBy(Offset(0f, -170f))
         }
         compose.onNode(isDialog()).assertDoesNotExist()
-        assertTrue(handle.getUnclippedBoundsInRoot().top < beforeDrag)
-        handle.performTouchInput { moveBy(Offset(0f, -30f)) }
+        assertTrue(inlineClose.getUnclippedBoundsInRoot().top < beforeDrag)
+        editor.performTouchInput { moveBy(Offset(0f, -30f)) }
         compose.onNode(isDialog()).assertWidthIsEqualTo(480.dp).assertHeightIsEqualTo(800.dp)
         compose.onNodeWithTag("chat-pane").performTouchInput { up() }
         val closeButton = compose.onNodeWithContentDescription("Exit full-screen composer")
@@ -101,19 +98,14 @@ class ComposerFullscreenTest {
             .assertTextContains("Original draft")
             .performTextReplacement("Revised draft")
 
-        val fullscreenHandle = compose.onNodeWithContentDescription("Return to expanded composer")
-        val beforeRestore = fullscreenHandle.getUnclippedBoundsInRoot().top
-        assertTrue(
-            "The full-screen handle should start above the close button",
-            closeButton.getUnclippedBoundsInRoot().top - beforeRestore >= 8.dp,
-        )
-        fullscreenHandle.performTouchInput {
+        val beforeRestore = closeButton.getUnclippedBoundsInRoot().top
+        editor.performTouchInput {
             down(center)
             moveBy(Offset(0f, 170f))
         }
-        assertTrue(fullscreenHandle.getUnclippedBoundsInRoot().top > beforeRestore)
+        assertTrue(closeButton.getUnclippedBoundsInRoot().top > beforeRestore)
         compose.onNode(isDialog()).assertExists()
-        fullscreenHandle.performTouchInput { moveBy(Offset(0f, 30f)) }
+        editor.performTouchInput { moveBy(Offset(0f, 30f)) }
         compose.onNode(isDialog()).assertDoesNotExist()
         compose.onNode(hasSetTextAction()).assertTextContains("Revised draft")
     }
@@ -129,7 +121,7 @@ class ComposerFullscreenTest {
         compose.onNodeWithContentDescription("Exit full-screen composer").performClick()
 
         compose.onNode(isDialog()).assertDoesNotExist()
-        compose.onNodeWithContentDescription("Expand composer to full screen").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Close composer").assertDoesNotExist()
     }
 
     @Test
@@ -145,14 +137,14 @@ class ComposerFullscreenTest {
         compose.runOnIdle { activity.onBackPressedDispatcher.onBackPressed() }
         compose.onNodeWithContentDescription("Close composer").assertDoesNotExist()
         compose.onNodeWithContentDescription("Chat").performClick()
-        compose.onNodeWithContentDescription("Expand composer to full screen").performClick()
+        expandThroughAccessibility()
         compose.onNode(isDialog()).assertExists()
         compose.runOnIdle {
             val dialog = ShadowDialog.getLatestDialog() as ComponentDialog
             dialog.onBackPressedDispatcher.onBackPressed()
         }
         compose.onNode(isDialog()).assertDoesNotExist()
-        compose.onNodeWithContentDescription("Expand composer to full screen").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Close composer").assertDoesNotExist()
     }
 
     @Test
@@ -165,38 +157,38 @@ class ComposerFullscreenTest {
             }
         }
 
-        val inlineHandle = "Expand composer to full screen"
-        assertPredictiveBackMotion(compose.activity.onBackPressedDispatcher, inlineHandle)
-        compose.onNodeWithContentDescription(inlineHandle).performClick()
+        val inlineClose = "Close composer"
+        assertPredictiveBackMotion(compose.activity.onBackPressedDispatcher, inlineClose)
+        expandThroughAccessibility()
         compose.onNode(isDialog()).assertExists()
 
         val dialog = ShadowDialog.getLatestDialog() as ComponentDialog
-        assertPredictiveBackMotion(dialog.onBackPressedDispatcher, "Return to expanded composer")
+        assertPredictiveBackMotion(dialog.onBackPressedDispatcher, "Exit full-screen composer")
         compose.runOnIdle {
             dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent(0f))
             dialog.onBackPressedDispatcher.dispatchOnBackProgressed(backEvent(0.5f))
             dialog.onBackPressedDispatcher.onBackPressed()
         }
         compose.onNode(isDialog()).assertDoesNotExist()
-        compose.onNodeWithContentDescription(inlineHandle).assertDoesNotExist()
+        compose.onNodeWithContentDescription(inlineClose).assertDoesNotExist()
     }
 
     private fun assertPredictiveBackMotion(
         dispatcher: OnBackPressedDispatcher,
-        handleDescription: String,
+        closeDescription: String,
     ) {
-        val handle = compose.onNodeWithContentDescription(handleDescription)
-        val initialTop = handle.getUnclippedBoundsInRoot().top
+        val close = compose.onNodeWithContentDescription(closeDescription)
+        val initialTop = close.getUnclippedBoundsInRoot().top
         compose.runOnIdle {
             dispatcher.dispatchOnBackStarted(backEvent(0f))
             dispatcher.dispatchOnBackProgressed(backEvent(0.25f))
         }
-        val partialTop = handle.getUnclippedBoundsInRoot().top
+        val partialTop = close.getUnclippedBoundsInRoot().top
         assertTrue(partialTop > initialTop)
         compose.runOnIdle { dispatcher.dispatchOnBackProgressed(backEvent(0.5f)) }
-        assertTrue(handle.getUnclippedBoundsInRoot().top > partialTop)
+        assertTrue(close.getUnclippedBoundsInRoot().top > partialTop)
         compose.runOnIdle { dispatcher.dispatchOnBackCancelled() }
-        assertTrue(handle.getUnclippedBoundsInRoot().top == initialTop)
+        assertTrue(close.getUnclippedBoundsInRoot().top == initialTop)
     }
 
     private fun backEvent(progress: Float) = BackEventCompat(0f, 0f, progress, BackEventCompat.EDGE_LEFT)
@@ -228,24 +220,24 @@ class ComposerFullscreenTest {
             }
         }
 
-        val inlineHandle = "Expand composer to full screen"
-        assertSelectorInHeader("Close composer", inlineHandle)
-        compose.onNodeWithContentDescription(inlineHandle).performClick()
-        assertSelectorInHeader("Exit full-screen composer", "Return to expanded composer")
+        assertSelectorInHeader("Close composer")
+        expandThroughAccessibility()
+        assertSelectorInHeader("Exit full-screen composer")
         compose.onNodeWithText("Claude Sonnet").performClick()
         compose.onNodeWithText("Model B").assertExists()
     }
 
-    private fun assertSelectorInHeader(
-        closeLabel: String,
-        handleLabel: String,
-    ) {
+    private fun expandThroughAccessibility() {
+        compose
+            .onNodeWithContentDescription("Close composer")
+            .performCustomAccessibilityActionWithLabel("Expand composer to full screen")
+    }
+
+    private fun assertSelectorInHeader(closeLabel: String) {
         val close = compose.onNodeWithContentDescription(closeLabel).getUnclippedBoundsInRoot()
-        val handle = compose.onNodeWithContentDescription(handleLabel).getUnclippedBoundsInRoot()
         val model = compose.onNodeWithText("Claude Sonnet").getUnclippedBoundsInRoot()
         val effort = compose.onNodeWithContentDescription("Reasoning effort").getUnclippedBoundsInRoot()
         assertTrue(model.left >= close.right)
-        assertTrue(model.left >= handle.right || model.top >= handle.bottom)
         assertTrue(effort.left >= model.right)
         assertTrue((model.top + model.bottom) / 2 in close.top..close.bottom)
         assertTrue((effort.top + effort.bottom) / 2 in close.top..close.bottom)
