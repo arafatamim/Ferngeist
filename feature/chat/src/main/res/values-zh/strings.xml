@@ -149,7 +149,7 @@
     <string name="chat_status_sending">发送中</string>
     <string name="chat_status_queued">排队中</string>
     <string name="chat_status_failed">发送失败</string>
-    <string name="chat_status_retry">点按重试</string>
+    <string name="chat_status_retry">重试</string>
     <plurals name="chat_attachments_unsupported">
         <item quantity="other">此代理不支持 %1$d 个附件</item>
     </plurals>

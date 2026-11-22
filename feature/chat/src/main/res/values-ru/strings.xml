@@ -147,7 +147,7 @@
     <string name="chat_status_sending">Отправка</string>
     <string name="chat_status_queued">В очереди</string>
     <string name="chat_status_failed">Не удалось отправить</string>
-    <string name="chat_status_retry">Нажмите, чтобы повторить</string>
+    <string name="chat_status_retry">Повторить</string>
     <plurals name="chat_attachments_unsupported">
         <item quantity="one">%1$d вложение не поддерживается этим агентом</item>
         <item quantity="few">%1$d вложения не поддерживаются этим агентом</item>

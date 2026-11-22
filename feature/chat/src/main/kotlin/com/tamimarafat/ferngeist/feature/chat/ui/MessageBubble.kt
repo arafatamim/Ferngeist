@@ -3,19 +3,22 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -29,6 +32,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,7 +42,6 @@ import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
@@ -48,7 +51,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -70,16 +72,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.motion.rememberReduceMotion
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
@@ -134,12 +137,6 @@ fun MessageBubble(
     val bornLive = remember { message.isStreaming || message.status != MessageDeliveryStatus.SENT }
     val live = bornLive || growing
     val entrance = remember { MutableTransitionState(!bornLive).apply { targetState = true } }
-    val contentColor =
-        if (isUser) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
     var fullscreenImage by remember { mutableStateOf<ChatImageData?>(null) }
 
     AnimatedVisibility(
@@ -153,7 +150,6 @@ fun MessageBubble(
         BubbleContent(
             message = message,
             isUser = isUser,
-            contentColor = contentColor,
             markdownDocuments = markdownDocuments,
             reveals = reveals,
             live = live,
@@ -176,7 +172,6 @@ fun MessageBubble(
 private fun BubbleContent(
     message: ChatMessage,
     isUser: Boolean,
-    contentColor: Color,
     markdownDocuments: ImmutableMap<String, MarkdownRenderedDocument>,
     reveals: BubbleReveals,
     live: Boolean,
@@ -194,7 +189,6 @@ private fun BubbleContent(
         if (isUser) {
             UserMessageBubble(
                 message = message,
-                contentColor = contentColor,
                 onRetryMessage = onRetryMessage,
                 onImageClick = onImageClick,
             )
@@ -240,28 +234,58 @@ internal val userBubbleShape =
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun UserMessageBubble(
+internal fun UserMessageBubble(
     message: ChatMessage,
-    contentColor: Color,
     onRetryMessage: ((String) -> Unit)?,
     onImageClick: (ChatImageData) -> Unit,
     maxLines: Int = Int.MAX_VALUE,
 ) {
+    // A prompt that never went out is not a prompt: the bubble wears the error container until it
+    // is retried, so the strip reads the failure before it reads a word.
+    val failed = message.status == MessageDeliveryStatus.FAILED
+    val containerColor =
+        if (failed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+    val contentColor =
+        if (failed) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
     val onRetry =
         if (onRetryMessage != null && message.status == MessageDeliveryStatus.FAILED) {
             { onRetryMessage(message.clientId ?: message.id) }
         } else {
             null
         }
+    // The card *is* the in-flight state: it breathes, with no glyph next to the prompt. Easing
+    // reverses at each end so the breath has no seam. With motion off the bubble holds still and
+    // the footer says "Sending" instead, or an unsent prompt would look exactly like a delivered one.
+    val reduceMotion = rememberReduceMotion()
+    val sendingPulse =
+        if (message.status == MessageDeliveryStatus.SENDING && !reduceMotion) {
+            val alpha by
+                rememberInfiniteTransition(label = "sendingPulse").animateFloat(
+                    initialValue = 1f,
+                    targetValue = SENDING_PULSE_MIN_ALPHA,
+                    animationSpec =
+                        infiniteRepeatable(
+                            animation = tween(SENDING_PULSE_HALF_PERIOD_MILLIS, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                    label = "sendingAlpha",
+                )
+            alpha
+        } else {
+            1f
+        }
     // Flat: the bubble rests in the list. Only the pinned copy floats over content and casts a shadow.
     Card(
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                containerColor = containerColor,
                 contentColor = contentColor,
             ),
         shape = userBubbleShape,
-        modifier = Modifier.widthIn(max = 420.dp),
+        modifier =
+            Modifier
+                .widthIn(max = 420.dp)
+                .alpha(sendingPulse),
     ) {
         UserMessageContent(
             message = message,
@@ -269,10 +293,17 @@ private fun UserMessageBubble(
             onRetry = onRetry,
             onImageClick = { onImageClick(it) },
             maxLines = maxLines,
+            reduceMotion = reduceMotion,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
         )
     }
 }
+
+/** Deep enough to read as a pulse at a glance, shallow enough to keep the prompt legible. */
+private const val SENDING_PULSE_MIN_ALPHA = 0.55f
+
+/** One breath every 1.6s: slow enough to stay calm in a strip of held prompts. */
+private const val SENDING_PULSE_HALF_PERIOD_MILLIS = 800
 
 /**
  * Prompts the agent has not taken yet, pinned above the composer in send order. Each leaves
@@ -317,7 +348,6 @@ internal fun PendingPromptQueue(
                     ) {
                         UserMessageBubble(
                             message = message,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                             onRetryMessage = onRetryMessage,
                             onImageClick = {},
                             maxLines = PENDING_PROMPT_MAX_LINES,
@@ -341,26 +371,33 @@ private fun UserMessageContent(
     onRetry: (() -> Unit)? = null,
     onImageClick: ((ChatImageData) -> Unit)? = null,
     maxLines: Int = Int.MAX_VALUE,
+    reduceMotion: Boolean = false,
 ) {
-    Row(modifier = modifier, verticalAlignment = Alignment.Bottom) {
-        Column(modifier = Modifier.weight(1f, fill = false)) {
-            UserContentBlocks(
-                blocks = message.contentBlocks,
-                textColor = textColor,
-                maxLines = maxLines,
-                onImageClick = onImageClick,
-            )
-        }
-        // Trailing status for non-SENT delivery states.
+    Column(modifier = modifier) {
+        UserContentBlocks(
+            blocks = message.contentBlocks,
+            textColor = textColor,
+            maxLines = maxLines,
+            onImageClick = onImageClick,
+        )
+        // The state sits under the prompt, not beside its last line: a badge sharing that row
+        // aligned to the text baseline (48dp target against a 20dp line) and took width from
+        // the first line of the prompt. A pulsing SENDING bubble shows nothing here; a still one
+        // (motion off) must say what it is, so its caption is the only thing carrying the state.
         AnimatedVisibility(
-            visible = message.role == ChatMessage.Role.USER && message.status != MessageDeliveryStatus.SENT,
-            enter = fadeIn() + expandHorizontally(),
-            exit = fadeOut() + shrinkHorizontally(),
+            visible =
+                message.role == ChatMessage.Role.USER &&
+                    message.status != MessageDeliveryStatus.SENT &&
+                    (message.status != MessageDeliveryStatus.SENDING || reduceMotion),
+            modifier = Modifier.align(Alignment.End),
+            enter = fadeIn() + expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()),
+            exit = fadeOut() + shrinkVertically(MaterialTheme.motionScheme.fastSpatialSpec()),
         ) {
             DeliveryStatusBadge(
                 status = message.status,
                 onRetry = onRetry,
-                modifier = Modifier.padding(start = 8.dp),
+                reduceMotion = reduceMotion,
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
     }
@@ -369,10 +406,13 @@ private fun UserMessageContent(
 /**
  * Small themed badge indicating the delivery status of a user message.
  *
- * - [MessageDeliveryStatus.QUEUED]: clock/schedule icon tinted with [MaterialTheme.colorScheme.outline].
- * - [MessageDeliveryStatus.SENDING]: an expressive [LoadingIndicator] in [MaterialTheme.colorScheme.primary].
- * - [MessageDeliveryStatus.FAILED]: error icon with [MaterialTheme.colorScheme.errorContainer] background,
- *   tappable to trigger [onRetry].
+ * - [MessageDeliveryStatus.QUEUED]: clock/schedule icon followed by the localized "Queued" label,
+ *   both in the bubble's content color; quiet on purpose — waiting is the calm state and the
+ *   FAILED row is the one that asks for action.
+ * - [MessageDeliveryStatus.SENDING]: nothing when the bubble pulses; with system animations off
+ *   the bubble cannot pulse, so it carries the localized "Sending" label instead.
+ * - [MessageDeliveryStatus.FAILED]: a filled "Retry" pill that triggers [onRetry]; without a handler
+ *   it degrades to the plain "Failed to send" caption rather than a dead tap target.
  * - [MessageDeliveryStatus.SENT]: not rendered (the caller skips this composable entirely).
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -380,6 +420,7 @@ private fun UserMessageContent(
 private fun DeliveryStatusBadge(
     status: MessageDeliveryStatus,
     onRetry: (() -> Unit)?,
+    reduceMotion: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val springSpec =
@@ -409,17 +450,29 @@ private fun DeliveryStatusBadge(
     ) { currentStatus ->
         when (currentStatus) {
             MessageDeliveryStatus.QUEUED -> {
-                Icon(
-                    imageVector = Icons.Rounded.Schedule,
-                    contentDescription = stringResource(R.string.chat_status_queued),
-                    tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(14.dp),
-                )
+                // Label, not a lone glyph: the grey clock read as decoration and vanished in dark
+                // theme. "Queued" also tells a first-time reader the prompt is waiting, not lost.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.chat_status_queued),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
             MessageDeliveryStatus.SENDING -> {
-                LoadingIndicator(
-                    modifier = Modifier.size(14.dp),
-                )
+                // The bubble pulses; a glyph here would fight it. Still bubbles need the word.
+                if (reduceMotion) {
+                    Text(
+                        text = stringResource(R.string.chat_status_sending),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
             MessageDeliveryStatus.FAILED -> {
                 FailedStatusContent(onRetry)
@@ -431,42 +484,41 @@ private fun DeliveryStatusBadge(
 
 @Composable
 private fun FailedStatusContent(onRetry: (() -> Unit)?) {
-    Row(
+    if (onRetry == null) {
+        // No handler, no promise: say the state without offering a tap that does nothing.
+        Text(
+            text = stringResource(R.string.chat_status_failed),
+            style = MaterialTheme.typography.labelSmall,
+        )
+        return
+    }
+    // FAILED is the one pending state that asks for something, so it is the one that spends the
+    // accent: a filled retry pill naming the action, on a full-size announced target.
+    Surface(
+        onClick = onRetry,
+        color = MaterialTheme.colorScheme.error,
+        contentColor = MaterialTheme.colorScheme.onError,
+        shape = CircleShape,
         modifier =
             Modifier
-                .then(
-                    if (onRetry != null) {
-                        // The one way to recover an unsent prompt: a full-size, announced target.
-                        Modifier
-                            .minimumInteractiveComponentSize()
-                            .handCursor()
-                            .clickable(role = Role.Button, onClick = onRetry)
-                    } else {
-                        Modifier
-                    },
-                ),
-        verticalAlignment = Alignment.CenterVertically,
+                .minimumInteractiveComponentSize()
+                .handCursor(),
     ) {
-        Surface(
-            color = MaterialTheme.colorScheme.errorContainer,
-            shape = RoundedCornerShape(12.dp),
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Rounded.ErrorOutline,
-                contentDescription = stringResource(R.string.chat_status_failed),
-                tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier =
-                    Modifier
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                        .size(14.dp),
+                imageVector = Icons.Rounded.Refresh,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = stringResource(R.string.chat_status_retry),
+                style = MaterialTheme.typography.labelLarge,
             )
         }
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = stringResource(R.string.chat_status_retry),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.error,
-        )
     }
 }
 

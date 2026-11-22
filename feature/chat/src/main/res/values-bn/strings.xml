@@ -142,7 +142,7 @@
     <string name="chat_status_sending">পাঠানো হচ্ছে</string>
     <string name="chat_status_queued">সারিতে</string>
     <string name="chat_status_failed">পাঠানো ব্যর্থ হয়েছে</string>
-    <string name="chat_status_retry">পুনরায় চেষ্টা করতে আলতো চাপুন</string>
+    <string name="chat_status_retry">আবার চেষ্টা করুন</string>
     <plurals name="chat_attachments_unsupported">
         <item quantity="one">%1$dটি সংযুক্তি এই এজেন্ট সমর্থন করে না</item>
         <item quantity="other">%1$dটি সংযুক্তি এই এজেন্ট সমর্থন করে না</item>

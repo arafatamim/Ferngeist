@@ -142,7 +142,7 @@
     <string name="chat_status_sending">Enviando</string>
     <string name="chat_status_queued">En cola</string>
     <string name="chat_status_failed">No se pudo enviar</string>
-    <string name="chat_status_retry">Toca para reintentar</string>
+    <string name="chat_status_retry">Reintentar</string>
     <plurals name="chat_attachments_unsupported">
         <item quantity="one">%1$d adjunto no compatible con este agente</item>
         <item quantity="other">%1$d adjuntos no compatibles con este agente</item>
