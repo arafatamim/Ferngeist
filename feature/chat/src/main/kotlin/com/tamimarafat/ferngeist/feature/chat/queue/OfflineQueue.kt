@@ -50,6 +50,26 @@ class OfflineQueue {
         prompts.addLast(prompt)
     }
 
+    /**
+     * Queues [prompt], or joins it onto the prompt waiting last, with a newline between texts, under
+     * that prompt's id. A dispatched tail is never joined: the gateway knows it only by its own id.
+     * Returns the prompt now queued at the back.
+     */
+    fun append(prompt: PendingPrompt): PendingPrompt {
+        val tail = prompts.lastOrNull()?.takeUnless { it.dispatched }
+        if (tail == null) return prompt.also(::enqueue)
+        val joined =
+            tail.copy(
+                text = listOf(tail.text, prompt.text).filter { it.isNotBlank() }.joinToString("\n"),
+                images = tail.images + prompt.images,
+                files = tail.files + prompt.files,
+                audios = tail.audios + prompt.audios,
+                resourceLinks = tail.resourceLinks + prompt.resourceLinks,
+            )
+        prompts[prompts.lastIndex] = joined
+        return joined
+    }
+
     /** Puts a prompt back at the front, ahead of everything queued after it. */
     fun enqueueFirst(prompt: PendingPrompt) {
         prompts.addFirst(prompt)

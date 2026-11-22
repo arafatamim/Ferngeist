@@ -173,6 +173,7 @@ private val expandedComposerMinHeight = 142.dp
  * @param focusRequester To request focus when expanding.
  * @param onFocusCleared Callback when focus is cleared (e.g., closing the composer).
  * @param onHeightChanged Callback to report the current height of the composer to the parent.
+ * @param dragDistance How far the panel is dragged past its height; hoisted so the stack above can follow it.
  * @param onSend Action to send the current message.
  * @param onCancelStreaming Action to stop the current generation.
  * @param onSetStringConfigOption Callback to update a string-based config option.
@@ -203,6 +204,7 @@ internal fun ChatComposerBar(
     focusEditor: @Composable () -> Unit,
     onFocusCleared: () -> Unit,
     onHeightChanged: (Int) -> Unit,
+    dragDistance: MutableFloatState = remember(mode) { mutableFloatStateOf(0f) },
     onSend: () -> Unit,
     onCancelStreaming: () -> Unit,
     onSetStringConfigOption: (String, String) -> Unit,
@@ -232,17 +234,15 @@ internal fun ChatComposerBar(
     var showOptionsMenu by remember { mutableStateOf(false) }
     val modeMenuInteractionSource = remember { MutableInteractionSource() }
     val optionsMenuInteractionSource = remember { MutableInteractionSource() }
-    // Stop is destructive, so it never takes the FAB: it sits in the toolbar. In the expanded
-    // composer an agent that takes prompts mid-turn keeps send primary, as a new prompt queues
-    // and can be steered in; for any other agent send becomes stop.
-    val steering = showStopAction && state.supportsSteering
-    val primaryStop = showStopAction && !steering
+    // Stop is destructive, so it never takes the FAB: it sits in the toolbar. The expanded
+    // composer keeps send primary for every agent mid-turn: the prompt queues and either steers
+    // into the running turn or waits for it to end.
+    val queueing = showStopAction
     val commandInputHint = activeCommandInputHint(messageText.text, state.availableCommands)
     val modelOption = remember(state.configOptions) { state.configOptions.selectOptionFor(ChatConfigCategory.Model) }
     val effortOption =
         remember(state.configOptions) { state.configOptions.selectOptionFor(ChatConfigCategory.ThoughtLevel) }
 
-    val dragDistance = remember(mode) { mutableFloatStateOf(0f) }
     val closeComposer: () -> Unit = {
         onModeChange(ComposerMode.COLLAPSED)
         onFocusCleared()
@@ -257,14 +257,12 @@ internal fun ChatComposerBar(
             commandInputHint = commandInputHint,
             inputAlpha = inputAlpha,
             focusRequester = focusRequester,
-            showStopAction = primaryStop,
-            queueing = steering,
+            queueing = queueing,
             fullscreen = fullscreen,
             fillEditor = fillEditor,
             dragDistance = dragDistance,
             onToggleFullscreen = { onModeChange(if (fullscreen) ComposerMode.EXPANDED else ComposerMode.FULLSCREEN) },
             onClose = closeComposer,
-            onPrimaryAction = { if (primaryStop) onCancelStreaming() else onSend() },
             onSend = onSend,
             canSendImages = canSendImages,
             selectedImages = selectedImages,
@@ -549,14 +547,12 @@ internal fun ExpandedComposerContent(
     commandInputHint: String?,
     inputAlpha: () -> Float,
     focusRequester: FocusRequester,
-    showStopAction: Boolean,
     queueing: Boolean,
     fullscreen: Boolean,
     fillEditor: Boolean,
     dragDistance: MutableFloatState,
     onToggleFullscreen: () -> Unit,
     onClose: () -> Unit,
-    onPrimaryAction: () -> Unit,
     onSend: () -> Unit,
     canSendImages: Boolean,
     selectedImages: List<ChatImageData>,
@@ -596,9 +592,9 @@ internal fun ExpandedComposerContent(
                 .onPreviewKeyEvent { mentionState.onKey(it, onMentionSelected) }
                 .onEscapeKey(onEscape = onClose)
                 // Restates the send button's contract for the keyboard: the button is disabled
-                // while streaming and while the field is blank, so the shortcut is too.
+                // while the field is blank and has no attachments, so the shortcut is too.
                 .onSubmitShortcut(
-                    enabled = !showStopAction && (messageText.text.isNotBlank() || hasAttachments),
+                    enabled = messageText.text.isNotBlank() || hasAttachments,
                     onSubmit = onSend,
                 ),
     ) {
@@ -651,11 +647,10 @@ internal fun ExpandedComposerContent(
             canSendFiles = canSendFiles,
             canSendAudio = canSendAudio,
             attachmentPickers = attachmentPickers,
-            showStopAction = showStopAction,
             queueing = queueing,
             messageText = messageText.text,
             hasAttachments = hasAttachments,
-            onPrimaryAction = onPrimaryAction,
+            onSend = onSend,
             dropTargetActive = dropTargetActive,
         )
     }
@@ -822,11 +817,10 @@ private fun ExpandedComposerBottomBar(
     canSendFiles: Boolean,
     canSendAudio: Boolean,
     attachmentPickers: AttachmentPickers,
-    showStopAction: Boolean,
     queueing: Boolean,
     messageText: CharSequence,
     hasAttachments: Boolean,
-    onPrimaryAction: () -> Unit,
+    onSend: () -> Unit,
     dropTargetActive: Boolean,
 ) {
     Row(
@@ -843,10 +837,9 @@ private fun ExpandedComposerBottomBar(
         // Keep send at the trailing edge even when there are no attachment actions.
         Spacer(modifier = Modifier.weight(1f))
         PrimaryComposerActionButton(
-            showStopAction = showStopAction,
             // Attachments alone are a sendable prompt, just like text alone.
-            enabled = showStopAction || messageText.isNotBlank() || hasAttachments,
-            onClick = onPrimaryAction,
+            enabled = messageText.isNotBlank() || hasAttachments,
+            onClick = onSend,
             chatIcon = if (queueing) Icons.AutoMirrored.Filled.ScheduleSend else Icons.AutoMirrored.Filled.Send,
         )
     }
@@ -968,12 +961,11 @@ private fun JumpToBottomButton(onJumpToBottom: () -> Unit) {
 }
 
 /**
- * The primary action button (Send or Stop).
+ * The primary action button (Send or Queue).
  * Uses a filled icon button style consistent with the composer theme.
  */
 @Composable
 internal fun PrimaryComposerActionButton(
-    showStopAction: Boolean,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
@@ -989,11 +981,10 @@ internal fun PrimaryComposerActionButton(
             ),
         modifier = modifier.size(composerSendButtonSize).handCursor(enabled = enabled),
     ) {
-        Crossfade(targetState = if (showStopAction) Icons.Default.Stop else chatIcon, label = "PrimaryComposerIcon") {
+        Crossfade(targetState = chatIcon, label = "PrimaryComposerIcon") {
             Icon(
                 imageVector = it,
-                contentDescription =
-                    stringResource(if (showStopAction) R.string.chat_stop_desc else R.string.chat_send_desc),
+                contentDescription = stringResource(R.string.chat_send_desc),
                 modifier = Modifier.size(IconButtonDefaults.mediumIconSize),
             )
         }

@@ -160,31 +160,9 @@ internal class ChatOfflineQueueController(
         resourceLinks: List<ChatPromptResourceLink> = emptyList(),
     ) {
         if (!hasPromptContent(text, images, files, audios, resourceLinks)) return
-        val clientId =
-            java.util.UUID
-                .randomUUID()
-                .toString()
-        val message =
-            ChatMessage(
-                id = clientId,
-                role = ChatMessage.Role.USER,
-                contentBlocks = userContentBlocks(text, images, files, audios, resourceLinks),
-                status = MessageDeliveryStatus.QUEUED,
-                clientId = clientId,
-            )
-        offlineQueue.enqueue(
-            PendingPrompt(
-                clientId = clientId,
-                text = text,
-                images = images,
-                files = files,
-                audios = audios,
-                resourceLinks = resourceLinks,
-            ),
-        )
-        update {
-            copy(pendingMessages = pendingMessages + message)
-        }
+        val prompt = newPrompt(text, images, files, audios, resourceLinks)
+        val queued = offlineQueue.append(prompt)
+        update { copy(pendingMessages = pendingMessages.withQueued(queued, prompt)) }
         if (state.value.connectionState != ChatConnectionState.Connected) {
             kickReconnect()
         }
@@ -213,32 +191,10 @@ internal class ChatOfflineQueueController(
         resourceLinks: List<ChatPromptResourceLink> = emptyList(),
     ) {
         if (!hasPromptContent(text, images, files, audios, resourceLinks)) return
-        val clientId =
-            java.util.UUID
-                .randomUUID()
-                .toString()
-        val message =
-            ChatMessage(
-                id = clientId,
-                role = ChatMessage.Role.USER,
-                contentBlocks = userContentBlocks(text, images, files, audios, resourceLinks),
-                status = MessageDeliveryStatus.QUEUED,
-                clientId = clientId,
-            )
-        val prompt =
-            PendingPrompt(
-                clientId = clientId,
-                text = text,
-                images = images,
-                files = files,
-                audios = audios,
-                resourceLinks = resourceLinks,
-            )
-        offlineQueue.enqueue(prompt)
+        val prompt = newPrompt(text, images, files, audios, resourceLinks)
+        val queued = offlineQueue.append(prompt)
+        update { copy(pendingMessages = pendingMessages.withQueued(queued, prompt)) }
         persistQueue()
-        update {
-            copy(pendingMessages = pendingMessages + message)
-        }
         flushOfflineQueue()
     }
 
@@ -459,6 +415,20 @@ private fun List<ChatMessage>.foldedInto(
         }
     }
 
+/**
+ * Shows [prompt] as a QUEUED bubble, or, when [OfflineQueue.append] joined it onto an earlier
+ * prompt ([queued]), gives that prompt's bubble the joined content.
+ */
+private fun List<ChatMessage>.withQueued(
+    queued: PendingPrompt,
+    prompt: PendingPrompt,
+): List<ChatMessage> =
+    if (queued.clientId == prompt.clientId) {
+        this + prompt.bubble(MessageDeliveryStatus.QUEUED)
+    } else {
+        foldedInto(queued, emptySet())
+    }
+
 /** [prompt]'s bubble FAILED: a SENDING one flips, and one already reconciled away comes back. */
 private fun List<ChatMessage>.failing(prompt: PendingPrompt): List<ChatMessage> =
     if (any { it.clientId == prompt.clientId }) {
@@ -466,6 +436,24 @@ private fun List<ChatMessage>.failing(prompt: PendingPrompt): List<ChatMessage> 
     } else {
         this + prompt.bubble(MessageDeliveryStatus.FAILED)
     }
+
+private fun newPrompt(
+    text: String,
+    images: List<ChatImageData>,
+    files: List<ChatFileData>,
+    audios: List<ChatAudioData>,
+    resourceLinks: List<ChatPromptResourceLink>,
+) = PendingPrompt(
+    clientId =
+        java.util.UUID
+            .randomUUID()
+            .toString(),
+    text = text,
+    images = images,
+    files = files,
+    audios = audios,
+    resourceLinks = resourceLinks,
+)
 
 private fun PendingPrompt.bubble(status: MessageDeliveryStatus) =
     ChatMessage(

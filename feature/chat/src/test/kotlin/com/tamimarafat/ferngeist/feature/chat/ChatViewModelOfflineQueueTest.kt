@@ -61,58 +61,62 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
                 advanceUntilIdle()
 
                 var state = viewModel.state.value
-                assertEquals(2, state.pendingMessages.size)
-                assertEquals("first", state.pendingMessages[0].content)
-                assertEquals("second", state.pendingMessages[1].content)
-                assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[0].status)
-                assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[1].status)
+                assertEquals("first\nsecond", state.pendingMessages.single().content)
+                assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages.single().status)
 
                 facadeFactory.lastFacade.value?.emitSessionReady()
                 advanceUntilIdle()
 
-                assertEquals(listOf("first", "second"), sent)
+                assertEquals(listOf("first\nsecond"), sent)
 
                 state = viewModel.state.value
-                assertEquals(2, state.pendingMessages.size)
-                assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
-                assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[1].status)
+                assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages.single().status)
 
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
     @Test
-    fun `a prompt queued during a running turn waits for the turn to end`() =
+    fun `a non-steering agent mid-turn queues, does not dispatch until isStreaming falls, then sends exactly once`() =
         runTest {
             val sent = mutableListOf<String>()
-            val facadeFactory =
-                TestFacadeFactory {
-                    object : TestFacade(sendResult = true) {
-                        override suspend fun sendMessage(
-                            text: String,
-                            images: List<ChatImageData>,
-                            files: List<ChatFileData>,
-                            clientId: String,
-                            extras: PromptExtras,
-                        ): Boolean {
-                            sent += text
-                            return true
-                        }
+            val facade =
+                object : TestFacade(sendResult = true) {
+                    init {
+                        connectionStateFlow.value = ChatConnectionState.Connected
+                    }
+
+                    override suspend fun sendMessage(
+                        text: String,
+                        images: List<ChatImageData>,
+                        files: List<ChatFileData>,
+                        clientId: String,
+                        extras: PromptExtras,
+                    ): Boolean {
+                        sent += text
+                        return true
                     }
                 }
-            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            val viewModel = createViewModel(facadeFactory = TestFacadeFactory { facade })
             advanceUntilIdle()
-            val facade = facadeFactory.lastFacade.value!!
             facade.emitSnapshot(readySnapshot(isStreaming = true))
             advanceUntilIdle()
 
             viewModel.dispatch(ChatIntent.SendMessage("next"))
-            facade.emitSessionReady()
             advanceUntilIdle()
             assertEquals(emptyList<String>(), sent)
             val queued = viewModel.state.value.pendingMessages
             assertEquals(MessageDeliveryStatus.QUEUED, queued.single().status)
 
+            facade.emitSnapshot(readySnapshot(isStreaming = false))
+            advanceUntilIdle()
+            assertEquals(listOf("next"), sent)
+            val pending =
+                viewModel.state.value.pendingMessages
+                    .single()
+            assertEquals(MessageDeliveryStatus.SENDING, pending.status)
+
+            // A second idle cycle does not re-send
             facade.emitSnapshot(readySnapshot(isStreaming = false))
             advanceUntilIdle()
             assertEquals(listOf("next"), sent)
@@ -182,7 +186,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         }
 
     @Test
-    fun `a force-sent prompt stops the turn and goes out with those queued ahead of it`() =
+    fun `a force-sent prompt stops the turn and goes out as the next one`() =
         runTest {
             val facade = CancellingFacade()
             val viewModel = createViewModel(facadeFactory = TestFacadeFactory { facade })
@@ -194,14 +198,14 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val pending = viewModel.state.value.pendingMessages
-            viewModel.dispatch(ChatIntent.ForceSendMessage(pending[1].clientId!!))
+            viewModel.dispatch(ChatIntent.ForceSendMessage(pending.single().clientId!!))
             advanceUntilIdle()
 
             assertEquals(1, facade.cancels)
             facade.emitSnapshot(readySnapshot(isStreaming = false))
             advanceUntilIdle()
-            // The folded prompt opens the next turn; the one behind it follows as usual.
-            assertEquals(listOf("first\n\nsecond", "third"), facade.sent)
+            // The queued burst is already one prompt; it opens the next turn.
+            assertEquals(listOf("first\nsecond\nthird"), facade.sent)
         }
 
     @Test
@@ -423,8 +427,6 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
                 val failedA = state.pendingMessages.single { it.content == "A" }
                 val clientIdA = failedA.clientId!!
                 assertEquals(MessageDeliveryStatus.FAILED, failedA.status)
-                assertEquals("A", state.pendingMessages[0].content)
-                assertEquals("B", state.messages[0].content)
 
                 retryAndFlushEcho(viewModel, facadeFactory, clientIdA)
 
@@ -724,9 +726,9 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         )
 
     /**
-     * Creates a view model, dispatches two messages ("A" then "B") while disconnected,
-     * flushes the queue via [TestFacade.emitSessionReady], and returns the view model in
-     * the post-flush state where A has FAILED and B has been echoed and removed.
+     * Creates a view model, dispatches "A" while disconnected, flushes the queue via
+     * [TestFacade.emitSessionReady], and returns the view model in the post-flush state
+     * where A has FAILED.
      */
     private suspend fun TestScope.createFlushedOfflineQueue(facadeFactory: TestFacadeFactory): ChatViewModel {
         val viewModel = createViewModel(facadeFactory = facadeFactory)
@@ -734,15 +736,9 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
 
         viewModel.dispatch(ChatIntent.SendMessage("A"))
         advanceUntilIdle()
-        viewModel.dispatch(ChatIntent.SendMessage("B"))
-        advanceUntilIdle()
 
-        // Session becomes ready -> flush: A fails, B succeeds.
+        // Session becomes ready -> flush: A fails.
         facadeFactory.lastFacade.value?.emitSessionReady()
-        advanceUntilIdle()
-
-        // B's echo arrives -> B removed from pending, A remains FAILED.
-        facadeFactory.lastFacade.value?.emitSnapshot(snapshotWithEcho(viewModel.echoOf("B", id = "echo-b")))
         advanceUntilIdle()
 
         return viewModel

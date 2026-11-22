@@ -17,9 +17,12 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +31,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
@@ -43,6 +47,7 @@ import com.tamimarafat.ferngeist.feature.chat.ui.composer.matchingSuggestions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.roundToInt
 
 // The FAB transform starts within a frame or two of a collapse; past this none is coming.
 private const val TRANSFORM_START_TIMEOUT_MS = 100L
@@ -96,6 +101,14 @@ internal fun BoxScope.ChatComposerHost(
     LaunchedEffect(barHeightPx, queueHeightPx) {
         screenState.mutations.composerContentHeightPx.value = barHeightPx + queueHeightPx
     }
+    // The bar's height eased with the same spring as the panel's bounds, for the queue above to follow.
+    val dragDistance = remember(screenState.mutations.composerMode.value) { mutableFloatStateOf(0f) }
+    val settledBarPx = remember { Animatable(0f) }
+    val barSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    LaunchedEffect(barHeightPx) {
+        val target = barHeightPx.toFloat()
+        if (settledBarPx.value == 0f) settledBarPx.snapTo(target) else settledBarPx.animateTo(target, barSpec)
+    }
     // Shared bounds are tracked relative to this layout, so it fills the screen: the column below
     // is bottom-anchored and grows upward as the composer expands, and a scope that moved with it
     // would replay the FAB's start position from a shifted origin. It takes no input itself.
@@ -118,24 +131,49 @@ internal fun BoxScope.ChatComposerHost(
                     onRemoveMessage = { viewModel.dispatch(ChatIntent.RemoveQueuedMessage(it)) },
                     onRestingHeight = { queueHeightPx = it },
                 )
-                ChatComposerRow(
-                    screenState = screenState,
-                    focusManager = focusManager,
-                    viewModel = viewModel,
-                    switcherState = switcherState,
-                    switcherHintSeen = switcherHintSeen,
-                    callbacks = callbacks,
-                    switcherDrag = switcherDrag,
-                    onSwitcherClick = onSwitcherClick,
-                    dropTargetActive = dropTargetActive,
-                    onBarHeightChanged = { barHeightPx = it },
-                    sharedTransitionScope = this@SharedTransitionLayout,
-                    modifier = composerDragModifier,
-                )
+                Box(
+                    Modifier.easeHeight(
+                        settledHeightPx = { settledBarPx.value },
+                        dragPx = { dragDistance.floatValue },
+                    ),
+                ) {
+                    ChatComposerRow(
+                        screenState = screenState,
+                        focusManager = focusManager,
+                        viewModel = viewModel,
+                        switcherState = switcherState,
+                        switcherHintSeen = switcherHintSeen,
+                        callbacks = callbacks,
+                        switcherDrag = switcherDrag,
+                        onSwitcherClick = onSwitcherClick,
+                        dropTargetActive = dropTargetActive,
+                        onBarHeightChanged = { barHeightPx = it },
+                        dragDistance = dragDistance,
+                        sharedTransitionScope = this@SharedTransitionLayout,
+                        modifier = composerDragModifier,
+                    )
+                }
             }
         }
     }
 }
+
+/**
+ * Reports at most [settledHeightPx] plus the panel's [dragPx]. A closing panel keeps its full layout
+ * until its shared-bounds transform ends and an opening one takes it at once, so the queue stacked
+ * above would hang in mid air or jump up, then fix itself; this lets it follow the eased height
+ * instead. The row stays bottom-aligned and overflows up.
+ */
+internal fun Modifier.easeHeight(
+    settledHeightPx: () -> Float,
+    dragPx: () -> Float,
+): Modifier =
+    layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        val settled = settledHeightPx()
+        val height = if (settled > 0f) minOf(placeable.height, (settled + dragPx()).roundToInt()) else placeable.height
+        layout(placeable.width, height) { placeable.place(0, height - placeable.height) }
+    }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -150,6 +188,7 @@ private fun ChatComposerRow(
     onSwitcherClick: () -> Unit,
     dropTargetActive: Boolean,
     onBarHeightChanged: (Int) -> Unit,
+    dragDistance: MutableFloatState,
     sharedTransitionScope: SharedTransitionScope,
     // Applied to the composer bar, not the row: it carries the switcher drag.
     modifier: Modifier = Modifier,
@@ -238,6 +277,7 @@ private fun ChatComposerRow(
             },
             onFocusCleared = { focusManager.clearFocus() },
             onHeightChanged = onBarHeightChanged,
+            dragDistance = dragDistance,
             onSend = screenState.actions.sendMessage,
             onCancelStreaming = callbacks.onCancelStreaming,
             onSetStringConfigOption = callbacks.onSetStringConfigOption,

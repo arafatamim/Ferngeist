@@ -80,4 +80,29 @@ class OfflineQueueTest {
         assertEquals(listOf("sent", "b"), queue.snapshot().map { it.clientId })
         assertEquals(true, queue.snapshot().first().dispatched)
     }
+
+    @Test
+    fun `an appended prompt joins the waiting tail with a newline under the tail's id`() {
+        val queue = OfflineQueue()
+        queue.enqueue(PendingPrompt(clientId = "a", text = "first"))
+
+        val joined = queue.append(PendingPrompt(clientId = "b", text = "second"))
+        queue.append(PendingPrompt(clientId = "c", text = "third"))
+
+        assertEquals("a", joined.clientId)
+        assertEquals(listOf("a"), queue.snapshot().map { it.clientId })
+        assertEquals("first\nsecond\nthird", queue.snapshot().single().text)
+    }
+
+    @Test
+    fun `an appended prompt behind a dispatched one is queued on its own`() {
+        val queue = OfflineQueue()
+        queue.enqueue(PendingPrompt(clientId = "sent", text = "sent", dispatched = true))
+
+        val queued = queue.append(PendingPrompt(clientId = "b", text = "second"))
+
+        assertEquals("b", queued.clientId)
+        assertEquals(listOf("sent", "b"), queue.snapshot().map { it.clientId })
+        assertEquals("sent", queue.snapshot().first().text)
+    }
 }
