@@ -53,6 +53,22 @@ class GatewayHttpClientTest {
         assertEquals(2, upgradeRequests.get())
     }
 
+    @Test
+    fun `a redirected turn stream upgrade is followed to the final answer`() {
+        serveWith { requestLine ->
+            if ("/moved" in requestLine) {
+                "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"
+            } else {
+                "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:${server.localPort}/moved\r\nContent-Length: 0\r\n\r\n"
+            }
+        }
+
+        val error = assertThrows(GatewayRequestException::class.java) { collectTurnStream() }
+
+        assertEquals(404, error.statusCode)
+        assertEquals(2, upgradeRequests.get())
+    }
+
     private fun collectTurnStream() =
         runBlocking {
             withTimeout(TIMEOUT_MS) {
@@ -63,7 +79,10 @@ class GatewayHttpClientTest {
         }
 
     /** Answers every request on every connection with [status], keeping connections alive. */
-    private fun refuseUpgradesWith(status: String) {
+    private fun refuseUpgradesWith(status: String) = serveWith { "HTTP/1.1 $status\r\nContent-Length: 0\r\n\r\n" }
+
+    /** Answers every request on every connection with [respond]'s reply, keeping connections alive. */
+    private fun serveWith(respond: (requestLine: String) -> String) {
         thread(isDaemon = true) {
             while (!server.isClosed) {
                 val socket = runCatching { server.accept() }.getOrNull() ?: break
@@ -73,9 +92,9 @@ class GatewayHttpClientTest {
                         val out = it.getOutputStream()
                         while (true) {
                             val headers = generateSequence { reader.readLine() }.takeWhile { line -> line.isNotEmpty() }
-                            if (headers.toList().isEmpty()) break
+                            val requestLine = headers.toList().firstOrNull() ?: break
                             upgradeRequests.incrementAndGet()
-                            out.write("HTTP/1.1 $status\r\nContent-Length: 0\r\n\r\n".toByteArray())
+                            out.write(respond(requestLine).toByteArray())
                             out.flush()
                         }
                     }

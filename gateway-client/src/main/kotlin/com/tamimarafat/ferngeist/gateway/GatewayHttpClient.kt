@@ -44,6 +44,10 @@ fun gatewayHttpClient(): HttpClient =
                 // OkHttp runs every WebSocket over HTTP/1.1 and pools connections per protocol
                 // list, so a client that also offered h2 would never lend one to an upgrade.
                 protocols(listOf(Protocol.HTTP_1_1))
+                // Ktor's engine turns redirects off, and its HttpRedirect plugin never sees a refused
+                // upgrade, so a relay's 302 (e.g. http to https) would surface as a refusal.
+                followRedirects(true)
+                followSslRedirects(true)
                 pingInterval(WEB_SOCKET_PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
                 addInterceptor(refusedUpgradeInterceptor)
             }
