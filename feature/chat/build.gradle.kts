@@ -109,6 +109,6 @@ dependencies {
     // Test doubles build the real hub / gateway repositories; production code reaches both
     // only through the core-model ports.
     testImplementation(projects.acpBridge)
-    testImplementation(libs.ktor.client.core)
     testImplementation(projects.gatewayClient)
+    testImplementation(libs.ktor.client.core)
 }
