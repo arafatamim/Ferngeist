@@ -18,6 +18,7 @@ import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
@@ -44,6 +45,9 @@ import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.PressSurface
 import com.tamimarafat.ferngeist.feature.serverlist.ui.cards.sharedCardBounds
+
+/** The device line sits a step below the title, whatever tone the card carries. */
+private const val SERVER_SUBTITLE_ALPHA = 0.75f
 
 /**
  * The pressable shell every agent card shares, over the tabs' common press surface: the
@@ -210,6 +214,8 @@ internal fun ServerSubtitle(
     server: LaunchableTarget,
     hasSavedAuthMethod: Boolean,
 ) {
+    // The card's paired content colour, softened: a fixed surface role drops out on a tinted card.
+    val subtitle = LocalContentColor.current.copy(alpha = SERVER_SUBTITLE_ALPHA)
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -219,7 +225,7 @@ internal fun ServerSubtitle(
                 imageVector = Icons.Default.Lock,
                 contentDescription = stringResource(R.string.serverlist_add_server_stored_auth),
                 modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = subtitle,
             )
         }
 
@@ -229,12 +235,12 @@ internal fun ServerSubtitle(
                     imageVector = Icons.Default.Devices,
                     contentDescription = stringResource(R.string.serverlist_card_from_gateway),
                     modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = subtitle,
                 )
                 Text(
                     text = server.gatewaySource.name,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = subtitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -249,7 +255,7 @@ internal fun ServerSubtitle(
                             server.server.host,
                         ),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = subtitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

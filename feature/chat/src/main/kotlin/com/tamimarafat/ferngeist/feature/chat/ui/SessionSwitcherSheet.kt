@@ -707,6 +707,7 @@ private fun SwitcherRowContent(
             // this sheet was opened from, and any turn still in flight, from idle ones.
             active = session.isCurrent || session.turnStatus.status.isActive,
             status = session.turnStatus.status,
+            tone = tone,
             fallback = Icons.Rounded.SmartToy,
             fallbackName = session.agentName,
             modifier = Modifier.semantics { contentDescription = session.agentName },

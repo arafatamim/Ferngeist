@@ -32,6 +32,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -57,6 +58,7 @@ import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKe
 import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.status.AgentMark
+import com.tamimarafat.ferngeist.core.common.ui.status.CardTone
 import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
@@ -127,6 +129,11 @@ internal fun ContinueSessionCard(
         }
 
     val shape = RoundedCornerShape(corner)
+    val containerColor =
+        MaterialTheme.colorScheme.turnStatusContainerColor(
+            status.status,
+            MaterialTheme.colorScheme.primaryContainer,
+        )
     Card(
         modifier =
             modifier
@@ -146,11 +153,7 @@ internal fun ContinueSessionCard(
         shape = shape,
         colors =
             CardDefaults.cardColors(
-                containerColor =
-                    MaterialTheme.colorScheme.turnStatusContainerColor(
-                        status.status,
-                        MaterialTheme.colorScheme.primaryContainer,
-                    ),
+                containerColor = containerColor,
                 contentColor =
                     MaterialTheme.colorScheme.turnStatusContentColor(
                         status.status,
@@ -161,6 +164,7 @@ internal fun ContinueSessionCard(
         ContinueSessionCardContent(
             session = session,
             status = status,
+            containerColor = containerColor,
             rotation = rotation,
             pop = pop.value,
             sharedTransitionScope = sharedTransitionScope,
@@ -174,11 +178,14 @@ internal fun ContinueSessionCard(
 private fun ContinueSessionCardContent(
     session: RecentSession,
     status: TurnActivity,
+    containerColor: Color,
     rotation: State<Float>,
     pop: Float,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
+    // The card's paired ink, softened: a fixed surface role disappears on a tinted card.
+    val supporting = LocalContentColor.current.copy(alpha = HERO_SUPPORTING_ALPHA)
     Row(
         modifier =
             Modifier
@@ -189,7 +196,7 @@ private fun ContinueSessionCardContent(
     ) {
         RotatingCloverBadge(
             session = session,
-            status = status.status,
+            containerColor = containerColor,
             rotation = rotation,
             pop = pop,
             contentDescription = stringResource(R.string.serverlist_continue_resume_desc),
@@ -207,7 +214,7 @@ private fun ContinueSessionCardContent(
                 tint =
                     MaterialTheme.colorScheme.turnStatusContentColor(
                         status.status,
-                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                        supporting,
                     ),
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
@@ -222,13 +229,13 @@ private fun ContinueSessionCardContent(
                         imageVector = Icons.Default.Devices,
                         contentDescription = stringResource(R.string.serverlist_card_from_gateway),
                         modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                        tint = supporting,
                     )
                 }
                 Text(
                     text = targetDeviceLabel(session.target),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                    color = supporting,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -238,11 +245,11 @@ private fun ContinueSessionCardContent(
                 ChatCardStamp(
                     updatedAt = null,
                     status = status,
-                    workingColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    workingColor = LocalContentColor.current,
                     color =
                         MaterialTheme.colorScheme.turnStatusContentColor(
                             status.status,
-                            MaterialTheme.colorScheme.onPrimaryContainer,
+                            LocalContentColor.current,
                         ),
                 )
             }
@@ -251,6 +258,9 @@ private fun ContinueSessionCardContent(
 }
 
 private const val BADGE_ENTRY_SCALE = 0.6f
+
+/** The hero's supporting lines sit a step below the title, whatever tone the card carries. */
+private const val HERO_SUPPORTING_ALPHA = 0.75f
 
 /** Degrees the clover turns while it settles from [BADGE_ENTRY_SCALE]. */
 private const val BADGE_ENTRY_TURN = -90f
@@ -344,13 +354,15 @@ private fun FolderNamePrefix(
 @Composable
 private fun RotatingCloverBadge(
     session: RecentSession,
-    status: TurnStatus,
+    containerColor: Color,
     rotation: State<Float>,
     pop: Float,
     contentDescription: String,
 ) {
     Box(contentAlignment = Alignment.Center) {
-        // Rotating clover behind the (upright) icon.
+        // Rotating clover behind the (upright) icon. The card's own ink fills it and the card's
+        // container punches the logo out, so the badge keeps the title's contrast on every tone;
+        // an accent fill could match the container it sits on.
         Box(
             modifier =
                 Modifier
@@ -360,26 +372,15 @@ private fun RotatingCloverBadge(
                         scaleX = pop
                         scaleY = pop
                     }.clip(MaterialShapes.Clover4Leaf.toShape())
-                    .background(
-                        if (status == TurnStatus.NEEDS_ATTENTION) {
-                            MaterialTheme.colorScheme.tertiary
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                    ),
+                    .background(LocalContentColor.current),
         )
-        // The agent's logo riding the clover: the clover is the hero's animated
-        // accent, so the mark sits in its shape rather than being framed again.
+        // The agent's logo riding the clover: the clover is the hero's animated stamp, so the
+        // mark sits in its shape rather than being framed again.
         AgentLogo(
             iconUrl = session.target.iconUrl,
             fallback = Icons.Rounded.History,
             size = 22.dp,
-            tint =
-                if (status == TurnStatus.NEEDS_ATTENTION) {
-                    MaterialTheme.colorScheme.onTertiary
-                } else {
-                    MaterialTheme.colorScheme.onPrimary
-                },
+            tint = containerColor,
             contentDescription = contentDescription,
             modifier =
                 Modifier.graphicsLayer {
@@ -435,6 +436,8 @@ private fun RecentSessionCardRow(
             size = 28.dp,
             active = status.status.isActive,
             status = status.status,
+            // This row's card only leaves the neutral surface for attention; mirror that tint.
+            tone = if (status.status == TurnStatus.NEEDS_ATTENTION) CardTone.ATTENTION else null,
             fallback = Icons.Default.History,
         )
         Spacer(modifier = Modifier.width(14.dp))

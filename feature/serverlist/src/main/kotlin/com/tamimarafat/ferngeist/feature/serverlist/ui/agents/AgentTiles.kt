@@ -116,7 +116,15 @@ internal fun AgentHeroTile(
                             maxLines = 2,
                         )
                     }
-                    AgentBadge(target, connection.isConnecting, connection.isConnected, status, size = 44, hero = true)
+                    AgentBadge(
+                        target = target,
+                        connecting = connection.isConnecting,
+                        connected = connection.isConnected,
+                        status = status,
+                        tone = tone,
+                        size = 44,
+                        hero = true,
+                    )
                 }
             },
             modifier = Modifier.fillMaxWidth().heightIn(min = 136.dp).padding(20.dp),
@@ -162,7 +170,7 @@ internal fun AgentTile(
                 Box(Modifier.weight(1f).padding(end = 12.dp)) {
                     StatusWaveLine(rememberStatusLineState(status), color = waveLineColor)
                 }
-                AgentBadge(target, connection.isConnecting, connection.isConnected, status, size = 36)
+                AgentBadge(target, connection.isConnecting, connection.isConnected, status, tone, size = 36)
             }
             AgentName(
                 target = target,
@@ -207,7 +215,7 @@ internal fun DirectAgentRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            AgentBadge(target, connection.isConnecting, connection.isConnected, status, size = 40)
+            AgentBadge(target, connection.isConnecting, connection.isConnected, status, tone, size = 40)
             Column(Modifier.weight(1f)) {
                 AgentName(
                     target = target,
@@ -270,6 +278,7 @@ private fun AgentBadge(
     connecting: Boolean,
     connected: Boolean,
     status: TurnStatus,
+    tone: CardTone,
     size: Int,
     hero: Boolean = false,
 ) {
@@ -289,7 +298,7 @@ private fun AgentBadge(
                 )
             }
         } else {
-            AgentMark(target, size = size.dp, active = connected, status = status)
+            AgentMark(target, size = size.dp, active = connected, status = status, tone = tone)
         }
     }
 }

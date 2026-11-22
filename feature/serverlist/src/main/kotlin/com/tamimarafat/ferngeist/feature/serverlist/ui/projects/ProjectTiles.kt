@@ -33,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.ui.res.pluralStringResource
@@ -50,6 +49,7 @@ import com.tamimarafat.ferngeist.core.common.ui.chat.StatusWaveLine
 import com.tamimarafat.ferngeist.core.common.ui.chat.rememberStatusLineState
 import com.tamimarafat.ferngeist.core.common.ui.status.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.status.CardPresentation
+import com.tamimarafat.ferngeist.core.common.ui.status.CardTone
 import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.contentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
@@ -139,7 +139,7 @@ internal fun ProjectHeroTile(
                         }
                         ProjectAgentMarks(
                             agents = connectedAgents,
-                            cardColor = presentation.tone.containerColor,
+                            tone = presentation.tone,
                             lookaheadScope = this@LookaheadScope,
                         )
                     }
@@ -311,8 +311,9 @@ private fun ProjectName(
 }
 
 /**
- * The project's agents as overlapped primary squares, their logos in the on-colour: identity
- * carried at the same strength the hero's tone carries its status.
+ * The project's agents as overlapped ink squares, their logos punched out in the card's
+ * container: the marks take the card's own ink, so a needs-attention hero keeps the title's
+ * contrast instead of carrying a second accent that can match the card.
  *
  * Placement is a [Layout] rather than a [Row] of offset marks: an offset moves pixels without
  * claiming their space, so a `Row` reports the sum of the full marks while drawing an overlapped
@@ -331,9 +332,10 @@ private fun ProjectName(
 @Composable
 private fun ProjectAgentMarks(
     agents: List<ConnectedAgent>,
-    cardColor: Color,
+    tone: CardTone,
     lookaheadScope: LookaheadScope,
 ) {
+    val cardColor = tone.containerColor
     val spring = MaterialTheme.motionScheme.defaultSpatialSpec<Rect>()
     Layout(
         content = {
@@ -344,6 +346,7 @@ private fun ProjectAgentMarks(
                         size = markSize,
                         active = true,
                         status = agent.status,
+                        tone = tone,
                         border = BorderStroke(markRingWidth, cardColor),
                         reserveOverhang = true,
                         modifier =

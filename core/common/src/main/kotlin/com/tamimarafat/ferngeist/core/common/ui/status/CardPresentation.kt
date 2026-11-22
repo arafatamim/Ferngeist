@@ -140,16 +140,46 @@ val CardTone.contentColor: Color
             CardTone.DEFAULT -> MaterialTheme.colorScheme.onSurface
         }
 
+/**
+ * The colour an [AgentMark] fills with on a card of this tone: the tone's own on-colour, so a
+ * needs-attention card's badge carries the same ink as its title instead of a second accent that
+ * can match the container in a dynamic scheme. The default tone keeps primary, which is also the
+ * identity accent on surfaces that are not tone cards.
+ */
+val CardTone.markFillColor: Color
+    @Composable
+    get() =
+        when (this) {
+            CardTone.PRIMARY -> MaterialTheme.colorScheme.onPrimaryContainer
+            CardTone.ATTENTION -> MaterialTheme.colorScheme.onTertiaryContainer
+            CardTone.CONNECTED -> MaterialTheme.colorScheme.onSecondaryContainer
+            CardTone.FAILED -> MaterialTheme.colorScheme.onErrorContainer
+            CardTone.DEFAULT -> MaterialTheme.colorScheme.primary
+        }
+
+/** The glyph colour paired with [markFillColor]: the tone's container, punched out of the ink. */
+val CardTone.markContentColor: Color
+    @Composable
+    get() =
+        when (this) {
+            CardTone.PRIMARY -> MaterialTheme.colorScheme.primaryContainer
+            CardTone.ATTENTION -> MaterialTheme.colorScheme.tertiaryContainer
+            CardTone.CONNECTED -> MaterialTheme.colorScheme.secondaryContainer
+            CardTone.FAILED -> MaterialTheme.colorScheme.errorContainer
+            CardTone.DEFAULT -> MaterialTheme.colorScheme.onPrimary
+        }
+
 /** A step off the card's own tone: dark enough to see, light enough to stay in the background. */
 private const val INACTIVE_VEIL_ALPHA = 0.12f
 
 /**
  * An agent's identity mark, in one of two states.
  *
- * The shape says three things at once. A connected or active agent is a filled primary square
- * with its logo in the on-colour; an agent that is neither is a circle in the card's own
- * content colour; and a turn that is doing something borrows its own shape — a turning cookie
- * while it works, its four-sided cousin while it waits on the user or has failed.
+ * The shape says three things at once. A connected or active agent is a filled square in the
+ * card's own ink, its logo punched out in the card's container colour; an agent that is neither is
+ * a circle in the card's own content colour; and a turn that is doing something borrows its own
+ * shape — a turning cookie while it works, its four-sided cousin while it waits on the user or has
+ * failed.
  *
  * The dimmed fill is a veil of `LocalContentColor` rather than a fixed surface role, because
  * the rows that carry these marks sit on container colours: the light palette's
@@ -164,6 +194,9 @@ private const val INACTIVE_VEIL_ALPHA = 0.12f
  * @param active the agent is connected, or its work is in flight.
  * @param status the agent's turn, which decides the shape while it is working, waiting or
  *   failed. [TurnStatus.UNKNOWN] leaves the connection's own shape in place.
+ * @param tone the tone of the card the mark sits on: its ink fills an active mark, with the
+ *   container colour punched out of the logo. Null on surfaces that are not tone cards, where the
+ *   identity accent (primary) applies.
  * @param size the mark's edge; the logo fills half of it unless [glyphSize] says otherwise. The
  *   pinched cookie draws past it, around a logo of the same size, so the growth is air.
  * @param glyphSize the logo's edge, for slots too small for the default half of [size] to read.
@@ -182,6 +215,7 @@ fun AgentMark(
     size: Dp,
     active: Boolean,
     status: TurnStatus = TurnStatus.UNKNOWN,
+    tone: CardTone? = null,
     modifier: Modifier = Modifier,
     fallback: ImageVector = Icons.Default.SmartToy,
     glyphSize: Dp = size / 2,
@@ -192,7 +226,9 @@ fun AgentMark(
 ) {
     val colors = MaterialTheme.colorScheme
     val content = LocalContentColor.current
-    val fill = if (active) colors.primary else content.copy(alpha = INACTIVE_VEIL_ALPHA)
+    val inkFill = if (tone == null) colors.primary else tone.markFillColor
+    val inkGlyph = if (tone == null) colors.onPrimary else tone.markContentColor
+    val fill = if (active) inkFill else content.copy(alpha = INACTIVE_VEIL_ALPHA)
     val outline = rememberMorphedOutline(markOutline(active, status))
     val drawn = size * outline.growth
     // Only the busy shape turns; the logo stays upright inside it so it stays readable.
@@ -220,7 +256,7 @@ fun AgentMark(
             iconUrl = iconUrl,
             fallback = fallback,
             size = glyphSize,
-            tint = if (active) colors.onPrimary else content,
+            tint = if (active) inkGlyph else content,
             contentDescription = contentDescription,
             fallbackName = fallbackName,
         )
@@ -234,6 +270,7 @@ fun AgentMark(
     size: Dp,
     active: Boolean,
     status: TurnStatus = TurnStatus.UNKNOWN,
+    tone: CardTone? = null,
     modifier: Modifier = Modifier,
     fallback: ImageVector = Icons.Default.SmartToy,
     glyphSize: Dp = size / 2,
@@ -245,6 +282,7 @@ fun AgentMark(
     size = size,
     active = active,
     status = status,
+    tone = tone,
     modifier = modifier,
     fallback = fallback,
     glyphSize = glyphSize,
