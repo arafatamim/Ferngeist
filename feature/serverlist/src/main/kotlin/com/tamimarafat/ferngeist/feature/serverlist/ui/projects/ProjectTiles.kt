@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
@@ -56,6 +58,7 @@ import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
 import com.tamimarafat.ferngeist.core.common.ui.time.compactRelativeTime
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.typography.featuredContentEditorialStyle
+import com.tamimarafat.ferngeist.core.common.ui.typography.restingContentEditorialStyle
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -188,10 +191,11 @@ internal fun ProjectTile(
             }
             ProjectName(
                 project = project,
-                style = MaterialTheme.typography.titleMedium,
+                style = restingContentEditorialStyle,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
                 maxLines = 2,
+                autoSize = restingTitleAutoSize,
             )
             Text(
                 text = projectSupporting(project, showGateway),
@@ -203,6 +207,10 @@ internal fun ProjectTile(
         }
     }
 }
+
+// A name grows to the cap and wraps before it shrinks: two lines is the floor, not ellipsis.
+private val restingTitleAutoSize =
+    TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 24.sp, stepSize = 0.5.sp)
 
 /** The overflow behind the collapsed view: the names it hides, then the reveal it toggles. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -295,12 +303,14 @@ private fun ProjectName(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     maxLines: Int = 1,
+    autoSize: TextAutoSize? = null,
 ) {
     Text(
         text = projectName(project.repo),
         style = style,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
+        autoSize = autoSize,
         modifier =
             Modifier.sharedCardBounds(
                 ProjectTitleSharedBoundsKey(project.gateway.id, project.repo),

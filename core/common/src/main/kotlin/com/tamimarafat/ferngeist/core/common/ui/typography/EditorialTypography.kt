@@ -4,7 +4,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.style.TextGeometricTransform
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.tamimarafat.ferngeist.core.common.R
 import kotlin.math.roundToInt
@@ -26,6 +28,22 @@ val featuredContentEditorialStyle =
         weight = FontWeight.SemiBold,
         width = 88f,
     )
+
+/** A resting card's name: narrow, light, and a touch off the upright grid, so a small tile still leads. */
+val restingContentEditorialStyle =
+    editorialStyle(
+        size = 18.sp,
+        weight = FontWeight(400),
+        width = 100f,
+        // Em leading, so the tighter ratio survives the title's auto-size shrink.
+        lineHeight = 1.2.em,
+    ).copy(
+        letterSpacing = (-0.01).em,
+        textGeometricTransform = TextGeometricTransform(skewX = RESTING_SLANT_SKEW),
+    )
+
+// Anybody's file carries wdth and wght only, so the one-degree slant is a text shear: tan(1°).
+private const val RESTING_SLANT_SKEW = -0.0175f
 
 private const val RESUME_WIDEST = 88
 private const val RESUME_NARROWEST = 56
