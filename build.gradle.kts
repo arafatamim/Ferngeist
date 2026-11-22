@@ -114,22 +114,6 @@ fun Project.configureKtlintAndDetekt() {
 
 }
 
-// Hilt's annotation processor bundles org.jetbrains.kotlin:kotlin-metadata-jvm, which only
-// supports reading Kotlin metadata up to some version. Dependencies compiled with a newer
-// Kotlin (e.g. kotlinx-collections-immutable) ship class files with newer metadata, causing
-// hiltJavaCompileDebug to fail with:
-//   "Provided Metadata instance has version X, while maximum supported version is Y"
-// Force the latest kotlin-metadata-jvm onto every project's annotation processor
-// classpath so the shaded copy inside dagger-spi can read newer metadata.
-allprojects {
-    configurations.matching { it.name.contains("kapt", ignoreCase = true) || it.name.contains("Ksp", ignoreCase = true) || it.name.contains("AnnotationProcessor", ignoreCase = true) }
-        .configureEach {
-            resolutionStrategy {
-                force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.21")
-            }
-        }
-}
-
 val sqliteTmpDir: File = layout.projectDirectory.dir(".gradle/sqlite-tmp").asFile
 if (!sqliteTmpDir.exists()) {
     sqliteTmpDir.mkdirs()

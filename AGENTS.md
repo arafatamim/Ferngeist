@@ -17,14 +17,10 @@ Kotlin + Jetpack Compose Android client for the Agent Client Protocol (ACP).
 ### Our way of thinking
 
 - **The index comes first.** `codebase-memory` is the first tool, not an optional one: `search_graph` the concept before any grep/glob/read sweep — see [Codebase intelligence](#codebase-intelligence). A grep-first sweep is how you miss the helper that already exists.
+- **The `android` CLI is the Android surface.** Build, deploy, inspect, and profile through `android` ([Android CLI](#android-cli)); `./gradlew` stays the gate.
 - **Do the task in the prompt.** It is the whole scope. No tangents, no unsolicited refactors, no "while I'm here" cleanups, no exploring code the task doesn't touch. Investigate only what the task needs to be done correctly; for a new feature that includes the broad picture ([Challenge the plan](#challenge-the-plan)).
 - **A test guards behaviour or it does not exist.** No test ships that cannot fail for the behaviour it names. Read [Writing Tests](#writing-tests) before adding, keeping, or reviewing one.
-- Think in atomic steps, then execute them.
-- Read the existing code for full context before editing.
-- Surface assumptions. Name competing interpretations instead of silently picking one.
-- Simplicity first: the minimum code that solves the task, no speculative features.
-- Surgical changes: touch only what the task requires, match the surrounding style, remove only the orphans your change created.
-- Turn the task into verifiable criteria, then execute.
+- Think in atomic steps: read the code first, surface assumptions (name competing interpretations instead of silently picking one), turn the task into verifiable criteria, then execute.
 
 ### Challenge the plan
 
@@ -55,13 +51,6 @@ A bug fix lands once in the shared code: find every caller before editing, never
 
 Adapted from [ponytail](https://github.com/DietrichGebert/ponytail).
 
-### Our core values
-
-- **Concision**: small files, small functions.
-- **Organization**: layering, modularization, consistency.
-- **Clarity**: a human should understand it in one pass.
-- **Standards**: type safety, consistent naming, exactly one way to lint and build.
-
 ## Coding Standards
 
 ### Layering & modularization
@@ -69,15 +58,15 @@ Adapted from [ponytail](https://github.com/DietrichGebert/ponytail).
 - Everything has one place and lives in it. Push low-level helpers into `core/model`, `core/common`, `acp-bridge`, or the module's base package.
 - Compose the blocks that already exist before writing a new one. Check `core/common` and `core/model` first.
 - Layer 0 depends on nothing; layer N may depend only on layers ≤ N-1. Reduce a file's layer, never raise it.
-- Directory hygiene: ≤ 7 files. Past that, split by domain. `feature/chat` predates this rule with 84 files — new code goes into subpackages by domain, not into the flat pile.
+- Directory hygiene: ≤ 7 files. Past that, split by domain. `feature/chat`'s root is the existing exception — new code goes into subpackages by domain, not the flat pile.
 - Report boundary violations instead of quietly working around them.
 
 ### Small functions
 
-- Function body ≤ 60 lines (matches detekt `LongMethod`); aim for 20-50.
+- Function body ≤ 60 lines (the detekt/Konsist cap); aim for 20-50.
 - Inline one-expression functions called exactly once — a name that carries no meaning is indirection.
 - Split on logical units of abstraction, not on line count.
-- Exempt: `@Composable` functions, long by structure (parameter list + UI tree) and already excluded from `LongMethod` in `detekt.yml`.
+- Exempt: `@Composable` functions — long by structure (parameter list + UI tree), not by logic.
 
 ### Clean code
 
@@ -108,13 +97,14 @@ Adapted from [ponytail](https://github.com/DietrichGebert/ponytail).
 - Gate before reporting: `./gradlew detekt ktlintCheck` plus the touched module's `testDebugUnitTest`.
 - Don't rerun the gate after every small edit while iterating with the maintainer; run it once before commit.
 - **Fix findings; never silence them.** Applies to detekt, ktlint, and Android lint alike: no `@Suppress`, `tools:ignore`, or `//noinspection`; no `detekt-baseline.xml`; no raising a threshold, setting `active: false`, or adding an exclusion glob; no deleting the offending call to dodge the rule. If a finding is genuinely wrong, say why in your report and let the maintainer decide. Silencing a finding to get a green build is a failed task, not a passing one.
-- Device verification is off-limits unless specifically asked — no emulator, APK installs, UI driving, screenshots, or pixel scans.
+- Device verification is off-limits unless specifically asked — no booting emulators, APK installs, UI driving, or device screenshots/pixel scans. When it is asked for, use the [Android CLI](#android-cli) workflow, not raw `adb`.
+- **Previews are encouraged; emulator driving is not.** For a UI change, render the changed composables with `android preview` into the harness scratch dir (or `/tmp`), inspect the PNG, and show it in the final reply when the harness can display images. Do not add a preview for every trivial change.
 - A green unit test only counts if the test guards behaviour. Every test you add, keep, or review passes the [Writing Tests](#writing-tests) dependency check first.
-- `detekt` runs in `--analysis-mode full`; findings in `src/test` can be artefacts of the main-only classpath, so don't treat a thin report as a clean bill of health.
+- A thin detekt report is inconclusive, not a clean bill of health: `src/test` analysis can be limited by classpath.
 
 ### Shell & tooling
 
-- Exit code 0 is not proof: classify output. `UP-TO-DATE` means the task never ran; `compileDebugUnitTestKotlin FAILED` is a compile error, not a test failure.
+- Exit code 0 is not proof: classify output. `UP-TO-DATE` means the task never ran; a `compile…UnitTestKotlin FAILED` is a compile error, not a test failure.
 - Avoid `rg -v` without explicit input (recurses the tree and inverts = output explosion). Use `grep -v`.
 
 ### Git
@@ -140,7 +130,7 @@ Do not create or edit without being asked: `.idea/`, `.vscode/`, `.claude/`, `.c
 
 > **Every test must guard behaviour. This is a guardrail, not a preference.** A test earns its place only if it changes when the behaviour it protects changes, and fails when that behaviour regresses. It gets to fail for exactly one reason: **that behaviour regressed.**
 >
-> A test that guards nothing is not cheap. It is a lie that turns red for the wrong reason and gets muted for the wrong reason, and it costs the next reader a debugging session. It does not get written, it does not get kept, and it does not get reviewed in.
+> A test that guards nothing is worse than none: it turns red for the wrong reason and gets muted for the wrong reason. It does not get written, kept, or reviewed in.
 >
 > **Three questions, every test, every time:**
 >
@@ -152,18 +142,15 @@ Do not create or edit without being asked: `.idea/`, `.vscode/`, `.claude/`, `.c
 
 ### This repo's tests
 
-JUnit4. 110 `*Test.kt` files. `mockk` + `kotlinx-coroutines-test` + Turbine for flows; Robolectric where the JVM needs Room (see `data/database` tests). No Compose UI tests found — confirm before assuming.
+Tests are JUnit; `mockk` + `kotlinx-coroutines-test` + Turbine for flows, Robolectric where the JVM needs Room (see `data/database` tests).
 
-Test names describe behaviour, e.g. `appendChunk_afterInterleavedUpdate_keepsSingleMessage`. Add tests next to changed logic — reducers, ACP parsing, segment runs, stream/chunk handling.
+Test names describe behaviour (`action_condition_outcome`), not implementation. Add tests next to changed logic — reducers, ACP parsing, segment runs, stream/chunk handling.
 
 ### Dependency check: what does this test depend on?
 
 A test stays only if it depends on the **intended behaviour** — nothing else. Read the test, name its dependency out loud. Here are the four things a test can wrongly depend on; any one of them means prune.
 
-**Depends on the past — prune.** The test asserts that removed code stays gone. Bringing it back would be a decision, not a regression, so the test cannot flag one.
-
-- A feature was removed, and tests assert it is gone.
-- A module was moved, and a test asserts it is absent from its old path.
+**Depends on the past — prune.** The test asserts that removed code stays gone, or that a moved module is absent from its old path. Bringing either back would be a decision, not a regression, so the test cannot flag one.
 
 **Depends on nothing — prune.** No change to the code can make it fail, so it has no reason of its own to change.
 
@@ -171,25 +158,13 @@ A test stays only if it depends on the **intended behaviour** — nothing else. 
 - It mocks the unit under test, then asserts what the mock returns.
 - It asserts what the type system already guarantees: non-null returns, sealed `when` exhaustiveness, enum membership, `data class` `equals`/`copy`, constructor field assignment, generics, a getter forwarding a field, an assertion that only compiles against the implementation. A widened or narrowed parameter belongs here too — if the old type could not express the new value, the compiler already fails every call site.
 
-**Depends on the implementation — prune.** It changes whenever the code does, even when behaviour did not.
-
-- The expected value is derived from the same logic as the code, so a wrong result still passes.
-- It asserts private state, internal call order, or which helper was invoked.
+**Depends on the implementation — prune.** The expected value is derived from the same logic as the code, or the test asserts private state, internal call order, or which helper was invoked; either way it changes whenever the code does, even when behaviour did not.
 
 **Depends on a copy — prune.** If another test already guards the same behaviour, keep one owner and cut the duplicate. One owner per contract; a second layer needs its own transport or lifecycle risk to justify itself.
 
-### Authoring gate
+A regression test fails before the fix and passes after; report when no baseline proof exists. One owner regression per bug — never replay it at every crossed layer.
 
-Answer all four before adding a test:
-
-1. Which observable behaviour, invariant, or independent contract does it protect?
-2. Which credible regression makes it fail? A compile error is not one — a type change, a widened parameter, or tightened nullability is owned by the compiler.
-3. Why does existing proof miss it? One owner per contract — a second layer needs a distinct transport or lifecycle risk.
-4. Does it need an export, flag, wrapper, or injection hook with no production caller? Then the proof belongs at the real boundary.
-
-A regression test fails before the fix and passes after. Report when no baseline proof is available. One owner regression per bug — never replay it at every crossed layer. Answering these four *is* the dependency check above, spelled out for new code.
-
-Also rejected on sight: self-comparisons, copied inventories, source greps, implementation and call-shape assertions (`verify { collaborator.foo() }` proving an internal call happened), test-only production seams, expected values produced by the subject under test, mocks supplying the behaviour being asserted, negative controls that fail at the wrong guard, and names that don't match the exercised behaviour.
+Also rejected on sight: self-comparisons, copied inventories, source greps, implementation and call-shape assertions (`verify { collaborator.foo() }` proving an internal call happened), test-only production seams (proof belongs at the real boundary), expected values produced by the subject under test, mocks supplying the behaviour being asserted, negative controls that fail at the wrong guard, and names that don't match the exercised behaviour.
 
 ### What to keep
 
@@ -209,94 +184,93 @@ After non-trivial work, exercise the changed path and report the observed result
 
 Ferngeist is a multi-module Android client for the **Agent Client Protocol (ACP)**. It launches and connects to coding agents, renders their streaming turns as chat, and exposes session/agent management, push notifications, and an optional remote gateway for pairing.
 
-Kotlin + Jetpack Compose + Hilt + KSP. `minSdk 30`, `targetSdk 37`, JVM target 17.
+Kotlin + Jetpack Compose + Hilt + KSP; SDK levels and JVM target are set per module in its `build.gradle.kts`.
 
 ## Architecture & Data Flow
 
-Eleven Gradle modules (see `settings.gradle.kts` — the authoritative list):
+Gradle modules (see `settings.gradle.kts` — the authoritative list):
 
-- `app` — `FerngeistApplication` (`@HiltAndroidApp`), `MainActivity` (`@AndroidEntryPoint`), theme, navigation host, workspace panes, FCM + foreground service. Flavour-specific sources live in `src/google/kotlin` and `src/foss/kotlin` (e.g. `FcmTokenBootstrap.kt`, `AddGatewayQrScanner.kt`).
+- `app` — `FerngeistApplication` (`@HiltAndroidApp`), `MainActivity` (`@AndroidEntryPoint`), theme, navigation host, workspace panes, UnifiedPush (`FerngeistPushService`, `PushRegistrar`) + foreground service. Flavour sources live in `feature/serverlist/src/{google,foss}/kotlin` (`AddGatewayQrScanner`).
 - `acp-bridge` — the ACP seam. `connection/` owns transport, auth headers, capability negotiation, and the connect orchestrator; `session/` owns `SessionBridge`, `SessionMessageReducer`, `SessionRuntime`; `hub/` multiplexes one connection across concurrent chats; `facade/` is what the chat feature sees; `launcher/` is the server list's launch-and-auth seam.
 - `gateway-client` — HTTP/WebSocket client for the optional remote gateway (`GatewayRepositoryImpl`), launch/lease, proof auth, credential refresh.
 - `core/model` — pure data types (`ChatMessage`, `AssistantSegment`, `ServerConfig`, `GatewaySource`) plus repository *interfaces*. No Android UI deps.
 - `core/common` — `MviViewModel<State, Intent, Effect>` (the shared ViewModel base: `MutableStateFlow` for state, `Channel(BUFFERED)` for effects) and shared UI atoms (`EdgeFade`, `ConnectionStatusPill`, `WindowSizeSeam`).
+- `core/git` — chat git status/log/diff loaders, diff stats, and the branch graph; depends only on `core/model` + `core/common`.
 - `data/database` — Room DB, DAOs, entities, migrations, `CredentialEncryptor`.
-- `feature/serverlist`, `feature/sessionlist`, `feature/chat` — UI + presentation logic. ViewModels extend `MviViewModel`.
+- `feature/serverlist`, `feature/sessionlist`, `feature/chat` — UI + presentation logic; `feature/chat` holds `ChatScreen`, `MessageBubble`, the composer, and scroll policy. ViewModels extend `MviViewModel`.
 - `e2e` — `com.android.test` harness against the app; not shipped.
 - `konsist` — JVM-only Konsist tests: module layering plus Kotlin conventions (naming, wildcard imports, 60-line functions, data-class shape). No production code; run `./gradlew :konsist:test`.
 
 **Event path:** ACP `session/update` → `AcpSessionUpdateMapper` → `SessionMessageReducer` (appends to segments) → `SessionBridge` emits `AppSessionEvent` on a `SharedFlow` → `ChatViewModel` reduces into UI state → Compose.
 
-## Key Directories
-
-| Path | Purpose |
-|---|---|
-| `acp-bridge/src/main/kotlin/.../connection/` | transport, auth, capability, connect orchestration |
-| `acp-bridge/src/main/kotlin/.../session/` | bridge, reducer, state engine, runtime |
-| `acp-bridge/src/main/kotlin/.../launcher/` | server list's launch, gateway handoff, auth |
-| `feature/chat/src/main/kotlin/.../ui/` | `ChatScreen`, `MessageBubble`, composer, scroll policy |
-| `feature/chat/src/test/kotlin/.../` | run/segment, scroll policy, view model tests |
-| `data/database/` | Room schema + `FerngeistMigrations.kt` |
-| `core/common/` | `MviViewModel`, shared UI, window-size seam |
-| `konsist/src/test/kotlin/` | architecture + Kotlin convention rules (Konsist) |
-
-`src/main/kotlin` per module; unit tests in `src/test/kotlin`.
+Production code lives in `src/main/kotlin`; tests in `src/test/kotlin` (`konsist` is test-only).
 
 ## Development Commands
 
-Run from the repo root.
+Run from the repo root. `android` (Google's CLI, on `PATH`; SDK from `android info`) is the default interface to the app — build, deploy, inspect, profile, docs. The verification gate and tests stay on `./gradlew`.
 
-**Linux / macOS:**
+### Android CLI
+
+| Goal | Command |
+|---|---|
+| Variant → APK map | `android describe` |
+| Build a Gradle task | `android build :app:assembleGoogleDebug` (also `:feature:chat:compileDebugKotlin`) |
+| Install APK, no launch | `android install app/build/outputs/apk/google/debug/app-google-debug.apk` |
+| Install + launch APK | `android run --apks=app/build/outputs/apk/google/debug/app-google-debug.apk` (add `--activity=`, `--device=`) |
+| UI tree (JSON) | `android layout` (`--flat`, `--full`, `-o file`) |
+| Screenshot (device) | `android screen capture -o /tmp/screen.png` |
+| Compose preview | `android preview list :feature:chat` → `android preview render :feature:chat --fqn=<from-list> -o <scratch>` |
+| Locate what layout misses | `android screen capture --annotate -o /tmp/screen.png`, then `android screen resolve --screenshot /tmp/screen.png --string "tap #3"` |
+| Tap / type / scroll | `android input tap "text=Send"`, `android input text "hello world" "clz=EditText"`, `android input scroll "clz=RecyclerView" --dir=up --until "text=Settings"` |
+| Emulators | `android emulator list`, `android emulator start <avd>`, `android emulator stop <avd>` |
+| Official docs | `android docs search "<topic>"` → `android docs fetch kb://…` |
+| Artifact size and optimization | `android analyze <apk-or-aab> --analysis=optimization` |
+| Trace / heap | `android profiler systemtrace start` / `stop`, `android profiler heapdump` |
+
+- Target elements by selector (`text=`, `clz=`, `clickable=`, `resource-id=`) with `android input`; reserve raw coordinates for the annotated-screenshot fallback — they rot first across screen sizes.
+- `layout` is the primary inspection; screenshot is secondary. Read the PNG before acting on it. Pass `--device=<serial>` whenever more than one device is attached (`adb devices` lists serials).
+- `android preview` renders without a device or emulator. It works on any module without product flavours; on flavoured modules (`:app`, `:feature:serverlist`) it resolves a plain `debug` variant and fails, as does `android run :app` — pass `run` an `--apks=` path.
+- `--fqn` is the exact string `android preview list` prints (usually `<File>Kt.<Preview>`), not the source-level annotation path. Renders land under `-o`; write them to harness scratch or `/tmp`, never the repo.
+- Install/launch/input/screen/layout are device work: the CLI is the default tool, not a default permission ([guardrail](#verification-gate)).
+
+### Gradle gate
+
+The CLI has no dedicated test/lint reporting; run the gate directly:
 
 ```bash
-./gradlew :app:assembleGoogleDebug                  # debug APK (or :app:assembleFossDebug)
-./gradlew :feature:chat:compileDebugKotlin            # fast compile check for chat changes
-./gradlew :feature:chat:testDebugUnitTest             # module unit tests
-./gradlew :acp-bridge:testDebugUnitTest
-./gradlew :app:testFossDebugUnitTest :app:testGoogleDebugUnitTest
-./gradlew detekt ktlintCheck
-./gradlew :konsist:test                              # architecture tests over every module
-./gradlew :app:lintFossDebug
+./gradlew :feature:chat:testDebugUnitTest  # touched module; compiles main + test
+./gradlew detekt ktlintCheck                # gate
+./gradlew :konsist:test :app:lintFossDebug  # architecture + Android lint
 ```
 
-- Wrapper permissions are tracked (`100755`), but a clone that loses the bit needs `chmod +x gradlew` — CI does this explicitly.
-- No `JAVA_HOME` needed when `java` is on `PATH`; Gradle 9 requires JDK 17+.
-- Android SDK comes from `local.properties` (`sdk.dir=`). If that file is absent, create it or export `ANDROID_HOME`.
-- Gradle daemon and configuration cache persist across runs; `--no-configuration-cache` when a build script change isn't picked up.
+- SDK from `local.properties` (`sdk.dir=`) or `ANDROID_HOME`; JDK on `PATH` (no `JAVA_HOME` needed).
+- `chmod +x gradlew` if the exec bit is lost; add `--no-configuration-cache` after a build-script edit.
 
 ## Code Conventions & Patterns
 
-- Idiomatic Kotlin, 4-space indent, 120-col (`.editorconfig`).
-- `allWarningsAsErrors = true` — deprecations are compile errors. `warningsAsErrors` is on for Android lint too, so a lint warning fails the build.
+- Formatting and line length follow `.editorconfig`.
+- Kotlin warnings and Android lint warnings fail the build; a deprecation is a compile error.
 - ViewModels: extend `MviViewModel`, `dispatch(intent)`, mutate via `updateState`, one-shot effects via `emitEffect`.
-- DI: Hilt, all modules in `SingletonComponent`. Module files are named `*Module.kt` and live next to the type they bind.
-
-### Room/KSP gotcha
-
-Hilt's processor bundles an older `kotlin-metadata-jvm` that cannot read newer Kotlin metadata, breaking `hiltJavaCompileDebug` with `Provided Metadata instance has version X, while maximum supported version is Y`. The root `build.gradle.kts` forces `kotlin-metadata-jvm` onto every kapt/KSP/annotation-processor configuration — update that version when the error reappears.
+- DI: Hilt, all modules in `SingletonComponent`; module files are named `*Module.kt`.
 
 ## Runtime & Tooling
 
-- Gradle 9.8.1, AGP 9.4.1, Kotlin 2.4.21, KSP 2.3.12, Hilt 2.60.1, Compose BOM 2026.09.00, Room 2.8.5, Ktor 3.6.0, ACP SDK 0.33.0.
-- `ksp.useKSP2=true`, `android.nonTransitiveRClass=true`, `org.gradle.configuration-cache=true`. `org.gradle.parallel` is off.
-- Versions are centralised in `gradle/libs.versions.toml` — change them there, never inline.
+- Versions live in `gradle/libs.versions.toml` — change them there, never inline.
+- Build flags live in `gradle.properties`.
 
 ## Communication
 
 - **Stop at the gate.** Edit → compile/lint/detekt/unit-test clean → report the change → ask "Ready to commit?". Device verification belongs to the maintainer ([guardrails](#verification-gate)).
-- **Lead with the answer.** Conclusion first, then evidence. No narrated steps, no recap of what you just did, no tables restating a one-line result.
-- **No walls of text.** A few lines. Bullets over paragraphs. If the explanation is longer than the change, cut it.
-- **Say what is unverified.** Never imply a fix is confirmed when the evidence is a unit test or a plan. If a claim rests on inference, mark it.
-- **Don't blur scope.** If work on one thing is done, don't let the report imply other things shipped too.
-- **Close with the cost.** End with one or two lines: what you skipped, what stayed unverified, and the risk that leaves.
-
+- **Lead with the answer.** Conclusion first, then evidence. No narrated steps, no recap, no walls of text; if the explanation is longer than the change, cut it.
+- **Say what is unverified.** Mark inference; never imply a unit test or a plan confirms more than it does.
+- **Don't blur scope.** Close with the cost: what you skipped, what stayed unverified, and the risk that leaves.
 
 ## Commit & PR Guidelines
 
 `type(scope): concise imperative summary` — e.g. `fix(chat): keep chunk appends in same assistant bubble`.
 Commits are **GPG-signed** (`git commit -S`).
 
-PRs state what changed and why, risk/rollback, and the exact commands run as test evidence. Screenshots for UI changes come from the maintainer, not from you.
+PRs state what changed and why, risk/rollback, and the exact commands run as test evidence. Device screenshots come from the maintainer; preview renders you produced are fine to include.
 
 Never commit: `local.properties`, `fastlane/play-store-service-account.json`, `ferngeist-release.jks`, `*.log`, `logs/`, `*.db`, `.superpowers/`, `.worktrees/`, scratch dirs.
 
