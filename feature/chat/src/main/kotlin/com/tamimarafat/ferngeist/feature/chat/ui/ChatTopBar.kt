@@ -10,10 +10,10 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,13 +40,18 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TwoRowsTopAppBar
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -56,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.isWindowShort
+import com.tamimarafat.ferngeist.core.common.ui.motion.rememberPressShape
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.common.ui.sessionTitleSharedBounds
 import com.tamimarafat.ferngeist.core.git.ui.GitIndicatorVisibility
@@ -67,9 +73,20 @@ import com.tamimarafat.ferngeist.core.git.R as GitR
 
 // region: ChatTopBar
 
+// The button row: its 40dp controls plus 8dp above and below, so the card beneath keeps an
+// 8dp gap from them.
+private val MastheadCollapsedHeight = 56.dp
+
+// How far the title slot over-insets the card on the left, and so how far the card is pulled
+// back to keep 8dp on both sides.
+private val MastheadCardShift = 8.dp
+
+// How far below the bar the fade keeps dissolving into the transcript.
+private val MastheadFadeOvershoot = 24.dp
+
 /**
- * The session masthead: a solid tonal block with rounded bottom corners while expanded, handing
- * over to a surface fade as the bar collapses, with the title stepping down alongside it.
+ * The session masthead: a floating card in the same tonal field as its control bubbles, with
+ * the title stepping down alongside the collapse.
  */
 @Composable
 internal fun ChatTopBar(
@@ -106,99 +123,29 @@ internal fun ChatTopBar(
     // Short windows stay on the collapsed single-row bar: the two-row expanded
     // header never pays for its height when vertical space is the constraint.
     if (isWindowShort()) {
-        Box(
-            modifier = Modifier.mastheadFade(1f),
-        ) {
-            TopAppBar(
-                modifier = Modifier.mastheadBlock(1f),
-                navigationIcon = {
-                    if (showBackButton) {
-                        TopBarBackButton(onNavigateBack)
-                    }
-                },
-                title = {
-                    ChatTopBarTitle(
-                        expanded = false,
-                        collapsedFraction = 1f,
-                        sessionId = sessionId,
-                        sessionTitle = sessionTitle,
-                        cwd = cwd,
-                        model = activeModel,
-                        onTitleClick = onTitleClick,
-                        titleStyle = MaterialTheme.typography.titleLarge,
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedContentScope = animatedContentScope,
-                        sharedBoundsEnabled = sharedBoundsEnabled,
-                    )
-                },
-                actions = {
-                    TopBarActions(
-                        gitAdditions = gitAdditions,
-                        gitDeletions = gitDeletions,
-                        gitBranch = gitBranch,
-                        gitChangedFiles = gitChangedFiles,
-                        gitRepo = gitRepo,
-                        gitAhead = gitAhead,
-                        gitBehind = gitBehind,
-                        worktree = worktree,
-                        onGitStatusClick = onGitStatusClick,
-                        onGitStatusLongPress = onGitStatusLongPress,
-                        connectionState = connectionState,
-                        totalTokens = totalTokens,
-                        contextWindowTokens = contextWindowTokens,
-                        costAmount = costAmount,
-                        costCurrency = costCurrency,
-                        onConnectionStatusClick = onConnectionStatusClick,
-                    )
-                },
-                scrollBehavior = scrollBehavior,
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = Color.Transparent,
-                    ),
-            )
-        }
-        return
-    }
-
-    // The title steps down with the bar, so the masthead never snaps between two type scales
-    // mid-scroll.
-    val titleStyle =
-        lerp(
-            MaterialTheme.typography.headlineSmallEmphasized,
-            MaterialTheme.typography.titleLarge,
-            collapsedFraction,
-        )
-    Box(
-        modifier = Modifier.mastheadFade(collapsedFraction),
-    ) {
-        TwoRowsTopAppBar(
-            modifier = Modifier.mastheadBlock(collapsedFraction),
+        TopAppBar(
+            modifier = Modifier.mastheadFade(),
+            expandedHeight = MastheadCollapsedHeight,
             navigationIcon = {
                 if (showBackButton) {
                     TopBarBackButton(onNavigateBack)
                 }
             },
-            title = { expanded ->
+            title = {
                 ChatTopBarTitle(
-                    expanded = expanded,
-                    collapsedFraction = collapsedFraction,
+                    expanded = false,
+                    collapsedFraction = 1f,
                     sessionId = sessionId,
                     sessionTitle = sessionTitle,
                     cwd = cwd,
                     model = activeModel,
                     onTitleClick = onTitleClick,
-                    titleStyle = titleStyle,
+                    titleStyle = MaterialTheme.typography.titleLarge,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     sharedBoundsEnabled = sharedBoundsEnabled,
                 )
             },
-            subtitle =
-                activeModel?.takeIf { it.isNotBlank() }?.let { model ->
-                    { expanded -> TopBarSubtitleContent(model = model, expanded = expanded) }
-                },
             actions = {
                 TopBarActions(
                     gitAdditions = gitAdditions,
@@ -219,10 +166,6 @@ internal fun ChatTopBar(
                     onConnectionStatusClick = onConnectionStatusClick,
                 )
             },
-            collapsedHeight = TopAppBarDefaults.LargeAppBarCollapsedHeight,
-            // Two lines of the masthead title under the 64dp action row, plus the model line
-            // and its breathing space when present. The medium flexible heights only hold one.
-            expandedHeight = if (activeModel.isNullOrBlank()) 132.dp else 152.dp,
             scrollBehavior = scrollBehavior,
             colors =
                 TopAppBarDefaults.topAppBarColors(
@@ -230,45 +173,97 @@ internal fun ChatTopBar(
                     scrolledContainerColor = Color.Transparent,
                 ),
         )
+        return
     }
-}
 
-/**
- * The masthead block: a solid tonal field whose bottom corners flatten as the bar collapses. It
- * fades out entirely with the collapse, handing the bar over to [mastheadFade].
- */
-@Composable
-private fun Modifier.mastheadBlock(collapsedFraction: Float): Modifier {
-    val fraction = collapsedFraction.coerceIn(0f, 1f)
-    val corner = (MASTHEAD_CORNER_DP * (1f - fraction)).dp
-    return this.background(
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 1f - fraction),
-        shape = RoundedCornerShape(bottomStart = corner, bottomEnd = corner),
+    // The title steps down with the bar, so the masthead never snaps between two type scales
+    // mid-scroll.
+    val titleStyle =
+        lerp(
+            MaterialTheme.typography.headlineSmallEmphasized,
+            MaterialTheme.typography.titleLarge,
+            collapsedFraction,
+        )
+    TwoRowsTopAppBar(
+        modifier = Modifier.mastheadFade(),
+        navigationIcon = {
+            if (showBackButton) {
+                TopBarBackButton(onNavigateBack)
+            }
+        },
+        title = { expanded ->
+            ChatTopBarTitle(
+                expanded = expanded,
+                collapsedFraction = collapsedFraction,
+                sessionId = sessionId,
+                sessionTitle = sessionTitle,
+                cwd = cwd,
+                model = activeModel,
+                onTitleClick = onTitleClick,
+                titleStyle = titleStyle,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+                sharedBoundsEnabled = sharedBoundsEnabled,
+            )
+        },
+        actions = {
+            TopBarActions(
+                gitAdditions = gitAdditions,
+                gitDeletions = gitDeletions,
+                gitBranch = gitBranch,
+                gitChangedFiles = gitChangedFiles,
+                gitRepo = gitRepo,
+                gitAhead = gitAhead,
+                gitBehind = gitBehind,
+                worktree = worktree,
+                onGitStatusClick = onGitStatusClick,
+                onGitStatusLongPress = onGitStatusLongPress,
+                connectionState = connectionState,
+                totalTokens = totalTokens,
+                contextWindowTokens = contextWindowTokens,
+                costAmount = costAmount,
+                costCurrency = costCurrency,
+                onConnectionStatusClick = onConnectionStatusClick,
+            )
+        },
+        collapsedHeight = MastheadCollapsedHeight,
+        // The card's height is its content, so the expanded row is measured from it too:
+        // requesting no extra height lets the app bar grow to the card, instead of reserving
+        // a fixed block with a hole above the card.
+        expandedHeight = MastheadCollapsedHeight,
+        scrollBehavior = scrollBehavior,
+        colors =
+            TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent,
+            ),
     )
 }
 
-/** The fade the collapsed bar keeps: surface at the top dissolving to nothing at its bottom edge. */
+/** The fade the bar keeps: surface at the top dissolving past its bottom edge into the content. */
 @Composable
-private fun Modifier.mastheadFade(collapsedFraction: Float): Modifier {
-    val fraction = collapsedFraction.coerceIn(0f, 1f)
+private fun Modifier.mastheadFade(): Modifier {
     val surface = MaterialTheme.colorScheme.surface
     return this
         .fillMaxWidth()
-        .background(
-            brush =
-                Brush.verticalGradient(
-                    colors =
-                        listOf(
-                            surface.copy(alpha = 0.95f * fraction),
-                            surface.copy(alpha = 0.8f * fraction),
-                            Color.Transparent,
-                        ),
-                ),
-        )
+        .drawBehind {
+            val fadeHeight = size.height + MastheadFadeOvershoot.toPx()
+            drawRect(
+                brush =
+                    Brush.verticalGradient(
+                        colors =
+                            listOf(
+                                surface.copy(alpha = 0.95f),
+                                surface.copy(alpha = 0.8f),
+                                Color.Transparent,
+                            ),
+                        startY = 0f,
+                        endY = fadeHeight,
+                    ),
+                size = Size(size.width, fadeHeight),
+            )
+        }
 }
-
-/** The theme's extraLarge corner, kept as a plain value so it can be interpolated. */
-private const val MASTHEAD_CORNER_DP = 28f
 
 @Composable
 private fun TopBarBackButton(onNavigateBack: () -> Unit) {
@@ -284,22 +279,85 @@ private fun TopBarBackButton(onNavigateBack: () -> Unit) {
     }
 }
 
+/** The expanded masthead title and its model line inside the bar's bubble-coloured card. */
 @Composable
-private fun TopBarSubtitleContent(
-    model: String,
-    expanded: Boolean,
+private fun ExpandedTitleCard(
+    sessionId: String,
+    sessionTitle: String,
+    model: String?,
+    titleStyle: TextStyle,
+    ownsSharedTitleBounds: Boolean,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: androidx.compose.animation.AnimatedContentScope,
+    onTitleClick: () -> Unit,
+    showTitleTooltip: () -> Unit,
+    tooltipState: TooltipState,
 ) {
-    if (expanded) {
-        Text(
-            text = model,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(bottom = 4.dp),
-        )
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressShape = rememberPressShape(MaterialTheme.shapes.medium, interactionSource)
+    Surface(
+        modifier =
+            Modifier
+                .headerCardInset()
+                .clip(pressShape)
+                .handCursor()
+                .onSecondaryClick(onClick = showTitleTooltip)
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = LocalIndication.current,
+                    onClick = {
+                        tooltipState.dismiss()
+                        onTitleClick()
+                    },
+                    onLongClick = showTitleTooltip,
+                    role = Role.Button,
+                ).semantics {
+                    contentDescription = sessionTitle
+                },
+        shape = pressShape,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            ExpandedTitleText(
+                sessionId = sessionId,
+                sessionTitle = sessionTitle,
+                titleStyle = titleStyle,
+                ownsSharedTitleBounds = ownsSharedTitleBounds,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+            )
+            model?.takeIf { it.isNotBlank() }?.let { value ->
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
+
+/**
+ * The title slot reserves 16dp on the left but only 8dp on the right. Measure the card 8dp wider
+ * than the slot and place it 8dp left, so it keeps the same 8dp gap on both sides.
+ */
+private fun Modifier.headerCardInset(): Modifier =
+    layout { measurable, constraints ->
+        val shift = MastheadCardShift.roundToPx()
+        val placeable =
+            measurable.measure(
+                constraints.copy(
+                    minWidth = constraints.maxWidth + shift,
+                    maxWidth = constraints.maxWidth + shift,
+                ),
+            )
+        layout(constraints.maxWidth, placeable.height) {
+            placeable.place(-shift, 0)
+        }
+    }
 
 @Composable
 private fun TopBarActions(
@@ -413,9 +471,10 @@ internal fun ChatTopBarTitle(
         state = tooltipState,
     ) {
         if (expanded) {
-            ExpandedTitleText(
+            ExpandedTitleCard(
                 sessionId = sessionId,
                 sessionTitle = sessionTitle,
+                model = model,
                 titleStyle = titleStyle,
                 ownsSharedTitleBounds = ownsSharedTitleBounds,
                 sharedTransitionScope = sharedTransitionScope,
@@ -470,9 +529,6 @@ private fun ExpandedTitleText(
     ownsSharedTitleBounds: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: androidx.compose.animation.AnimatedContentScope,
-    onTitleClick: () -> Unit,
-    showTitleTooltip: () -> Unit,
-    tooltipState: TooltipState,
 ) {
     with(sharedTransitionScope) {
         Text(
@@ -482,28 +538,17 @@ private fun ExpandedTitleText(
             softWrap = true,
             overflow = TextOverflow.MiddleEllipsis,
             modifier =
-                Modifier
-                    .then(
-                        if (ownsSharedTitleBounds) {
-                            Modifier.sessionTitleSharedBounds(
-                                sessionId,
-                                sharedTransitionScope,
-                                animatedContentScope,
-                            )
-                        } else {
-                            Modifier
-                        },
-                    ).combinedClickable(
-                        onClick = {
-                            tooltipState.dismiss()
-                            onTitleClick()
-                        },
-                        onLongClick = showTitleTooltip,
-                    ).handCursor()
-                    .onSecondaryClick(onClick = showTitleTooltip)
-                    .semantics {
-                        contentDescription = sessionTitle
+                Modifier.then(
+                    if (ownsSharedTitleBounds) {
+                        Modifier.sessionTitleSharedBounds(
+                            sessionId,
+                            sharedTransitionScope,
+                            animatedContentScope,
+                        )
+                    } else {
+                        Modifier
                     },
+                ),
         )
     }
 }

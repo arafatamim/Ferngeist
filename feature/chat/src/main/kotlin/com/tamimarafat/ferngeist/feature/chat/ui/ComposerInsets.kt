@@ -96,5 +96,7 @@ internal fun rememberComposerInsets(
     )
 }
 
-// How far above the composer's top edge the bottom fade begins.
-private val bottomFadeLead = 24.dp
+// How far above the composer's top edge the bottom fade begins. Kept under
+// the 36dp of clearance the list maintains so the last message never sits in
+// the band at rest.
+private val bottomFadeLead = 32.dp
