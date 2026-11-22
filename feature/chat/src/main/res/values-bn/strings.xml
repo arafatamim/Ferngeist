@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="chat_composer_hint">একটি বার্তা লিখুন…</string>
+    <string name="chat_composer_hint">যেকোনো কিছু জিজ্ঞেস করুন, উল্লেখ করতে @, কমান্ডের জন্য /</string>
     <string name="chat_composer_close_desc">কম্পোজার বন্ধ করুন</string>
+    <string name="chat_composer_fullscreen_desc">কম্পোজার পূর্ণ পর্দায় খুলুন</string>
+    <string name="chat_composer_restore_desc">প্রসারিত কম্পোজারে ফিরে যান</string>
+    <string name="chat_composer_exit_fullscreen_desc">পূর্ণ পর্দার কম্পোজার থেকে বের হন</string>
     <string name="chat_stop">থামান</string>
     <string name="chat_chat">চ্যাট</string>
     <string name="chat_mode">মোড</string>

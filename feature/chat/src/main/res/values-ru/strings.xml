@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Chat Composer -->
-    <string name="chat_composer_hint">Введите сообщение…</string>
+    <string name="chat_composer_hint">Спросите что угодно, @ — упомянуть, / — команда</string>
     <string name="chat_composer_close_desc">Закрыть</string>
+    <string name="chat_composer_fullscreen_desc">Развернуть редактор на весь экран</string>
+    <string name="chat_composer_restore_desc">Вернуться к развёрнутому редактору</string>
+    <string name="chat_composer_exit_fullscreen_desc">Выйти из полноэкранного редактора</string>
     <string name="chat_stop">Стоп</string>
     <string name="chat_chat">Чат</string>
     <string name="chat_mode">Режим</string>

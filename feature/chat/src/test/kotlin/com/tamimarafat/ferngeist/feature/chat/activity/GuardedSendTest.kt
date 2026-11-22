@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModelTestBase
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreenMutations
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.ComposerMode
 import com.tamimarafat.ferngeist.feature.chat.ui.rememberSendHandlers
 import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
 import kotlinx.coroutines.test.runTest
@@ -60,7 +61,7 @@ class GuardedSendTest : ChatViewModelTestBase() {
         sendCommand("review")
 
         assertEquals("/review Keep my draft", mutations.messageText.text.toString())
-        assertTrue(mutations.composerExpanded.value)
+        assertTrue(mutations.composerMode.value.isExpanded)
         assertEquals(1, mutations.composerFocusTrigger.value)
         assertNull(mutations.pendingSend.value)
     }
@@ -92,13 +93,13 @@ class GuardedSendTest : ChatViewModelTestBase() {
             send()
 
             assertEquals("Keep my draft", mutations.messageText.text.toString())
-            assertTrue(mutations.composerExpanded.value)
+            assertTrue(mutations.composerMode.value.isExpanded)
             assertNotNull(mutations.pendingSend.value)
 
             mutations.pendingSend.value?.invoke()
 
             assertEquals("", mutations.messageText.text.toString())
-            assertFalse(mutations.composerExpanded.value)
+            assertFalse(mutations.composerMode.value.isExpanded)
         }
 
     private fun mutations() =
@@ -116,7 +117,7 @@ class GuardedSendTest : ChatViewModelTestBase() {
             messageText = TextFieldState("Keep my draft"),
             selectedImages = mutableStateOf(emptyList()),
             selectedFiles = mutableStateOf(emptyList()),
-            composerExpanded = mutableStateOf(true),
+            composerMode = mutableStateOf(ComposerMode.EXPANDED),
             focusRequester = FocusRequester(),
             imageFocusTrigger = mutableStateOf(0),
             composerFocusTrigger = mutableStateOf(0),

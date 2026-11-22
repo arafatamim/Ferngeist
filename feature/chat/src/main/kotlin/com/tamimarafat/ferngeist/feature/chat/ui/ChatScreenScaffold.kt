@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -34,7 +33,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -60,7 +58,7 @@ import com.tamimarafat.ferngeist.feature.chat.artifact.ui.localArtifactHost
 import com.tamimarafat.ferngeist.feature.chat.artifact.ui.rememberArtifactHost
 import com.tamimarafat.ferngeist.feature.chat.localizeChatError
 import com.tamimarafat.ferngeist.feature.chat.markdown.image.localTranscriptImages
-import kotlinx.coroutines.CoroutineScope
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.ComposerMode
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -140,87 +138,57 @@ internal fun ChatScreenScaffold(
         // on release. The surface behind is the plain background.
         val chatOffset = remember { Animatable(0f) }
 
-        Scaffold(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .offset {
-                        IntOffset(chatOffset.value.roundToInt(), 0)
-                    },
-            containerColor = Color.Transparent,
-            topBar = {
-                ChatScreenTopBar(
+        val switcherState by viewModel.switcherUiState.collectAsStateWithLifecycle()
+
+        Box(
+            modifier = Modifier.fillMaxSize().offset { IntOffset(chatOffset.value.roundToInt(), 0) },
+        ) {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = Color.Transparent,
+                topBar = {
+                    ChatScreenTopBar(
+                        screenState = screenState,
+                        sessionId = sessionId,
+                        fallbackTitle = fallbackTitle,
+                        scrollBehavior = scrollBehavior,
+                        coroutineScope = coroutineScope,
+                        viewModel = viewModel,
+                        onNavigateBack = onNavigateBack,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                        showBackButton = showBackButton,
+                        sharedBoundsEnabled = sharedBoundsEnabled,
+                    )
+                },
+            ) { innerPadding ->
+                Box(Modifier.fillMaxSize()) {
+                    ChatScreenContentOverlays(
+                        screenState = screenState,
+                        innerPadding = innerPadding,
+                        viewModel = viewModel,
+                        switcherState = switcherState,
+                        onSwitchSession = onSwitchSession,
+                        appBarScrollConnection = scrollBehavior.nestedScrollConnection,
+                    )
+                }
+            }
+            // Outside the scaffold so the growing composer can cover its top bar.
+            if (screenState.insets.showComposerToolbar) {
+                ChatComposerHost(
                     screenState = screenState,
-                    sessionId = sessionId,
-                    fallbackTitle = fallbackTitle,
-                    scrollBehavior = scrollBehavior,
-                    coroutineScope = coroutineScope,
-                    viewModel = viewModel,
-                    onNavigateBack = onNavigateBack,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    showBackButton = showBackButton,
-                    sharedBoundsEnabled = sharedBoundsEnabled,
-                )
-            },
-        ) { innerPadding ->
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize(),
-            ) {
-                ChatScreenOverlays(
-                    screenState = screenState,
-                    innerPadding = innerPadding,
                     coroutineScope = coroutineScope,
                     focusManager = focusManager,
                     viewModel = viewModel,
+                    switcherState = switcherState,
                     chatOffset = chatOffset,
                     onSwitchSession = onSwitchSession,
-                    appBarScrollConnection = scrollBehavior.nestedScrollConnection,
+                    onSwitcherClick = { screenState.mutations.showSwitcherSheet.value = true },
                     dropTargetActive = dropTargetActive,
                 )
             }
+            ChatScreenSnackbar(screenState)
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun BoxScope.ChatScreenOverlays(
-    screenState: ChatScreenState,
-    innerPadding: PaddingValues,
-    coroutineScope: CoroutineScope,
-    focusManager: FocusManager,
-    viewModel: ChatViewModel,
-    chatOffset: Animatable<Float, AnimationVector1D>,
-    onSwitchSession: OnSwitchSession,
-    appBarScrollConnection: NestedScrollConnection,
-    dropTargetActive: Boolean,
-) {
-    val switcherState by viewModel.switcherUiState.collectAsStateWithLifecycle()
-    ChatScreenContentOverlays(
-        screenState = screenState,
-        innerPadding = innerPadding,
-        viewModel = viewModel,
-        switcherState = switcherState,
-        onSwitchSession = onSwitchSession,
-        appBarScrollConnection = appBarScrollConnection,
-    )
-    ChatScreenSnackbar(screenState)
-
-    if (screenState.insets.showComposerToolbar) {
-        ChatComposerHost(
-            screenState = screenState,
-            coroutineScope = coroutineScope,
-            focusManager = focusManager,
-            viewModel = viewModel,
-            switcherState = switcherState,
-            chatOffset = chatOffset,
-            onSwitchSession = onSwitchSession,
-            onSwitcherClick = { screenState.mutations.showSwitcherSheet.value = true },
-            dropTargetActive = dropTargetActive,
-        )
     }
 }
 
@@ -428,8 +396,6 @@ private fun BoxScope.ChatScreenContentOverlays(
     }
 
     ChatBottomFade(bandHeight = screenState.insets.bottomFadeBandHeight)
-
-    ChatScreenSnackbar(screenState)
 }
 
 // How much of the surface colour the bottom fade reaches at the very bottom of
@@ -472,6 +438,7 @@ private fun BoxScope.ChatBottomFade(bandHeight: Dp) {
 
 @Composable
 private fun BoxScope.ChatScreenSnackbar(screenState: ChatScreenState) {
+    if (screenState.mutations.composerMode.value == ComposerMode.FULLSCREEN) return
     SnackbarHost(
         hostState = screenState.mutations.snackbarHostState,
         modifier =

@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Chat Composer -->
-    <string name="chat_composer_hint">输入消息…</string>
+    <string name="chat_composer_hint">随便问，@ 提及，/ 使用命令</string>
     <string name="chat_composer_close_desc">关闭编辑器</string>
+    <string name="chat_composer_fullscreen_desc">将编辑器展开至全屏</string>
+    <string name="chat_composer_restore_desc">返回展开的编辑器</string>
+    <string name="chat_composer_exit_fullscreen_desc">退出全屏编辑器</string>
     <string name="chat_stop">停止</string>
     <string name="chat_chat">对话</string>
     <string name="chat_mode">模式</string>

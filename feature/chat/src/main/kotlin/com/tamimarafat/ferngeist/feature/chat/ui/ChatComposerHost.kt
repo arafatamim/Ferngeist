@@ -1,11 +1,15 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -23,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -39,7 +42,6 @@ import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionStat
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.matchingSuggestions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 // Settle wait before the switcher bubble slides in after a collapse: covers
 // the keyboard dismissal plus the pill shrink, so the entrance reads purely
@@ -73,8 +75,8 @@ internal fun BoxScope.ChatComposerHost(
     // Skipped on first open — the row never traveled, so no wait is needed.
     var switcherEntranceReady by remember { mutableStateOf(true) }
     var composerWasExpanded by remember { mutableStateOf(false) }
-    LaunchedEffect(screenState.mutations.composerExpanded.value) {
-        if (screenState.mutations.composerExpanded.value) {
+    LaunchedEffect(screenState.mutations.composerMode.value.isExpanded) {
+        if (screenState.mutations.composerMode.value.isExpanded) {
             composerWasExpanded = true
             switcherEntranceReady = false
         } else if (composerWasExpanded) {
@@ -90,7 +92,7 @@ internal fun BoxScope.ChatComposerHost(
             onSwitchSession = onSwitchSession,
         )
     val composerDragModifier =
-        if (!screenState.mutations.composerExpanded.value && switcherState.hasOthers) {
+        if (!screenState.mutations.composerMode.value.isExpanded && switcherState.hasOthers) {
             Modifier.switcherDrag(
                 onDragStart = {
                     if (!switcherHintSeen) {
@@ -111,38 +113,45 @@ internal fun BoxScope.ChatComposerHost(
     LaunchedEffect(barHeightPx, queueHeightPx) {
         screenState.mutations.composerContentHeightPx.value = barHeightPx + queueHeightPx
     }
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier =
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .imePadding()
-                .offset(y = -FloatingToolbarDefaults.ScreenOffset)
-                .zIndex(1f),
-    ) {
-        PendingPromptQueue(
-            messages = screenState.state.pendingMessages,
-            onRetryMessage = { viewModel.dispatch(ChatIntent.RetryMessage(it)) },
-            onForceSendMessage = { viewModel.dispatch(ChatIntent.ForceSendMessage(it)) },
-            onRemoveMessage = { viewModel.dispatch(ChatIntent.RemoveQueuedMessage(it)) },
-            onRestingHeight = { queueHeightPx = it },
-        )
-        ChatComposerRow(
-            screenState = screenState,
-            focusManager = focusManager,
-            viewModel = viewModel,
-            switcherState = switcherState,
-            switcherHintSeen = switcherHintSeen,
-            switcherEntranceReady = switcherEntranceReady,
-            callbacks = callbacks,
-            switcherDrag = switcherDrag,
-            onSwitcherClick = onSwitcherClick,
-            dropTargetActive = dropTargetActive,
-            onBarHeightChanged = { barHeightPx = it },
-            modifier = composerDragModifier,
-        )
+    // Shared bounds are tracked relative to this layout, so it fills the screen: the column below
+    // is bottom-anchored and grows upward as the composer expands, and a scope that moved with it
+    // would replay the FAB's start position from a shifted origin. It takes no input itself.
+    SharedTransitionLayout(Modifier.matchParentSize().zIndex(1f)) {
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .offset(y = -FloatingToolbarDefaults.ScreenOffset),
+            ) {
+                PendingPromptQueue(
+                    messages = screenState.state.pendingMessages,
+                    onRetryMessage = { viewModel.dispatch(ChatIntent.RetryMessage(it)) },
+                    onForceSendMessage = { viewModel.dispatch(ChatIntent.ForceSendMessage(it)) },
+                    onRemoveMessage = { viewModel.dispatch(ChatIntent.RemoveQueuedMessage(it)) },
+                    onRestingHeight = { queueHeightPx = it },
+                )
+                ChatComposerRow(
+                    screenState = screenState,
+                    focusManager = focusManager,
+                    viewModel = viewModel,
+                    switcherState = switcherState,
+                    switcherHintSeen = switcherHintSeen,
+                    switcherEntranceReady = switcherEntranceReady,
+                    callbacks = callbacks,
+                    switcherDrag = switcherDrag,
+                    onSwitcherClick = onSwitcherClick,
+                    dropTargetActive = dropTargetActive,
+                    onBarHeightChanged = { barHeightPx = it },
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    modifier = composerDragModifier,
+                )
+            }
+        }
     }
 }
 
@@ -160,6 +169,7 @@ private fun ChatComposerRow(
     onSwitcherClick: () -> Unit,
     dropTargetActive: Boolean,
     onBarHeightChanged: (Int) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
     // Applied to the composer bar, not the row: it carries the switcher drag.
     modifier: Modifier = Modifier,
 ) {
@@ -169,17 +179,29 @@ private fun ChatComposerRow(
         horizontalArrangement =
             Arrangement.spacedBy(
                 space = 8.dp,
-                alignment = Alignment.CenterHorizontally,
+                // The FAB anchors the row to the screen's trailing edge, where M3 places it.
+                alignment = Alignment.End,
             ),
         modifier =
             Modifier
                 .fillMaxWidth()
-                .onPreviewKeyEvent { event ->
-                    mentionState.onKey(event) { path, start ->
-                        selectComposerSuggestion(screenState, viewModel, path, start)
-                    }
-                }.padding(horizontal = 1.dp),
+                .padding(horizontal = FloatingToolbarDefaults.ScreenOffset),
     ) {
+        if (!screenState.mutations.composerMode.value.isExpanded) {
+            SessionSwitcherBubble(
+                count = switcherState.liveTotalCount,
+                status = switcherState.badgeStatus,
+                groups = switcherState.groups,
+                visible = switcherState.hasOthers && switcherEntranceReady,
+                hintSeen = switcherHintSeen,
+                onHintSeen = { viewModel.dispatch(ChatIntent.MarkSwitcherHintSeen) },
+                onClick = onSwitcherClick,
+                onDragStart = switcherDrag.onDragStart,
+                onDragDelta = switcherDrag.onDragDelta,
+                onDragStopped = switcherDrag.onDragStopped,
+                onDragCancel = switcherDrag.onDragCancel,
+            )
+        }
         ChatComposerBar(
             // `weight(fill = false)`: a Row measures its non-weighted children first, so the
             // switcher bubble claims its square and the composer takes what is left. Without
@@ -190,8 +212,8 @@ private fun ChatComposerRow(
             modifier = modifier.weight(1f, fill = false),
             state = screenState.state,
             toolbarConfigOptions = screenState.derived.toolbarConfigOptions,
-            composerExpanded = screenState.mutations.composerExpanded.value,
-            onComposerExpandedChange = { screenState.mutations.composerExpanded.value = it },
+            mode = screenState.mutations.composerMode.value,
+            onModeChange = { screenState.mutations.composerMode.value = it },
             messageText = screenState.mutations.messageText,
             mentionState = mentionState,
             onMentionSelected = { path, start -> selectComposerSuggestion(screenState, viewModel, path, start) },
@@ -202,6 +224,16 @@ private fun ChatComposerRow(
             currentModeLabel = screenState.derived.currentModeLabel,
             showStopAction = screenState.derived.showStopAction,
             focusRequester = screenState.mutations.focusRequester,
+            focusEditor = {
+                val mutations = screenState.mutations
+                LaunchedEffect(
+                    mutations.imageFocusTrigger.value,
+                    mutations.composerFocusTrigger.value,
+                    mutations.showCommandsDialog.value,
+                ) {
+                    if (!mutations.showCommandsDialog.value) mutations.focusRequester.requestFocus()
+                }
+            },
             onFocusCleared = { focusManager.clearFocus() },
             onHeightChanged = onBarHeightChanged,
             onSend = screenState.actions.sendMessage,
@@ -223,24 +255,12 @@ private fun ChatComposerRow(
             onAudiosChanged = { screenState.mutations.selectedAudios.value = it },
             selectedResourceLinks = screenState.mutations.selectedResourceLinks.value,
             onResourceLinksChanged = { screenState.mutations.selectedResourceLinks.value = it },
-            onAttach = { screenState.actions.attachmentPickerLauncher.launch(arrayOf("*/*")) },
+            attachmentPickers = screenState.actions.attachmentPickers,
             dropTargetActive = dropTargetActive,
+            onAttachUris = screenState.actions.attachUris,
+            snackbarHostState = screenState.mutations.snackbarHostState,
+            sharedTransitionScope = sharedTransitionScope,
         )
-        if (!screenState.mutations.composerExpanded.value) {
-            SessionSwitcherBubble(
-                count = switcherState.liveTotalCount,
-                status = switcherState.badgeStatus,
-                groups = switcherState.groups,
-                visible = switcherState.hasOthers && switcherEntranceReady,
-                hintSeen = switcherHintSeen,
-                onHintSeen = { viewModel.dispatch(ChatIntent.MarkSwitcherHintSeen) },
-                onClick = onSwitcherClick,
-                onDragStart = switcherDrag.onDragStart,
-                onDragDelta = switcherDrag.onDragDelta,
-                onDragStopped = switcherDrag.onDragStopped,
-                onDragCancel = switcherDrag.onDragCancel,
-            )
-        }
     }
 }
 
@@ -286,11 +306,11 @@ private fun rememberComposerSuggestionState(screenState: ChatScreenState): Compo
                 }
             }
         }
-    return remember(mention, commandQuery, suggestions, screenState.mutations.composerExpanded.value) {
+    return remember(mention, commandQuery, suggestions, screenState.mutations.composerMode.value.isExpanded) {
         ComposerSuggestionState(
             if (commandQuery != null) 0 else mention?.first,
             suggestions,
-            screenState.mutations.composerExpanded.value,
+            screenState.mutations.composerMode.value.isExpanded,
         )
     }
 }
@@ -317,10 +337,6 @@ private fun selectComposerSuggestion(
                 if (absolute.startsWith('/')) absolute else "/$absolute",
                 null,
             ).toASCIIString()
-    val existing = screenState.mutations.selectedResourceLinks.value
-    if (existing.none { it.uri == uri }) {
-        screenState.mutations.selectedResourceLinks.value = existing +
-            ChatPromptResourceLink(name = path.substringAfterLast('/'), uri = uri)
-    }
+    screenState.mutations.attachResourceLink(ChatPromptResourceLink(name = path.substringAfterLast('/'), uri = uri))
     screenState.mutations.messageText.edit { replace(start, selection.end, "") }
 }

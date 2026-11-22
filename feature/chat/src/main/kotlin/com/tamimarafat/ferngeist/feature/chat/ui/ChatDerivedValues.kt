@@ -70,7 +70,7 @@ private fun rememberChatScrollAndAnimation(
     sessionId: String,
     renderedMessages: List<ChatMessage>,
     activelyStreaming: Boolean,
-    composerExpanded: MutableState<Boolean>,
+    composerExpanded: Boolean,
     onScrollSnapshotChanged: (ChatScrollSnapshot) -> Unit,
 ): ChatScrollAndAnimation {
     // --- Scroll system ---
@@ -94,13 +94,13 @@ private fun rememberChatScrollAndAnimation(
         )
     val buttonsAlphaState =
         animateFloatAsState(
-            targetValue = if (composerExpanded.value) 0f else 1f,
+            targetValue = if (composerExpanded) 0f else 1f,
             animationSpec = fadeSpring,
             label = "ButtonsAlpha",
         )
     val inputAlphaState =
         animateFloatAsState(
-            targetValue = if (composerExpanded.value) 1f else 0f,
+            targetValue = if (composerExpanded) 1f else 0f,
             animationSpec = fadeSpring,
             label = "InputAlpha",
         )
@@ -232,7 +232,7 @@ internal fun rememberChatDerived(
     selectedConfigPickerOptionId: MutableState<String?>,
     selectedThoughtSegmentId: MutableState<String?>,
     selectedToolCallSegmentId: MutableState<String?>,
-    composerExpanded: MutableState<Boolean>,
+    composerExpanded: Boolean,
     onScrollSnapshotChanged: (ChatScrollSnapshot) -> Unit,
 ): ChatDerivedValues {
     val configDerived =

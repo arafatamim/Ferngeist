@@ -2,11 +2,15 @@
 
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -19,10 +23,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -33,7 +38,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.KeyboardActionHandler
@@ -44,9 +49,7 @@ import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ScheduleSend
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.filled.Stop
@@ -54,11 +57,16 @@ import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
@@ -67,8 +75,11 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,9 +88,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
@@ -91,10 +104,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.onSubmitShortcut
 import com.tamimarafat.ferngeist.core.model.ChatAudioData
+import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
@@ -102,17 +117,40 @@ import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.AnimatedComposerAttachments
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.AttachmentPickers
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.CloseComposerButton
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerActionGroup
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionMenu
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionState
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModeMenuButton
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModelEffortButton
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ToolbarOptionsButton
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.composerModelButtonMinWidth
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.ComposerDragHandle
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.ComposerMode
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.FullscreenComposerDialog
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.composerDragHandleHeight
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.composerDragHandleWidth
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.rememberComposerBackProgress
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.selectOptionFor
 import kotlin.math.roundToInt
 
 private const val COLLAPSED_MAX_TOOLBAR_FRACTION = 0.92f
 
-// Resting height of the collapsed pill. Shared with the session switcher bubble
-// so its circle always matches the pill's height.
-internal val collapsedComposerHeight = 62.dp
+// Height of the collapsed toolbar. Shared with the session switcher bubble so its circle
+// always matches the toolbar beside it.
+internal val collapsedComposerHeight = FloatingToolbarDefaults.ContainerSize
+
+// M3 medium FAB. The library keeps its size token, and the toolbar-to-FAB gap, internal.
+private val composerFabSize = 80.dp
+private val toolbarToFabGap = 8.dp
+private const val COMPOSER_CONTAINER_KEY = "composer-container"
+private val composerPanelPadding = 12.dp
+internal val composerPanelContentPadding =
+    PaddingValues(start = composerPanelPadding, end = composerPanelPadding, bottom = composerPanelPadding)
+
+// Between the medium (56dp) and large (96dp) icon-button tokens: a notch above medium.
+private val composerSendButtonSize = 64.dp
 
 // Floor for the expanded composer. There is no matching ceiling: while expanded the
 // panel is sized by its content, and the text field's own line bounds (minLines /
@@ -125,15 +163,15 @@ private val expandedComposerMinHeight = 142.dp
  *
  * @param state The current chat UI state.
  * @param toolbarConfigOptions Configuration options to be displayed in the options menu.
- * @param composerExpanded Whether the composer is currently expanded for text entry.
- * @param onComposerExpandedChange Callback when the expansion state changes.
+ * @param mode The current composer presentation.
+ * @param onModeChange Callback when the expansion state changes.
  * @param messageText Text field state backing the composer input.
  * @param inputAlpha Alpha (read at draw time) for the text input area (usually for fading during transitions).
  * @param buttonsAlpha Alpha (read at draw time) for the buttons in collapsed state.
  * @param showModeButton Whether to show the mode selection button.
  * @param modeOption The specific select option for modes.
  * @param currentModeLabel The human-readable label for the current mode.
- * @param showStopAction Whether to show the "Stop" button instead of send/expand.
+ * @param showStopAction Whether a turn is running that can be stopped.
  * @param focusRequester To request focus when expanding.
  * @param onFocusCleared Callback when focus is cleared (e.g., closing the composer).
  * @param onHeightChanged Callback to report the current height of the composer to the parent.
@@ -143,6 +181,7 @@ private val expandedComposerMinHeight = 142.dp
  * @param onSetBooleanConfigOption Callback to update a boolean config option.
  * @param onShowCommands Callback to show available commands.
  * @param onShowConfigOptionPicker Callback to show a dedicated picker for a config option.
+ * @param sharedTransitionScope Scope of the FAB-to-panel transform; see its use for why it is hoisted.
  * @param dropTargetActive Whether a drag is currently hovering the chat, i.e. the drop the
  *   composer is about to receive.
  */
@@ -151,8 +190,8 @@ internal fun ChatComposerBar(
     modifier: Modifier = Modifier,
     state: ChatState,
     toolbarConfigOptions: List<ChatConfigOption>,
-    composerExpanded: Boolean,
-    onComposerExpandedChange: (Boolean) -> Unit,
+    mode: ComposerMode,
+    onModeChange: (ComposerMode) -> Unit,
     messageText: TextFieldState,
     mentionState: ComposerSuggestionState,
     onMentionSelected: (String, Int?) -> Unit,
@@ -163,6 +202,7 @@ internal fun ChatComposerBar(
     currentModeLabel: String,
     showStopAction: Boolean,
     focusRequester: FocusRequester,
+    focusEditor: @Composable () -> Unit,
     onFocusCleared: () -> Unit,
     onHeightChanged: (Int) -> Unit,
     onSend: () -> Unit,
@@ -184,282 +224,309 @@ internal fun ChatComposerBar(
     onAudiosChanged: (List<ChatAudioData>) -> Unit,
     selectedResourceLinks: List<ChatPromptResourceLink>,
     onResourceLinksChanged: (List<ChatPromptResourceLink>) -> Unit,
-    onAttach: () -> Unit,
+    attachmentPickers: AttachmentPickers,
     dropTargetActive: Boolean,
+    onAttachUris: (List<Uri>) -> Unit,
+    snackbarHostState: SnackbarHostState,
+    sharedTransitionScope: SharedTransitionScope,
 ) {
     var showModeMenu by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
     val modeMenuInteractionSource = remember { MutableInteractionSource() }
     val optionsMenuInteractionSource = remember { MutableInteractionSource() }
-    // An agent that takes prompts mid-turn keeps writing primary: a new prompt queues and can
-    // be steered in, so stop steps aside into the toolbar.
-    val stopAside = showStopAction && state.supportsSteering
-    val primaryStop = showStopAction && !stopAside
+    // Stop is destructive, so it never takes the FAB: it sits in the toolbar. In the expanded
+    // composer an agent that takes prompts mid-turn keeps send primary, as a new prompt queues
+    // and can be steered in; for any other agent send becomes stop.
+    val steering = showStopAction && state.supportsSteering
+    val primaryStop = showStopAction && !steering
     val commandInputHint = activeCommandInputHint(messageText.text, state.availableCommands)
+    val modelOption = remember(state.configOptions) { state.configOptions.selectOptionFor(ChatConfigCategory.Model) }
+    val effortOption =
+        remember(state.configOptions) { state.configOptions.selectOptionFor(ChatConfigCategory.ThoughtLevel) }
 
-    ComposerSurfaceContainer(
-        modifier = modifier,
-        composerExpanded = composerExpanded,
-        onHeightChanged = onHeightChanged,
-    ) { collapsedMaxToolbarWidth ->
-        if (composerExpanded) {
-            ExpandedComposerContent(
-                messageText = messageText,
-                mentionState = mentionState,
-                onMentionSelected = onMentionSelected,
-                commandInputHint = commandInputHint,
-                inputAlpha = inputAlpha,
-                focusRequester = focusRequester,
-                showStopAction = primaryStop,
-                queueing = stopAside,
-                onClose = {
-                    onComposerExpandedChange(false)
-                    onFocusCleared()
-                },
-                onPrimaryAction = { if (primaryStop) onCancelStreaming() else onSend() },
-                onSend = onSend,
-                canSendImages = canSendImages,
-                selectedImages = selectedImages,
-                onImagesChanged = onImagesChanged,
-                canSendFiles = canSendFiles,
-                selectedFiles = selectedFiles,
-                onFilesChanged = onFilesChanged,
-                canSendAudio = canSendAudio,
-                selectedAudios = selectedAudios,
-                onAudiosChanged = onAudiosChanged,
-                selectedResourceLinks = selectedResourceLinks,
-                onResourceLinksChanged = onResourceLinksChanged,
-                onAttach = onAttach,
-                dropTargetActive = dropTargetActive,
-            )
-        } else {
-            CollapsedComposerActions(
-                state,
-                toolbarConfigOptions,
-                buttonsAlpha,
-                showModeButton,
-                modeOption,
-                currentModeLabel,
-                primaryStop,
-                stopAside,
-                collapsedMaxToolbarWidth,
-                showModeMenu,
-                { showModeMenu = it },
-                modeMenuInteractionSource,
-                showOptionsMenu,
-                { showOptionsMenu = it },
-                optionsMenuInteractionSource,
-                { onComposerExpandedChange(true) },
-                onCancelStreaming,
-                onSetStringConfigOption,
-                onSetBooleanConfigOption,
-                onShowCommands,
-                onShowConfigOptionPicker,
-                showJumpToBottom,
-                onJumpToBottom,
-                dropTargetActive,
-            )
+    val dragDistance = remember(mode) { mutableFloatStateOf(0f) }
+    val closeComposer: () -> Unit = {
+        onModeChange(ComposerMode.COLLAPSED)
+        onFocusCleared()
+    }
+    val backProgress = rememberComposerBackProgress(enabled = mode == ComposerMode.EXPANDED, onClose = closeComposer)
+    val editor: @Composable (Boolean, Boolean, Boolean) -> Unit = { fullscreen, fillEditor, editorDropTargetActive ->
+        focusEditor()
+        ExpandedComposerContent(
+            messageText = messageText,
+            mentionState = mentionState,
+            onMentionSelected = onMentionSelected,
+            commandInputHint = commandInputHint,
+            inputAlpha = inputAlpha,
+            focusRequester = focusRequester,
+            showStopAction = primaryStop,
+            queueing = steering,
+            fullscreen = fullscreen,
+            fillEditor = fillEditor,
+            dragDistance = dragDistance,
+            onToggleFullscreen = { onModeChange(if (fullscreen) ComposerMode.EXPANDED else ComposerMode.FULLSCREEN) },
+            onClose = closeComposer,
+            onPrimaryAction = { if (primaryStop) onCancelStreaming() else onSend() },
+            onSend = onSend,
+            canSendImages = canSendImages,
+            selectedImages = selectedImages,
+            onImagesChanged = onImagesChanged,
+            canSendFiles = canSendFiles,
+            selectedFiles = selectedFiles,
+            onFilesChanged = onFilesChanged,
+            canSendAudio = canSendAudio,
+            selectedAudios = selectedAudios,
+            onAudiosChanged = onAudiosChanged,
+            selectedResourceLinks = selectedResourceLinks,
+            onResourceLinksChanged = onResourceLinksChanged,
+            attachmentPickers = attachmentPickers,
+            dropTargetActive = editorDropTargetActive,
+            agentIconUrl = state.iconUrl,
+            agentName = state.agentName,
+            modelOption = modelOption,
+            effortOption = effortOption,
+            onSetConfigOption = onSetStringConfigOption,
+        )
+    }
+
+    if (mode == ComposerMode.FULLSCREEN) {
+        FullscreenComposerDialog(
+            canSendImages = canSendImages,
+            canSendFiles = canSendFiles,
+            canSendAudio = canSendAudio,
+            onAttachUris = onAttachUris,
+            snackbarHostState = snackbarHostState,
+            dragDistance = dragDistance,
+            onDismiss = closeComposer,
+        ) { hovered -> editor(true, true, hovered) }
+        return
+    }
+    val composerExpanded = mode.isExpanded
+    val density = LocalDensity.current
+    // Height the expanded content needs, measured unconstrained so it reports what the
+    // content wants rather than what the panel currently allows. Kept across expansions so
+    // the panel opens straight to the height it had last time.
+    var expandedContentHeightPx by remember { mutableIntStateOf(0) }
+    val expandedHeight = with(density) { expandedContentHeightPx.toDp().coerceAtLeast(expandedComposerMinHeight) }
+    // Reports the resting height, not the animated one: the parent turns this into list
+    // padding at screen level, so a per-frame value recomposed the whole chat screen and
+    // re-laid out the list on every frame of the expand/collapse.
+    val restingHeightPx =
+        with(density) { (if (composerExpanded) expandedHeight else composerFabSize).roundToPx() }
+    LaunchedEffect(restingHeightPx) { onHeightChanged(restingHeightPx) }
+    val boundsSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Rect>()
+    val boundsTransform = BoundsTransform { _, _ -> boundsSpec }
+    val crossfadeIn = fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec())
+    val crossfadeOut = fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec())
+    BoxWithConstraints(modifier = modifier) {
+        val expandedWidth = maxWidth
+        val toolbarMaxWidth = maxWidth * COLLAPSED_MAX_TOOLBAR_FRACTION - composerFabSize - toolbarToFabGap
+        // The FAB and the expanded composer are one shared element: expanding grows the FAB's
+        // bounds into the panel's (an M3 container transform) while one cross-fades into the other.
+        // The scope comes from a parent whose bounds hold still: this bar moves and resizes as it
+        // expands, and shared bounds are tracked relative to the scope's layout.
+        with(sharedTransitionScope) {
+            Box(contentAlignment = Alignment.BottomEnd) {
+                AnimatedVisibility(
+                    visible = !composerExpanded,
+                    // The shared bounds carry the FAB and the toolbar folds on its own, below.
+                    enter = EnterTransition.None,
+                    exit = ExitTransition.None,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // The FAB sits beside the toolbar rather than in its FAB slot: the slot pins it at
+                        // 56dp, and resizes it as the toolbar folds, which the transform then chases.
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            // The toolbar folds into the FAB beside it, so it collapses toward its end.
+                            modifier =
+                                Modifier.animateEnterExit(
+                                    enter =
+                                        fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) +
+                                            expandHorizontally(
+                                                MaterialTheme.motionScheme.fastSpatialSpec(),
+                                                expandFrom = Alignment.End,
+                                            ),
+                                    exit =
+                                        fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) +
+                                            shrinkHorizontally(
+                                                MaterialTheme.motionScheme.fastSpatialSpec(),
+                                                shrinkTowards = Alignment.End,
+                                            ),
+                                ),
+                        ) {
+                            HorizontalFloatingToolbar(
+                                expanded = true,
+                                colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
+                                modifier =
+                                    Modifier.widthIn(max = toolbarMaxWidth).graphicsLayer { alpha = buttonsAlpha() },
+                            ) {
+                                CollapsedComposerActions(
+                                    state = state,
+                                    toolbarConfigOptions = toolbarConfigOptions,
+                                    showModeButton = showModeButton,
+                                    modeOption = modeOption,
+                                    currentModeLabel = currentModeLabel,
+                                    showStop = showStopAction,
+                                    collapsedMaxToolbarWidth = toolbarMaxWidth,
+                                    showModeMenu = showModeMenu,
+                                    onShowModeMenuChange = { showModeMenu = it },
+                                    modeMenuInteractionSource = modeMenuInteractionSource,
+                                    showOptionsMenu = showOptionsMenu,
+                                    onShowOptionsMenuChange = { showOptionsMenu = it },
+                                    optionsMenuInteractionSource = optionsMenuInteractionSource,
+                                    onCancelStreaming = onCancelStreaming,
+                                    onSetStringConfigOption = onSetStringConfigOption,
+                                    onSetBooleanConfigOption = onSetBooleanConfigOption,
+                                    onShowCommands = onShowCommands,
+                                    onShowConfigOptionPicker = onShowConfigOptionPicker,
+                                    showJumpToBottom = showJumpToBottom,
+                                    onJumpToBottom = onJumpToBottom,
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(toolbarToFabGap))
+                        }
+                        ComposerFab(
+                            dropTargetActive = dropTargetActive,
+                            iconAlpha = buttonsAlpha,
+                            onClick = { onModeChange(ComposerMode.EXPANDED) },
+                            modifier =
+                                Modifier.sharedBounds(
+                                    sharedContentState = rememberSharedContentState(COMPOSER_CONTAINER_KEY),
+                                    animatedVisibilityScope = this@AnimatedVisibility,
+                                    enter = crossfadeIn,
+                                    exit = crossfadeOut,
+                                    boundsTransform = boundsTransform,
+                                ),
+                        )
+                    }
+                }
+                AnimatedVisibility(
+                    visible = composerExpanded,
+                    // The shared bounds carry the panel in and out; it keeps no motion of its own.
+                    enter = EnterTransition.None,
+                    exit = ExitTransition.None,
+                ) {
+                    ComposerPanel(
+                        expandedWidth = expandedWidth,
+                        expandedHeight = expandedHeight,
+                        dragDistance = dragDistance,
+                        backProgress = { backProgress.value },
+                        onContentHeightPx = { expandedContentHeightPx = it },
+                        modifier =
+                            Modifier.sharedBounds(
+                                sharedContentState = rememberSharedContentState(COMPOSER_CONTAINER_KEY),
+                                animatedVisibilityScope = this@AnimatedVisibility,
+                                enter = crossfadeIn,
+                                exit = crossfadeOut,
+                                boundsTransform = boundsTransform,
+                            ),
+                    ) { fillEditor ->
+                        editor(false, fillEditor, dropTargetActive)
+                    }
+                }
+            }
         }
     }
 }
 
 /**
- * Width the panel animates between: whatever its bar currently needs when collapsed,
- * and the full available width when expanded.
+ * The expanded composer's panel: neutral and opaque so the transcript never shows through.
  *
- * The collapsed width is only known once its content has been measured, and the first
- * value reported is a resting width rather than a change to animate. Snapping on that
- * first target stops the pill growing out of nothing; every later target springs.
- *
- * The result never goes below the collapsed width: the panel wraps its bar, so an
- * undershoot would squeeze the bar, and the squeezed width would then be read back as
- * the bar's own — walking the target down a little on every collapse.
+ * Its height is animated explicitly rather than with `animateContentSize`: what the content
+ * needs is measured with the panel's own constraint lifted (see
+ * `wrapContentHeight(unbounded = true)`), and that is information an animator watching the
+ * node's own size does not have.
  */
-@Composable
-private fun rememberPanelWidth(
-    composerExpanded: Boolean,
-    collapsedWidthPx: Int,
-    expandedWidth: Dp,
-): Dp {
-    val collapsedWidth = with(LocalDensity.current) { collapsedWidthPx.toDp() }
-    var settled by remember { mutableStateOf(false) }
-    LaunchedEffect(collapsedWidthPx) {
-        if (collapsedWidthPx > 0) settled = true
-    }
-    val animatedWidth by animateDpAsState(
-        targetValue = if (composerExpanded) expandedWidth else collapsedWidth,
-        animationSpec =
-            if (settled) {
-                MaterialTheme.motionScheme.defaultSpatialSpec<Dp>()
-            } else {
-                snap()
-            },
-        label = "ComposerWidth",
-    )
-    return animatedWidth.coerceAtLeast(collapsedWidth)
-}
-
-/**
- * The Surface + Row container that wraps either expanded or collapsed composer
- * content, switching based on [composerExpanded].
- *
- * The panel animates an explicit size rather than leaning on `animateContentSize`: what
- * the content needs has to be measured with the panel's own constraint lifted (see
- * `wrapContentHeight(unbounded = true)`), and that is information an animator watching
- * the node's own size does not have.
- */
-@Composable
-private fun ComposerSurfaceContainer(
-    modifier: Modifier,
-    composerExpanded: Boolean,
-    onHeightChanged: (Int) -> Unit,
-    content: @Composable RowScope.(collapsedMaxToolbarWidth: Dp) -> Unit,
-) {
-    // The panel has two resting widths and neither is a constant: the collapsed pill hugs
-    // its actions, while the expanded panel fills the width available to it. `maxWidth` is
-    // that available width; the pill's is only known once its actions have been measured.
-    // The actions also clamp against the same fraction (handed to the content below), so
-    // this one measurement answers every question about how wide the composer may be.
-    BoxWithConstraints(modifier = modifier) {
-        val expandedWidth = maxWidth * COLLAPSED_MAX_TOOLBAR_FRACTION
-
-        // Height the expanded content needs, measured unconstrained so it reports what the
-        // content wants rather than what the panel currently allows — otherwise the panel
-        // could never grow past its own current size.
-        var expandedContentHeightPx by remember { mutableIntStateOf(0) }
-        // Width the collapsed bar needs, likewise measured rather than assumed.
-        var collapsedContentWidthPx by remember { mutableIntStateOf(0) }
-        val density = LocalDensity.current
-        val expandedHeight =
-            with(density) {
-                expandedContentHeightPx.toDp().coerceAtLeast(expandedComposerMinHeight)
-            }
-        val widthKnown = composerExpanded || collapsedContentWidthPx > 0
-        val restingHeight = if (composerExpanded) expandedHeight else collapsedComposerHeight
-        // Reports the resting height, not the animated one: the parent turns this into list
-        // padding at screen level, so a per-frame value recomposed the whole chat screen and
-        // re-laid out the list on every frame of the expand/collapse.
-        val restingHeightPx = with(density) { restingHeight.roundToPx() }
-        LaunchedEffect(restingHeightPx) { onHeightChanged(restingHeightPx) }
-        val animatedHeight by animateDpAsState(
-            targetValue = restingHeight,
-            // Themed rather than hand-tuned, so the composer moves in step with the rest of
-            // the app: a bounds change is spatial motion, so it takes the spatial spec, and
-            // the scheme is already installed app-wide in the theme.
-            animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Dp>(),
-            label = "ComposerHeight",
-        )
-        val animatedWidth = rememberPanelWidth(composerExpanded, collapsedContentWidthPx, expandedWidth)
-
-        ComposerPanel(
-            composerExpanded = composerExpanded,
-            modifier =
-                Modifier
-                    .height(animatedHeight)
-                    .then(
-                        if (widthKnown) {
-                            Modifier.width(animatedWidth)
-                        } else {
-                            // Before the bar has been measured, take its width from its
-                            // content rather than from a guess.
-                            Modifier.widthIn(max = expandedWidth)
-                        },
-                    ),
-            expandedWidth = expandedWidth,
-            onExpandedContentHeightPx = { expandedContentHeightPx = it },
-            onCollapsedContentWidthPx = { collapsedContentWidthPx = it },
-            content = content,
-        )
-    }
-}
-
 @Composable
 private fun ComposerPanel(
-    composerExpanded: Boolean,
-    modifier: Modifier,
     expandedWidth: Dp,
-    onExpandedContentHeightPx: (Int) -> Unit,
-    onCollapsedContentWidthPx: (Int) -> Unit,
-    content: @Composable RowScope.(collapsedMaxToolbarWidth: Dp) -> Unit,
+    expandedHeight: Dp,
+    dragDistance: FloatState,
+    backProgress: () -> Float,
+    onContentHeightPx: (Int) -> Unit,
+    modifier: Modifier,
+    content: @Composable (fillEditor: Boolean) -> Unit,
 ) {
+    // Growing with the text is spatial motion, so it takes the theme's spatial spec.
+    val height by animateDpAsState(
+        expandedHeight,
+        MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "ComposerHeight",
+    )
+    val dragHeight = with(LocalDensity.current) { dragDistance.floatValue.toDp() }
+    val fillEditor = dragHeight > 0.dp
+    val progress = backProgress()
     Surface(
-        // Transition between a capsule shape when collapsed and a rounded rectangle when expanded
-        shape = if (composerExpanded) MaterialTheme.shapes.large else CircleShape,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        shadowElevation = 1.dp,
-        modifier = modifier,
+        // The panel's corner, easing to the medium FAB's as a back gesture shrinks it toward one.
+        shape = RoundedCornerShape(lerp(28.dp, 20.dp, progress)),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier =
+            modifier.size(
+                lerp(expandedWidth, composerFabSize, progress),
+                lerp(height + dragHeight, composerFabSize, progress),
+            ),
     ) {
-        Box(
-            // Height only: filling the width would stretch the collapsed pill to the
-            // panel's maximum, because the panel's width is content-driven when collapsed.
-            modifier = Modifier.fillMaxHeight(),
-            // Both resting layouts fill the panel, so this only matters mid-resize. Pinning
-            // the collapsed bar to the bottom keeps it at its final position while the panel
-            // shrinks, instead of letting it ride the top edge down the screen. The spring's
-            // undershoot does squeeze it by a few dp at the tail, which reads as a settle.
-            contentAlignment = if (composerExpanded) Alignment.TopCenter else Alignment.BottomCenter,
-        ) {
-            ComposerContentRow(
-                composerExpanded = composerExpanded,
-                expandedWidth = expandedWidth,
-                onExpandedContentHeightPx = onExpandedContentHeightPx,
-                onCollapsedContentWidthPx = onCollapsedContentWidthPx,
-                content = content,
-            )
+        Box(contentAlignment = Alignment.TopCenter) {
+            // Keep the editor's measured width stable as its surface narrows.
+            val width =
+                if (progress > 0f) {
+                    Modifier.wrapContentWidth(Alignment.End, unbounded = true).width(expandedWidth)
+                } else {
+                    Modifier
+                }
+            val bounds =
+                if (fillEditor) {
+                    Modifier.fillMaxSize()
+                } else {
+                    Modifier
+                        .fillMaxWidth()
+                        .wrapContentHeight(unbounded = true)
+                        .onSizeChanged { onContentHeightPx(it.height) }
+                }
+            // Inside the size report, so the panel's measured height includes it.
+            Box(width.then(bounds).padding(composerPanelContentPadding)) { content(fillEditor) }
         }
     }
 }
 
+/** The FAB's face: the primary action, writing, with its label as a tooltip. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ComposerContentRow(
-    composerExpanded: Boolean,
-    expandedWidth: Dp,
-    onExpandedContentHeightPx: (Int) -> Unit,
-    onCollapsedContentWidthPx: (Int) -> Unit,
-    content: @Composable RowScope.(collapsedMaxToolbarWidth: Dp) -> Unit,
+private fun ComposerFab(
+    dropTargetActive: Boolean,
+    iconAlpha: () -> Float,
+    onClick: () -> Unit,
+    modifier: Modifier,
 ) {
-    Row(
-        modifier =
-            Modifier
-                .then(
-                    if (composerExpanded) {
-                        // Measured unconstrained so the content can report its full
-                        // height while the panel is still growing; the excess is
-                        // clipped by the panel's shape until the panel catches up.
-                        Modifier.fillMaxWidth().wrapContentHeight(unbounded = true)
-                    } else {
-                        // Exactly the resting height, so the bar sits where it will
-                        // come to rest rather than stretching to the animating panel.
-                        Modifier
-                            .height(collapsedComposerHeight)
-                            // Unbounded for the same reason as the height above: the
-                            // panel's width is this measurement, so a bar measured
-                            // under the panel's own width could never report wider than
-                            // it already is. Left bounded, the two lock at whichever
-                            // width the first frame happened to measure.
-                            .wrapContentWidth(unbounded = true)
-                            // Capped at the panel's maximum instead, so a bar with more
-                            // actions than room shrinks its mode label rather than
-                            // overflowing the pill on both sides.
-                            .widthIn(max = expandedWidth)
-                    },
-                )
-                // Placed before the padding so it reports the padded width, which
-                // is what the panel itself has to be.
-                .onSizeChanged {
-                    if (!composerExpanded) onCollapsedContentWidthPx(it.width)
-                }.padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
+    val icon = if (dropTargetActive) Icons.Default.MoveToInbox else Icons.Default.Edit
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = {
+            PlainTooltip { Text(stringResource(R.string.chat_chat)) }
+        },
+        state = rememberTooltipState(),
     ) {
-        if (composerExpanded) {
-            val rowScope = this
-            Box(modifier = Modifier.fillMaxWidth().onSizeChanged { onExpandedContentHeightPx(it.height) }) {
-                with(rowScope) { content(expandedWidth) }
+        // Primary rather than the vibrant toolbar's tertiary container: the FAB is the screen's
+        // one high-emphasis action and has to stand out against the pale toolbar beside it.
+        MediumFloatingActionButton(
+            onClick = onClick,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            modifier = modifier.handCursor(),
+        ) {
+            Crossfade(
+                targetState = icon,
+                modifier = Modifier.graphicsLayer { alpha = iconAlpha() },
+                label = "ComposerFabIcon",
+            ) {
+                Icon(
+                    imageVector = it,
+                    contentDescription = stringResource(R.string.chat_chat),
+                    modifier = Modifier.size(FloatingActionButtonDefaults.MediumIconSize),
+                )
             }
-        } else {
-            content(expandedWidth)
         }
     }
 }
@@ -477,6 +544,10 @@ internal fun ExpandedComposerContent(
     focusRequester: FocusRequester,
     showStopAction: Boolean,
     queueing: Boolean,
+    fullscreen: Boolean,
+    fillEditor: Boolean,
+    dragDistance: MutableFloatState,
+    onToggleFullscreen: () -> Unit,
     onClose: () -> Unit,
     onPrimaryAction: () -> Unit,
     onSend: () -> Unit,
@@ -491,20 +562,31 @@ internal fun ExpandedComposerContent(
     onAudiosChanged: (List<ChatAudioData>) -> Unit,
     selectedResourceLinks: List<ChatPromptResourceLink>,
     onResourceLinksChanged: (List<ChatPromptResourceLink>) -> Unit,
-    onAttach: () -> Unit,
+    attachmentPickers: AttachmentPickers,
     dropTargetActive: Boolean,
+    agentIconUrl: String?,
+    agentName: String?,
+    modelOption: ChatConfigOption.Select?,
+    effortOption: ChatConfigOption.Select?,
+    onSetConfigOption: (String, String) -> Unit,
 ) {
     val hasAttachments =
         selectedImages.isNotEmpty() ||
             selectedFiles.isNotEmpty() ||
             selectedAudios.isNotEmpty() ||
             selectedResourceLinks.isNotEmpty()
+    val editorBounds = if (fillEditor) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
+    val lineLimits =
+        if (fillEditor) {
+            TextFieldLineLimits.MultiLine()
+        } else {
+            TextFieldLineLimits.MultiLine(minHeightInLines = 3, maxHeightInLines = 8)
+        }
     Column(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp, bottom = 12.dp)
+            editorBounds
                 .graphicsLayer { alpha = inputAlpha() }
+                .onPreviewKeyEvent { mentionState.onKey(it, onMentionSelected) }
                 .onEscapeKey(onEscape = onClose)
                 // Restates the send button's contract for the keyboard: the button is disabled
                 // while streaming and while the field is blank, so the shortcut is too.
@@ -513,6 +595,19 @@ internal fun ExpandedComposerContent(
                     onSubmit = onSend,
                 ),
     ) {
+        ExpandedComposerHeader(
+            fullscreen = fullscreen,
+            dragDistance = dragDistance,
+            onToggleFullscreen = onToggleFullscreen,
+            onClose = onClose,
+            agentIconUrl = agentIconUrl,
+            agentName = agentName,
+            modelOption = modelOption,
+            effortOption = effortOption,
+            onSetConfigOption = onSetConfigOption,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        // Outside the text card, on the panel: what is attached reads apart from what is typed.
         AnimatedComposerAttachments(
             images = selectedImages,
             audios = selectedAudios,
@@ -523,26 +618,85 @@ internal fun ExpandedComposerContent(
             onFilesChanged = onFilesChanged,
             onLinksChanged = onResourceLinksChanged,
         )
-        ExpandedComposerTextField(
-            messageText = messageText,
-            mentionState = mentionState,
-            onMentionSelected = onMentionSelected,
-            commandInputHint = commandInputHint,
-            focusRequester = focusRequester,
-            onSend = onSend,
-        )
+        Surface(
+            // Concentric with the panel: its 28dp corner less the 12dp inset.
+            shape = MaterialTheme.shapes.large,
+            // Two tones above the panel, so the field reads as raised without a shadow.
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            modifier = if (fillEditor) Modifier.weight(1f).fillMaxWidth() else Modifier,
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+                ExpandedComposerTextField(
+                    messageText = messageText,
+                    mentionState = mentionState,
+                    onMentionSelected = onMentionSelected,
+                    commandInputHint = commandInputHint,
+                    focusRequester = focusRequester,
+                    onSend = onSend,
+                    lineLimits = lineLimits,
+                    modifier = editorBounds,
+                )
+            }
+        }
         ExpandedComposerBottomBar(
-            onClose = onClose,
             canSendImages = canSendImages,
             canSendFiles = canSendFiles,
             canSendAudio = canSendAudio,
-            onAttach = onAttach,
+            attachmentPickers = attachmentPickers,
             showStopAction = showStopAction,
             queueing = queueing,
             messageText = messageText.text,
             hasAttachments = hasAttachments,
             onPrimaryAction = onPrimaryAction,
             dropTargetActive = dropTargetActive,
+        )
+    }
+}
+
+@Composable
+private fun ExpandedComposerHeader(
+    fullscreen: Boolean,
+    dragDistance: MutableFloatState,
+    onToggleFullscreen: () -> Unit,
+    onClose: () -> Unit,
+    agentIconUrl: String?,
+    agentName: String?,
+    modelOption: ChatConfigOption.Select?,
+    effortOption: ChatConfigOption.Select?,
+    onSetConfigOption: (String, String) -> Unit,
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val sideWidth = ((maxWidth - composerDragHandleWidth) / 2).coerceAtLeast(0.dp)
+        val effortWidth = if (effortOption == null) 0.dp else 50.dp
+        // Give the controls a separate row when the selector cannot fit beside the handle.
+        val controlsBelowHandle = modelOption != null && sideWidth < composerModelButtonMinWidth + effortWidth
+        val controlsTop = if (controlsBelowHandle) composerDragHandleHeight else composerPanelPadding
+        val selectorWidth = if (controlsBelowHandle) maxWidth else sideWidth
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = controlsTop),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CloseComposerButton(onClose = onClose, fullscreen = fullscreen)
+            if (modelOption != null) {
+                Spacer(Modifier.weight(1f))
+                ModelEffortButton(
+                    agentIconUrl = agentIconUrl,
+                    agentName = agentName,
+                    modelOption = modelOption,
+                    effortOption = effortOption,
+                    onSetConfigOption = onSetConfigOption,
+                    modifier = Modifier.widthIn(max = selectorWidth),
+                )
+            }
+        }
+        ComposerDragHandle(
+            fullscreen = fullscreen,
+            dragDistance = dragDistance,
+            onToggle = onToggleFullscreen,
+            onDismiss = onClose,
+            modifier = Modifier.align(Alignment.TopCenter),
         )
     }
 }
@@ -563,14 +717,16 @@ private fun ExpandedComposerTextField(
     commandInputHint: String?,
     focusRequester: FocusRequester,
     onSend: () -> Unit,
+    lineLimits: TextFieldLineLimits,
+    modifier: Modifier,
 ) {
     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val scrollState = rememberScrollState()
     var menuAnchor by remember { mutableStateOf(IntOffset.Zero) }
     val selectionColors =
         TextSelectionColors(
-            handleColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            backgroundColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.35f),
+            handleColor = MaterialTheme.colorScheme.primary,
+            backgroundColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
         )
     val decorator =
         remember(messageText, mentionState, onMentionSelected, commandInputHint, scrollState) {
@@ -586,7 +742,7 @@ private fun ExpandedComposerTextField(
                         Text(
                             text = stringResource(R.string.chat_composer_hint),
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.55f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     innerTextField()
@@ -600,7 +756,7 @@ private fun ExpandedComposerTextField(
                             Text(
                                 text = "[$hint]",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.55f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier =
@@ -637,67 +793,28 @@ private fun ExpandedComposerTextField(
             onTextLayout = { getResult -> getResult()?.let { textLayout = it } },
             textStyle =
                 MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = MaterialTheme.colorScheme.onSurface,
                 ),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimaryContainer),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             // The field's IME action is Send, so every action reported here is a send; the default
             // action (dismissing the keyboard) is deliberately skipped, as the button does not
             // dismiss it either.
             onKeyboardAction = KeyboardActionHandler { onSend() },
-            lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 3, maxHeightInLines = 8),
+            lineLimits = lineLimits,
             decorator = decorator,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
+            modifier = modifier.focusRequester(focusRequester),
         )
     }
 }
 
-@Composable
-private fun AttachComposerButton(
-    onAttach: () -> Unit,
-    dropTargetActive: Boolean,
-) {
-    IconButton(onClick = onAttach, modifier = Modifier.handCursor()) {
-        Icon(
-            imageVector =
-                if (dropTargetActive) {
-                    Icons.Default.MoveToInbox
-                } else {
-                    Icons.Default.AttachFile
-                },
-            contentDescription = stringResource(R.string.chat_attach_desc),
-            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
-    }
-}
-
-@Composable
-private fun ComposerAttachmentButtons(
-    canSendImages: Boolean,
-    canSendFiles: Boolean,
-    canSendAudio: Boolean,
-    onAttach: () -> Unit,
-    dropTargetActive: Boolean,
-) {
-    if (canSendImages || canSendFiles || canSendAudio) {
-        AttachComposerButton(onAttach = onAttach, dropTargetActive = dropTargetActive)
-    }
-}
-
-/**
- * The bottom action row inside [ExpandedComposerContent], containing the
- * close button, attach-file affordance, and primary action button.
- */
+/** The bottom row: a button group of secondary actions beside the send button. */
 @Composable
 private fun ExpandedComposerBottomBar(
-    onClose: () -> Unit,
     canSendImages: Boolean,
     canSendFiles: Boolean,
     canSendAudio: Boolean,
-    onAttach: () -> Unit,
+    attachmentPickers: AttachmentPickers,
     showStopAction: Boolean,
     queueing: Boolean,
     messageText: CharSequence,
@@ -706,56 +823,39 @@ private fun ExpandedComposerBottomBar(
     dropTargetActive: Boolean,
 ) {
     Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Bottom,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onClose, modifier = Modifier.handCursor()) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = stringResource(R.string.chat_composer_close_desc),
-            )
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ComposerAttachmentButtons(
-                canSendImages = canSendImages,
-                canSendFiles = canSendFiles,
-                canSendAudio = canSendAudio,
-                onAttach = onAttach,
-                dropTargetActive = dropTargetActive,
-            )
-
-            PrimaryComposerActionButton(
-                showStopAction = showStopAction,
-                // Attachments alone are a sendable prompt, just like text alone.
-                enabled = showStopAction || messageText.isNotBlank() || hasAttachments,
-                onClick = onPrimaryAction,
-                chatIcon = if (queueing) Icons.AutoMirrored.Filled.ScheduleSend else Icons.Default.ArrowUpward,
-            )
-        }
+        ComposerActionGroup(
+            canSendImages = canSendImages,
+            showFiles = canSendImages || canSendFiles || canSendAudio,
+            pickers = attachmentPickers,
+            dropTargetActive = dropTargetActive,
+        )
+        // Keep send at the trailing edge even when there are no attachment actions.
+        Spacer(modifier = Modifier.weight(1f))
+        PrimaryComposerActionButton(
+            showStopAction = showStopAction,
+            // Attachments alone are a sendable prompt, just like text alone.
+            enabled = showStopAction || messageText.isNotBlank() || hasAttachments,
+            onClick = onPrimaryAction,
+            chatIcon = if (queueing) Icons.AutoMirrored.Filled.ScheduleSend else Icons.AutoMirrored.Filled.Send,
+        )
     }
 }
 
 /**
  * UI content for the composer in its collapsed state, showing quick actions.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun RowScope.CollapsedComposerActions(
     state: ChatState,
     toolbarConfigOptions: List<ChatConfigOption>,
-    buttonsAlpha: () -> Float,
     showModeButton: Boolean,
     modeOption: ChatConfigOption.Select?,
     currentModeLabel: String,
-    showStopAction: Boolean,
-    stopAside: Boolean,
+    showStop: Boolean,
     collapsedMaxToolbarWidth: Dp,
     showModeMenu: Boolean,
     onShowModeMenuChange: (Boolean) -> Unit,
@@ -763,7 +863,6 @@ internal fun RowScope.CollapsedComposerActions(
     showOptionsMenu: Boolean,
     onShowOptionsMenuChange: (Boolean) -> Unit,
     optionsMenuInteractionSource: MutableInteractionSource,
-    onExpandComposer: () -> Unit,
     onCancelStreaming: () -> Unit,
     onSetStringConfigOption: (String, String) -> Unit,
     onSetBooleanConfigOption: (String, Boolean) -> Unit,
@@ -771,13 +870,12 @@ internal fun RowScope.CollapsedComposerActions(
     onShowConfigOptionPicker: (String) -> Unit,
     showJumpToBottom: Boolean,
     onJumpToBottom: () -> Unit,
-    dropTargetActive: Boolean,
 ) {
     if (showModeButton && modeOption != null) {
         ModeMenuButton(
             // Weighted so the fixed-size actions are measured first and the label takes
             // what is left, ellipsizing on a narrow bar.
-            modifier = Modifier.weight(1f, fill = false).graphicsLayer { alpha = buttonsAlpha() },
+            modifier = Modifier.weight(1f, fill = false),
             currentModeLabel = currentModeLabel,
             modeOption = modeOption,
             maxWidth = collapsedMaxToolbarWidth * 0.45f,
@@ -789,28 +887,12 @@ internal fun RowScope.CollapsedComposerActions(
         Spacer(modifier = Modifier.width(6.dp))
     }
 
-    CollapsedPrimaryButton(
-        showStopAction = showStopAction,
-        buttonsAlpha = buttonsAlpha,
-        onCancelStreaming = onCancelStreaming,
-        onExpandComposer = onExpandComposer,
-        dropTargetActive = dropTargetActive,
-    )
-
-    AnimatedVisibility(visible = stopAside, enter = toolbarActionEnter, exit = toolbarActionExit) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Spacer(modifier = Modifier.width(6.dp))
-            AsideStopButton(onCancelStreaming = onCancelStreaming)
-        }
+    AnimatedVisibility(visible = showStop, enter = toolbarActionEnter, exit = toolbarActionExit) {
+        StopButton(onCancelStreaming = onCancelStreaming)
     }
 
     AnimatedVisibility(visible = showJumpToBottom, enter = toolbarActionEnter, exit = toolbarActionExit) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Spacer(modifier = Modifier.width(6.dp))
-            JumpToBottomButton(onJumpToBottom = onJumpToBottom)
-        }
+        JumpToBottomButton(onJumpToBottom = onJumpToBottom)
     }
 
     ToolbarOptionsButton(
@@ -825,44 +907,6 @@ internal fun RowScope.CollapsedComposerActions(
     )
 }
 
-/**
- * The primary action button in the collapsed composer, wrapped in a [TooltipBox]
- * that shows the current mode label ("Stop" or "Chat").
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CollapsedPrimaryButton(
-    showStopAction: Boolean,
-    buttonsAlpha: () -> Float,
-    onCancelStreaming: () -> Unit,
-    onExpandComposer: () -> Unit,
-    dropTargetActive: Boolean,
-) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-        tooltip = {
-            PlainTooltip {
-                Text(stringResource(if (showStopAction) R.string.chat_stop else R.string.chat_chat))
-            }
-        },
-        state = rememberTooltipState(),
-    ) {
-        PrimaryComposerActionButton(
-            showStopAction = showStopAction,
-            modifier =
-                Modifier
-                    .graphicsLayer { alpha = buttonsAlpha() }
-                    .size(
-                        IconButtonDefaults.smallContainerSize(
-                            IconButtonDefaults.IconButtonWidthOption.Wide,
-                        ),
-                    ),
-            onClick = { if (showStopAction) onCancelStreaming() else onExpandComposer() },
-            chatIcon = if (dropTargetActive) Icons.Default.MoveToInbox else Icons.Default.Edit,
-        )
-    }
-}
-
 /** A toolbar action popping in or out, with the bar resizing around it. */
 private val toolbarActionEnter =
     fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
@@ -873,10 +917,10 @@ private val toolbarActionExit =
         scaleOut(targetScale = 0.6f, animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
         shrinkHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMedium))
 
-/** Stop as a plain toolbar action, for agents whose primary action stays on writing mid-turn. */
+/** Stop as a plain toolbar action: destructive, so it never takes the FAB. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AsideStopButton(onCancelStreaming: () -> Unit) {
+private fun StopButton(onCancelStreaming: () -> Unit) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = {
@@ -926,24 +970,24 @@ internal fun PrimaryComposerActionButton(
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    chatIcon: ImageVector = Icons.Default.ArrowUpward,
+    chatIcon: ImageVector,
 ) {
     FilledIconButton(
         onClick = onClick,
         enabled = enabled,
-        colors =
-            IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                contentColor = MaterialTheme.colorScheme.primaryContainer,
+        shapes =
+            IconButtonDefaults.shapes(
+                shape = IconButtonDefaults.mediumRoundShape,
+                pressedShape = IconButtonDefaults.mediumPressedShape,
             ),
-        shapes = IconButtonDefaults.shapes(),
-        modifier = modifier.handCursor(enabled = enabled),
+        modifier = modifier.size(composerSendButtonSize).handCursor(enabled = enabled),
     ) {
         Crossfade(targetState = if (showStopAction) Icons.Default.Stop else chatIcon, label = "PrimaryComposerIcon") {
             Icon(
                 imageVector = it,
                 contentDescription =
                     stringResource(if (showStopAction) R.string.chat_stop_desc else R.string.chat_send_desc),
+                modifier = Modifier.size(IconButtonDefaults.mediumIconSize),
             )
         }
     }

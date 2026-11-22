@@ -5,431 +5,156 @@ package com.tamimarafat.ferngeist.feature.chat.ui.composer
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
-import com.tamimarafat.ferngeist.core.model.ChatAudioData
-import com.tamimarafat.ferngeist.core.model.ChatFileData
+import com.tamimarafat.ferngeist.core.git.ui.fileIconFor
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
-import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.R
 
-/**
- * Horizontal scrolling row of attached-image thumbnails, each with a remove (x) affordance.
- */
+/** A pending image filling its carousel item, or a placeholder when it fails to decode. */
 @Composable
-internal fun ImageThumbnailRow(
-    images: List<ChatImageData>,
-    onRemove: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val motion = MaterialTheme.motionScheme
-    LazyRow(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp),
-    ) {
-        itemsIndexed(
-            items = images,
-            key = {
-                index,
-                image,
-                ->
-                "${image.hashCode()}:${images.take(index).count { it.hashCode() == image.hashCode() }}"
-            },
-        ) { index, image ->
-            ImageThumbnailItem(
-                modifier =
-                    Modifier.animateItem(
-                        fadeInSpec = motion.fastEffectsSpec(),
-                        placementSpec = motion.fastSpatialSpec(),
-                        fadeOutSpec = motion.fastEffectsSpec(),
-                    ),
-                image = image,
-                onRemove = { onRemove(index) },
-            )
+internal fun PendingImage(image: ChatImageData) {
+    val bitmap =
+        remember(image.base64) {
+            runCatching {
+                val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }.getOrNull()
         }
-    }
-}
-
-/**
- * Horizontal scrolling row of attached-file chips, each with a remove (x) affordance.
- */
-@Composable
-internal fun FileChipRow(
-    files: List<ChatFileData>,
-    onRemove: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val motion = MaterialTheme.motionScheme
-    LazyRow(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp),
-    ) {
-        itemsIndexed(
-            items = files,
-            key = {
-                index,
-                file,
-                ->
-                "${file.hashCode()}:${files.take(index).count { it.hashCode() == file.hashCode() }}"
-            },
-        ) { index, file ->
-            FileChipItem(
-                file = file,
-                onRemove = { onRemove(index) },
-                modifier =
-                    Modifier.animateItem(
-                        fadeInSpec = motion.fastEffectsSpec(),
-                        placementSpec = motion.fastSpatialSpec(),
-                        fadeOutSpec = motion.fastEffectsSpec(),
-                    ),
-            )
-        }
-    }
-}
-
-@Composable
-internal fun FileChipItem(
-    file: ChatFileData,
-    onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
-        modifier = modifier.height(56.dp),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp),
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = stringResource(R.string.chat_image_desc),
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        )
+    } else {
+        Box(
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLowest),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
+                imageVector = Icons.Default.AddPhotoAlternate,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.width(8.dp))
-            Column(modifier = Modifier.widthIn(max = 160.dp)) {
-                Text(
-                    text = file.name,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = FileAttachmentHelper.formatSize(file.sizeBytes),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-            Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onRemove, modifier = Modifier.size(24.dp).handCursor()) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(R.string.chat_remove_file_desc),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
         }
     }
 }
 
-@Composable
-internal fun ImageThumbnailItem(
-    image: ChatImageData,
-    onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(modifier = modifier) {
-        val bitmap =
-            remember(image.base64) {
-                runCatching {
-                    val bytes = Base64.decode(image.base64, Base64.DEFAULT)
-                    BitmapFactory
-                        .decodeByteArray(bytes, 0, bytes.size)
-                        ?.asImageBitmap()
-                }.getOrNull()
-            }
-
-        ThumbnailImageContent(bitmap = bitmap)
-
-        // Remove button — positioned top-end of the thumbnail
-        ThumbnailRemoveButton(onRemove = onRemove)
-    }
-}
-
 /**
- * The thumbnail image surface inside [ImageThumbnailItem], showing either the
- * decoded bitmap or a placeholder icon when decoding fails.
+ * A pending non-image attachment filling its carousel item: its type badge in a soft cookie
+ * (matching the transcript's attachment cards) over its name and detail.
  */
 @Composable
-internal fun ThumbnailImageContent(
-    bitmap: androidx.compose.ui.graphics.ImageBitmap?,
-    modifier: Modifier = Modifier,
+internal fun PendingFileTile(
+    name: String,
+    detail: String,
+    badge: @Composable () -> Unit,
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
-        modifier = modifier.size(56.dp),
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                .padding(12.dp),
     ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = stringResource(R.string.chat_image_desc),
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .clip(MaterialTheme.shapes.large),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AddPhotoAlternate,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.4f),
-                    modifier = Modifier.size(24.dp),
-                )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier =
+                Modifier
+                    .size(56.dp)
+                    .clip(MaterialShapes.Cookie4Sided.toShape())
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+        ) {
+            CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSecondaryContainer) {
+                badge()
             }
         }
+        Text(
+            text = name,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleSmall,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = detail,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
+/** The workspace's per-extension file icon, the same one the transcript's attachment cards show. */
+@Composable
+internal fun FileTypeIcon(name: String) {
+    Image(painterResource(fileIconFor(name)), contentDescription = null, modifier = Modifier.size(28.dp))
+}
+
 /**
- * The remove (x) button overlay for [ImageThumbnailItem], positioned at the
- * top-end of the thumbnail.
+ * The remove (x) overlay for a carousel item. Inset inside the corner, on an inverse scrim so it
+ * reads over any image.
  */
 @Composable
-internal fun BoxScope.ThumbnailRemoveButton(
+internal fun BoxScope.AttachmentRemoveButton(
+    contentDescription: String,
     onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+        color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.8f),
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
         modifier =
-            modifier
+            Modifier
                 .align(Alignment.TopEnd)
-                .offset(x = 4.dp, y = (-4).dp)
-                .size(18.dp),
+                .padding(8.dp)
+                .size(28.dp),
     ) {
-        IconButton(
-            onClick = onRemove,
-            modifier = Modifier.fillMaxSize().handCursor(),
-        ) {
+        IconButton(onClick = onRemove, modifier = Modifier.fillMaxSize().handCursor()) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = stringResource(R.string.chat_remove_image_desc),
-                tint = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(12.dp),
+                contentDescription = contentDescription,
+                modifier = Modifier.size(18.dp),
             )
-        }
-    }
-}
-
-/** Horizontal chip row for audio prompt attachments. */
-@Composable
-internal fun AudioChipRow(
-    audios: List<ChatAudioData>,
-    onRemove: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val motion = MaterialTheme.motionScheme
-    LazyRow(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp),
-    ) {
-        itemsIndexed(
-            items = audios,
-            key = {
-                index,
-                audio,
-                ->
-                "${audio.hashCode()}:${audios.take(index).count { it.hashCode() == audio.hashCode() }}"
-            },
-        ) { index, audio ->
-            AudioChipItem(
-                audio = audio,
-                onRemove = { onRemove(index) },
-                modifier =
-                    Modifier.animateItem(
-                        fadeInSpec = motion.fastEffectsSpec(),
-                        placementSpec = motion.fastSpatialSpec(),
-                        fadeOutSpec = motion.fastEffectsSpec(),
-                    ),
-            )
-        }
-    }
-}
-
-@Composable
-internal fun AudioChipItem(
-    audio: ChatAudioData,
-    onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    AttachmentChip(
-        name = audio.name,
-        detail = FileAttachmentHelper.formatSize(audio.sizeBytes),
-        icon = Icons.Default.MusicNote,
-        onRemove = onRemove,
-        modifier = modifier,
-    )
-}
-
-/** Horizontal chip row for workspace files the prompt references by link. */
-@Composable
-internal fun ResourceLinkChipRow(
-    links: List<ChatPromptResourceLink>,
-    onRemove: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val motion = MaterialTheme.motionScheme
-    LazyRow(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp),
-    ) {
-        itemsIndexed(
-            items = links,
-            key = { _, link -> link.uri },
-        ) { index, link ->
-            ResourceLinkChipItem(
-                link = link,
-                onRemove = { onRemove(index) },
-                modifier =
-                    Modifier.animateItem(
-                        fadeInSpec = motion.fastEffectsSpec(),
-                        placementSpec = motion.fastSpatialSpec(),
-                        fadeOutSpec = motion.fastEffectsSpec(),
-                    ),
-            )
-        }
-    }
-}
-
-@Composable
-internal fun ResourceLinkChipItem(
-    link: ChatPromptResourceLink,
-    onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    AttachmentChip(
-        name = link.name,
-        detail = link.uri,
-        icon = Icons.Default.Link,
-        onRemove = onRemove,
-        modifier = modifier,
-    )
-}
-
-@Composable
-private fun AttachmentChip(
-    name: String,
-    detail: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
-        modifier = modifier.height(56.dp),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            Spacer(Modifier.width(8.dp))
-            Column(modifier = Modifier.widthIn(max = 160.dp)) {
-                Text(
-                    text = name,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = detail,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onRemove, modifier = Modifier.size(24.dp).handCursor()) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(R.string.chat_remove_file_desc),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
         }
     }
 }

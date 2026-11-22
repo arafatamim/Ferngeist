@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.ComposerMode
 import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -43,7 +44,7 @@ internal fun rememberSendHandlers(
                 mutations.selectedFiles.value = emptyList()
                 mutations.selectedAudios.value = emptyList()
                 mutations.selectedResourceLinks.value = emptyList()
-                mutations.composerExpanded.value = false
+                mutations.composerMode.value = ComposerMode.COLLAPSED
                 focusManager.clearFocus()
             }
         }
@@ -71,7 +72,7 @@ private fun sendCommandHandler(
                 mutations.messageText.edit {
                     replace(0, 0, "$slashCommand ")
                 }
-                mutations.composerExpanded.value = true
+                mutations.openComposer()
                 mutations.composerFocusTrigger.value++
             } else {
                 confirmOrSend(viewModel, mutations) {

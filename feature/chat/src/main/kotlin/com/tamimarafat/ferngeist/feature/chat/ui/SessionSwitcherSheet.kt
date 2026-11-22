@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -194,11 +195,11 @@ internal fun Modifier.switcherDrag(
     }
 
 /**
- * Pins the first-run hint's right edge to the button's right edge, floating
- * above it by [gapPx]. Right-aligned (not centered) on purpose: the button
- * rides the screen's right edge, so a centered bubble would hang off-screen
- * and any on-screen clamp would drag the arrow off the button's center.
- * Extending left over the composer pill always stays on-screen instead.
+ * Pins the first-run hint's left edge to the button's left edge, floating
+ * above it by [gapPx]. Left-aligned (not centered) on purpose: the button
+ * leads the composer row, so a centered bubble can hang off-screen on a
+ * narrow window and any on-screen clamp would drag the arrow off the button's
+ * center. Extending right over the composer toolbar stays on-screen instead.
  */
 private class SwitcherHintPositionProvider(
     private val gapPx: Int,
@@ -209,15 +210,15 @@ private class SwitcherHintPositionProvider(
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize,
     ): IntOffset {
-        val x = (anchorBounds.right - popupContentSize.width).coerceAtLeast(0)
+        val x = anchorBounds.left.coerceAtMost(windowSize.width - popupContentSize.width).coerceAtLeast(0)
         val y = anchorBounds.top - popupContentSize.height - gapPx
         return IntOffset(x, y)
     }
 }
 
 /**
- * Round live-session count button riding immediately to the right of the
- * composer pill: same colors and a near-pill-height
+ * Round live-session count button leading the composer's toolbar: same colors
+ * and a near-toolbar-height
  * circle, so the two read as one control. Attention and errors replace the count.
  * Tap opens the sheet; a horizontal drag moves the whole chat with the
  * finger (Chrome-style) and release commits the switch or springs back.
@@ -329,7 +330,8 @@ internal fun SessionSwitcherBubble(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                shadowElevation = 6.dp,
+                // Matches the floating toolbar beside it.
+                shadowElevation = FloatingToolbarDefaults.ContainerExpandedElevation,
                 modifier =
                     Modifier
                         .size(collapsedComposerHeight - switcherBubbleOpticalInset)
@@ -459,7 +461,7 @@ private fun SwitcherCountContent(
 private fun SwitcherHintBubble(modifier: Modifier = Modifier) {
     val bubbleColor = MaterialTheme.colorScheme.inverseSurface
     Column(
-        horizontalAlignment = Alignment.End,
+        horizontalAlignment = Alignment.Start,
         modifier = modifier,
     ) {
         Surface(
@@ -474,14 +476,14 @@ private fun SwitcherHintBubble(modifier: Modifier = Modifier) {
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             )
         }
-        // Arrow center sits half a button width from the bubble's right edge,
-        // which the position provider pins to the button's right edge — so the
+        // Arrow center sits half a button width from the bubble's left edge,
+        // which the position provider pins to the button's left edge — so the
         // tip lands on the button's center. Overlapped 1.dp into the bubble to
         // hide the antialiased seam.
         Canvas(
             modifier =
                 Modifier
-                    .padding(end = 21.dp)
+                    .padding(start = 21.dp)
                     .offset(y = (-1).dp)
                     .size(width = switcherHintArrowWidth, height = switcherHintArrowHeight),
         ) {

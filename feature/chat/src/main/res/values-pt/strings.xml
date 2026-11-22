@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="chat_composer_hint">Digite uma mensagem…</string>
+    <string name="chat_composer_hint">Pergunte qualquer coisa, @ para mencionar, / para um comando</string>
     <string name="chat_composer_close_desc">Fechar o compositor</string>
+    <string name="chat_composer_fullscreen_desc">Expandir o compositor para tela cheia</string>
+    <string name="chat_composer_restore_desc">Voltar ao compositor expandido</string>
+    <string name="chat_composer_exit_fullscreen_desc">Sair do compositor em tela cheia</string>
     <string name="chat_stop">Parar</string>
     <string name="chat_chat">Chat</string>
     <string name="chat_mode">Modo</string>

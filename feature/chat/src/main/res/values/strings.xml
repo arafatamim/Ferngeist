@@ -1,29 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Chat Composer -->
-    <string name="chat_composer_hint">Type a message…</string>
+    <string name="chat_composer_hint">Ask anything, @ to mention, / for a command</string>
     <string name="chat_composer_close_desc">Close composer</string>
+    <string name="chat_composer_fullscreen_desc">Expand composer to full screen</string>
+    <string name="chat_composer_restore_desc">Return to expanded composer</string>
+    <string name="chat_composer_exit_fullscreen_desc">Exit full-screen composer</string>
     <string name="chat_stop">Stop</string>
     <string name="chat_chat">Chat</string>
     <string name="chat_mode">Mode</string>
     <string name="chat_no_modes_available">No modes available</string>
     <string name="chat_options">Options</string>
+    <string name="chat_effort_desc">Reasoning effort</string>
     <string name="chat_commands">Commands</string>
     <string name="chat_no_options_available">No options available</string>
     <string name="chat_enabled">Enabled</string>
-    <string name="chat_effort_desc">Reasoning effort</string>
     <string name="chat_disabled">Disabled</string>
     <string name="chat_not_selected">Not selected</string>
     <string name="chat_send_desc">Send</string>
     <string name="chat_stop_desc">Stop</string>
     <string name="chat_reference_workspace_file">Reference workspace file</string>
     <string name="chat_attach_desc">Attach file</string>
-    <string name="chat_attach_nothing_found">No image or file to attach</string>
-    <string name="chat_remove_image_desc">Remove image</string>
-    <plurals name="chat_images_dropped_capped">
     <string name="chat_attach_photos_desc">Attach photos</string>
     <string name="chat_attach_camera_desc">Take a photo</string>
     <string name="chat_camera_unavailable">Couldn\'t open the camera.</string>
+    <string name="chat_attach_nothing_found">No image or file to attach</string>
+    <string name="chat_remove_image_desc">Remove image</string>
+    <plurals name="chat_images_dropped_capped">
         <item quantity="one">Dropped %1$d undecodable image; limit is %2$d per message</item>
         <item quantity="other">Dropped %1$d undecodable images; limit is %2$d per message</item>
     </plurals>
