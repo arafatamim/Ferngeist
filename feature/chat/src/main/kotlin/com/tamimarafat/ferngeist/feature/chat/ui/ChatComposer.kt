@@ -11,6 +11,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -57,6 +58,7 @@ import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalFloatingToolbar
@@ -64,7 +66,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -138,8 +139,10 @@ import kotlin.math.roundToInt
 // always matches the toolbar beside it.
 internal val collapsedComposerHeight = FloatingToolbarDefaults.ContainerSize
 
-// M3 medium FAB. The library keeps its size token, and the toolbar-to-FAB gap, internal.
-private val composerFabSize = 80.dp
+// M3 FAB sizes. The library keeps its size tokens, and the toolbar-to-FAB gap, internal.
+internal val mediumComposerFabSize = 80.dp
+private val compactComposerFabSize = 56.dp
+private val composerFabCornerRadius = 20.dp
 private val toolbarToFabGap = 8.dp
 private const val COMPOSER_CONTAINER_KEY = "composer-container"
 private val composerPanelPadding = 12.dp
@@ -304,11 +307,17 @@ internal fun ChatComposerBar(
     // the panel opens straight to the height it had last time.
     var expandedContentHeightPx by remember { mutableIntStateOf(0) }
     val expandedHeight = with(density) { expandedContentHeightPx.toDp().coerceAtLeast(expandedComposerMinHeight) }
+    val targetFabSize = if (showJumpToBottom) compactComposerFabSize else mediumComposerFabSize
+    val compactFabProgress by animateFloatAsState(
+        targetValue = if (showJumpToBottom) 1f else 0f,
+        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+        label = "ComposerFabSize",
+    )
     // Reports the resting height, not the animated one: the parent turns this into list
     // padding at screen level, so a per-frame value recomposed the whole chat screen and
     // re-laid out the list on every frame of the expand/collapse.
-    val restingHeightPx =
-        with(density) { (if (composerExpanded) expandedHeight else composerFabSize).roundToPx() }
+    val collapsedHeight = maxOf(collapsedComposerHeight, targetFabSize)
+    val restingHeightPx = with(density) { (if (composerExpanded) expandedHeight else collapsedHeight).roundToPx() }
     LaunchedEffect(restingHeightPx) { onHeightChanged(restingHeightPx) }
     val boundsSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Rect>()
     val boundsTransform = remember(boundsSpec) { BoundsTransform { _, _ -> boundsSpec } }
@@ -321,11 +330,14 @@ internal fun ChatComposerBar(
         // Animated because inside the shared-transition lookahead `maxWidth` jumps straight to its
         // target: when the switcher bubble enters beside the bar the toolbar would snap narrower
         // in one frame while the bubble's slot is still growing. Same spring as that slot.
-        val toolbarMaxWidth by animateDpAsState(
-            maxWidth - composerFabSize - toolbarToFabGap,
+        val barWidth by animateDpAsState(
+            maxWidth,
             spring(stiffness = Spring.StiffnessMediumLow),
-            label = "ToolbarMaxWidth",
+            label = "ComposerBarWidth",
         )
+        val fabProgress = compactFabProgress.coerceIn(0f, 1f)
+        val fabSize = lerp(mediumComposerFabSize, compactComposerFabSize, fabProgress)
+        val toolbarMaxWidth = (barWidth - fabSize - toolbarToFabGap).coerceAtLeast(0.dp)
         // The FAB and the expanded composer are one shared element: expanding grows the FAB's
         // bounds into the panel's (an M3 container transform) while one cross-fades into the other.
         // The scope comes from a parent whose bounds hold still: this bar moves and resizes as it
@@ -392,6 +404,8 @@ internal fun ChatComposerBar(
                             Spacer(modifier = Modifier.width(toolbarToFabGap))
                         }
                         ComposerFab(
+                            size = fabSize,
+                            iconSize = lerp(FloatingActionButtonDefaults.MediumIconSize, 24.dp, fabProgress),
                             dropTargetActive = dropTargetActive,
                             iconAlpha = buttonsAlpha,
                             onClick = { onModeChange(ComposerMode.EXPANDED) },
@@ -415,6 +429,7 @@ internal fun ChatComposerBar(
                     ComposerPanel(
                         expandedWidth = expandedWidth,
                         expandedHeight = expandedHeight,
+                        collapsedSize = fabSize,
                         dragDistance = dragDistance,
                         onModeChange = changePanelMode,
                         backProgress = { backProgress.value },
@@ -448,6 +463,7 @@ internal fun ChatComposerBar(
 private fun ComposerPanel(
     expandedWidth: Dp,
     expandedHeight: Dp,
+    collapsedSize: Dp,
     dragDistance: MutableFloatState,
     onModeChange: (ComposerMode) -> Unit,
     backProgress: () -> Float,
@@ -465,15 +481,15 @@ private fun ComposerPanel(
     val fillEditor = dragHeight > 0.dp
     val progress = backProgress()
     Surface(
-        // The panel's corner, easing to the medium FAB's as a back gesture shrinks it toward one.
-        shape = RoundedCornerShape(lerp(28.dp, 20.dp, progress)),
+        // The panel's corner, easing to the FAB's as a back gesture shrinks it toward one.
+        shape = RoundedCornerShape(lerp(28.dp, composerFabCornerRadius, progress)),
         color = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurface,
         modifier =
             modifier
                 .size(
-                    lerp(expandedWidth, composerFabSize, progress),
-                    lerp(height + dragHeight, composerFabSize, progress),
+                    lerp(expandedWidth, collapsedSize, progress),
+                    lerp(height + dragHeight, collapsedSize, progress),
                 ).composerPanelDrag(fullscreen = false, dragDistance, onModeChange),
     ) {
         Box(contentAlignment = Alignment.TopCenter) {
@@ -503,6 +519,8 @@ private fun ComposerPanel(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ComposerFab(
+    size: Dp,
+    iconSize: Dp,
     dropTargetActive: Boolean,
     iconAlpha: () -> Float,
     onClick: () -> Unit,
@@ -518,11 +536,12 @@ private fun ComposerFab(
     ) {
         // Primary rather than the vibrant toolbar's tertiary container: the FAB is the screen's
         // one high-emphasis action and has to stand out against the pale toolbar beside it.
-        MediumFloatingActionButton(
+        FloatingActionButton(
             onClick = onClick,
+            shape = RoundedCornerShape(composerFabCornerRadius),
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
-            modifier = modifier.handCursor(),
+            modifier = modifier.size(size).handCursor(),
         ) {
             Crossfade(
                 targetState = icon,
@@ -532,7 +551,7 @@ private fun ComposerFab(
                 Icon(
                     imageVector = it,
                     contentDescription = stringResource(R.string.chat_chat),
-                    modifier = Modifier.size(FloatingActionButtonDefaults.MediumIconSize),
+                    modifier = Modifier.size(iconSize),
                 )
             }
         }

@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
@@ -98,8 +99,10 @@ internal fun BoxScope.ChatComposerHost(
     // The transcript's bottom padding has to clear both the bar and the pinned queue above it.
     var barHeightPx by remember { mutableIntStateOf(0) }
     var queueHeightPx by remember { mutableIntStateOf(0) }
-    LaunchedEffect(barHeightPx, queueHeightPx) {
-        screenState.mutations.composerContentHeightPx.value = barHeightPx + queueHeightPx
+    // Keep the spacer steady when reading history so resizing the FAB can't move the jump threshold.
+    val transcriptBarHeightPx = with(LocalDensity.current) { maxOf(barHeightPx, mediumComposerFabSize.roundToPx()) }
+    LaunchedEffect(transcriptBarHeightPx, queueHeightPx) {
+        screenState.mutations.composerContentHeightPx.value = transcriptBarHeightPx + queueHeightPx
     }
     // The bar's height eased with the same spring as the panel's bounds, for the queue above to follow.
     val dragDistance = remember(screenState.mutations.composerMode.value) { mutableFloatStateOf(0f) }
