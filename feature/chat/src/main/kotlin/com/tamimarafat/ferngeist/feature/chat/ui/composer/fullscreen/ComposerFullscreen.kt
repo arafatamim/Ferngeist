@@ -96,8 +96,8 @@ internal fun Modifier.composerPanelDrag(
 }
 
 /**
- * Dragging the panel toward the other mode grows [dragDistance] and switches mode once it passes a
- * threshold. The small composer has no smaller mode, so a drag down from it closes the composer.
+ * Dragging toward another mode updates [dragDistance] and switches mode at its threshold.
+ * A negative distance shrinks the inline panel before it closes.
  */
 private class ComposerPanelDrag(
     private val fullscreen: Boolean,
@@ -110,38 +110,35 @@ private class ComposerPanelDrag(
     private val threshold = with(density) { 180.dp.toPx() }
 
     // A small panel is a short drag from closed, so dismissing takes less travel than resizing.
-    private val dismissThreshold = with(density) { 64.dp.toPx() }
+    private val minimumDrag = if (fullscreen) 0f else with(density) { -64.dp.toPx() }
 
     var pointerPressed = false
     private var nestedDrag = false
     private var settling: Job? = null
-    private var dismissDrag = 0f
 
     fun start() {
         settling?.cancel()
-        dismissDrag = 0f
     }
 
     fun moveBy(delta: Float) {
-        val previousDismiss = dismissDrag
-        dismissDrag = (dismissDrag + delta).coerceAtLeast(0f)
-        if (!fullscreen && previousDismiss < dismissThreshold && dismissDrag >= dismissThreshold) {
-            onModeChange(ComposerMode.COLLAPSED)
-        }
         val towardNextMode = if (fullscreen) delta else -delta
         val previous = dragDistance.floatValue
-        val distance = (previous + towardNextMode).coerceAtLeast(0f)
+        val distance = (previous + towardNextMode).coerceAtLeast(minimumDrag)
         dragDistance.floatValue = distance
-        if (previous < threshold && distance >= threshold) {
-            onModeChange(if (fullscreen) ComposerMode.EXPANDED else ComposerMode.FULLSCREEN)
+        when {
+            !fullscreen && previous > minimumDrag && distance == minimumDrag -> onModeChange(ComposerMode.COLLAPSED)
+            previous < threshold && distance >= threshold -> {
+                onModeChange(if (fullscreen) ComposerMode.EXPANDED else ComposerMode.FULLSCREEN)
+            }
         }
     }
 
     fun settleBack() {
         settling =
             scope.launch {
-                animate(dragDistance.floatValue, 0f, animationSpec = settleSpec()) { value, _ ->
-                    dragDistance.floatValue = value.coerceAtLeast(0f)
+                val start = dragDistance.floatValue
+                animate(start, 0f, animationSpec = settleSpec()) { value, _ ->
+                    dragDistance.floatValue = value.coerceIn(minOf(start, 0f), maxOf(start, 0f))
                 }
             }
     }

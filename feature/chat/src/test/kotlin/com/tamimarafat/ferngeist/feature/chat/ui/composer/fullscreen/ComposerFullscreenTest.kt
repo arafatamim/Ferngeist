@@ -66,6 +66,49 @@ class ComposerFullscreenTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
+    fun draggingFabUp_opensInlineComposerBeforeRelease() {
+        compose.setContent {
+            MaterialExpressiveTheme {
+                Box(Modifier.fillMaxSize().testTag("chat-pane"), contentAlignment = Alignment.BottomCenter) {
+                    ComposerInNarrowPane(Modifier.width(280.dp), initialMode = ComposerMode.COLLAPSED)
+                }
+            }
+        }
+
+        compose.onNode(hasSetTextAction()).assertDoesNotExist()
+        compose.onNodeWithContentDescription("Chat").performTouchInput {
+            down(center)
+            moveBy(Offset(0f, -96.dp.toPx()))
+        }
+
+        compose.onNode(hasSetTextAction()).assertExists()
+        compose.onNode(isDialog()).assertDoesNotExist()
+        compose.onNodeWithTag("chat-pane").performTouchInput { up() }
+    }
+
+    @Test
+    fun draggingInlineComposerDown_shortDragMovesPanelAndSpringsBack() {
+        compose.setContent {
+            MaterialExpressiveTheme {
+                Box(Modifier.fillMaxSize().testTag("chat-pane"), contentAlignment = Alignment.BottomCenter) {
+                    ComposerInNarrowPane(Modifier.width(280.dp))
+                }
+            }
+        }
+
+        val closeButton = compose.onNodeWithContentDescription("Close composer")
+        val restingTop = closeButton.getUnclippedBoundsInRoot().top
+        closeButton.performTouchInput {
+            down(center)
+            moveBy(Offset(0f, 40.dp.toPx()))
+        }
+        assertTrue(closeButton.getUnclippedBoundsInRoot().top > restingTop)
+
+        compose.onNodeWithTag("chat-pane").performTouchInput { up() }
+        assertTrue(closeButton.getUnclippedBoundsInRoot().top == restingTop)
+    }
+
+    @Test
     fun draggingEditor_movesPanelBeforeReleaseAndKeepsDraftThroughFullscreen() {
         compose.setContent {
             MaterialExpressiveTheme {

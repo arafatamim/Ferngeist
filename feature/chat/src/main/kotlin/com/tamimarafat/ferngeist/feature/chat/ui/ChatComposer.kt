@@ -19,6 +19,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,6 +86,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,6 +97,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
@@ -478,7 +483,8 @@ private fun ComposerPanel(
         label = "ComposerHeight",
     )
     val dragHeight = with(LocalDensity.current) { dragDistance.floatValue.toDp() }
-    val fillEditor = dragHeight > 0.dp
+    val panelHeight = (height + dragHeight).coerceAtLeast(collapsedSize)
+    val fillEditor = dragHeight != 0.dp
     val progress = backProgress()
     Surface(
         // The panel's corner, easing to the FAB's as a back gesture shrinks it toward one.
@@ -489,7 +495,7 @@ private fun ComposerPanel(
             modifier
                 .size(
                     lerp(expandedWidth, collapsedSize, progress),
-                    lerp(height + dragHeight, collapsedSize, progress),
+                    lerp(panelHeight, collapsedSize, progress),
                 ).composerPanelDrag(fullscreen = false, dragDistance, onModeChange),
     ) {
         Box(contentAlignment = Alignment.TopCenter) {
@@ -527,6 +533,7 @@ private fun ComposerFab(
     modifier: Modifier,
 ) {
     val icon = if (dropTargetActive) Icons.Default.MoveToInbox else Icons.Default.Edit
+    val openComposer by rememberUpdatedState(onClick)
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = {
@@ -541,7 +548,20 @@ private fun ComposerFab(
             shape = RoundedCornerShape(composerFabCornerRadius),
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
-            modifier = modifier.size(size).handCursor(),
+            modifier =
+                modifier
+                    .size(size)
+                    .handCursor()
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val upwardDrag =
+                                awaitVerticalTouchSlopOrCancellation(down.id) { change, overSlop ->
+                                    if (overSlop < 0f) change.consume()
+                                }
+                            if (upwardDrag != null) openComposer()
+                        }
+                    },
         ) {
             Crossfade(
                 targetState = icon,
