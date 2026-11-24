@@ -32,8 +32,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.ResolvedTextDirection
-import androidx.compose.ui.unit.TextUnit
 import com.adamglin.compose.markdown.core.model.BlockNode
 import com.adamglin.compose.markdown.core.model.InlineNode
 import kotlinx.coroutines.flow.first
@@ -314,9 +314,14 @@ internal fun RevealText(
     inlineContent: Map<String, InlineTextContent> = emptyMap(),
 ) {
     if (reveal == null) {
-        // Android's line-height span reuses the first line's metrics, even in Minimum mode.
-        // Let placeholder metrics size each line so wrapped chips cannot cover adjacent prose.
-        val inlineStyle = if (inlineContent.isEmpty()) style else style.copy(lineHeight = TextUnit.Unspecified)
+        // PerLine keeps document leading and lets tall placeholders expand their own lines.
+        val inlineStyle =
+            if (inlineContent.isEmpty()) {
+                style
+            } else {
+                val lineHeightStyle = style.lineHeightStyle ?: LineHeightStyle.Default
+                style.copy(lineHeightStyle = lineHeightStyle.copy(mode = LineHeightStyle.Mode.PerLine))
+            }
         BasicText(text = text, style = inlineStyle, modifier = modifier, inlineContent = inlineContent)
         return
     }
