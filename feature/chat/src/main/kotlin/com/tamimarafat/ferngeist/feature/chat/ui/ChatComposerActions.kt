@@ -10,9 +10,10 @@ import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.ComposerMode
 import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 
-internal fun rememberSendHandlers(
+internal fun CoroutineScope.rememberSendHandlers(
     viewModel: ChatViewModel,
     state: ChatState,
     mutations: ChatScreenMutations,
@@ -55,7 +56,7 @@ internal fun rememberSendHandlers(
     return sendMessage to sendCommand
 }
 
-private fun sendCommandHandler(
+private fun CoroutineScope.sendCommandHandler(
     viewModel: ChatViewModel,
     state: ChatState,
     mutations: ChatScreenMutations,
@@ -107,15 +108,22 @@ internal fun activeCommandInputHint(
         }?.inputHint
 }
 
-private fun confirmOrSend(
+private fun CoroutineScope.confirmOrSend(
     viewModel: ChatViewModel,
     mutations: ChatScreenMutations,
     send: () -> Unit,
 ) {
-    if (viewModel.needsActivityConfirmation()) {
-        mutations.pendingSend.value = send
-    } else {
-        send()
+    launch(start = CoroutineStart.UNDISPATCHED) {
+        if (mutations.pendingSend.value != null || !mutations.sendCheckLock.tryLock()) return@launch
+        try {
+            if (viewModel.needsActivityConfirmation()) {
+                mutations.pendingSend.value = send
+            } else {
+                send()
+            }
+        } finally {
+            mutations.sendCheckLock.unlock()
+        }
     }
 }
 

@@ -209,6 +209,8 @@ internal data class ChatScreenMutations(
     val imageFocusTrigger: MutableState<Int>,
     val composerFocusTrigger: MutableState<Int>,
 ) {
+    val sendCheckLock = Mutex()
+
     fun openComposer() {
         if (composerMode.value == ComposerMode.COLLAPSED) composerMode.value = ComposerMode.EXPANDED
     }
@@ -350,7 +352,7 @@ private fun rememberChatScreenState(
             onScrollSnapshotChanged = viewModel::persistScrollSnapshot,
         )
     val sendHandlers =
-        rememberSendHandlers(
+        coroutineScope.rememberSendHandlers(
             viewModel = viewModel,
             state = state,
             mutations = mutations,

@@ -117,11 +117,13 @@ class ChatViewModel
             ActivityConfirmation(savedStateHandle.get<Long>("updatedAt").takeIf { openedExistingSession })
 
         /** Called only for an explicit send; merely opening the chat never consumes the decision. */
-        fun needsActivityConfirmation(): Boolean =
-            activityConfirmation.needsConfirmation(
+        suspend fun needsActivityConfirmation(): Boolean {
+            phoneTurnRestore?.join()
+            return activityConfirmation.needsConfirmation(
                 lastPhoneTurn = stores.phoneTurns.lastTurn(serverId, trackedSessionId),
                 now = System.currentTimeMillis(),
             )
+        }
 
         /**
          * Identity for this chat's own local records (the durable prompt queue and
@@ -352,6 +354,10 @@ class ChatViewModel
         /** The recent-value memory the pickers read and write. */
         val recentSelectionStore: RecentSelectionStore = stores.recentSelections
 
+        // Start the disk read on open so the first send usually has the phone's activity already.
+        private val phoneTurnRestore =
+            if (openedExistingSession) viewModelScope.launch { stores.phoneTurns.restore() } else null
+
         init {
             viewModelScope.launch {
                 sessionFacade.authentication.collect { request ->
@@ -381,8 +387,6 @@ class ChatViewModel
                 updateState { copy(restoredScrollSnapshot = snapshot) }
             }
             viewModelScope.launch { offlineQueue.restorePendingPrompts() }
-            // shortcut: a send before this tiny read lands still sees no phone turn; make the check suspend if that shows up.
-            if (openedExistingSession) viewModelScope.launch { stores.phoneTurns.restore() }
             viewModelScope.launch {
                 // The transport entry (created by the facade's register) becomes
                 // screen-open for real ids here. Existing-session chats were already

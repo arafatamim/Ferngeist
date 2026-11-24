@@ -11,11 +11,17 @@ import androidx.lifecycle.SavedStateHandle
 import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModelTestBase
+import com.tamimarafat.ferngeist.feature.chat.InMemoryPreferencesDataStore
+import com.tamimarafat.ferngeist.feature.chat.testStores
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreenMutations
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.ComposerMode
 import com.tamimarafat.ferngeist.feature.chat.ui.rememberSendHandlers
 import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -24,6 +30,36 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GuardedSendTest : ChatViewModelTestBase() {
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun sendBeforePhoneActivityRestores_doesNotWarnAboutThisPhonesOwnActivity() =
+        runTest {
+            val dataStore = InMemoryPreferencesDataStore()
+            val listed = System.currentTimeMillis()
+            PhoneTurnClock(dataStore, Json).record("server", "chat", listed, emptySet())
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(mapOf("serverId" to "server", "sessionId" to "chat", "updatedAt" to listed)),
+                    stores = testStores().copy(phoneTurns = PhoneTurnClock(dataStore, Json)),
+                )
+            val mutations = mutations()
+            val focusManager =
+                object : FocusManager {
+                    override fun clearFocus(force: Boolean) = Unit
+
+                    override fun moveFocus(focusDirection: FocusDirection): Boolean = false
+                }
+            val (send, _) =
+                rememberSendHandlers(viewModel, ChatState(), mutations, focusManager, ChatScrollHandle(LazyListState()))
+
+            send()
+            runCurrent()
+
+            assertNull(mutations.pendingSend.value)
+            assertEquals("", mutations.messageText.text.toString())
+        }
+
     @Test
     fun aCommandWithAnInputHintStagesInTheComposerInsteadOfSending() {
         val viewModel =
@@ -50,7 +86,7 @@ class GuardedSendTest : ChatViewModelTestBase() {
                 availableCommands = listOf(ChatCommand("review", inputHint = "base branch")),
             )
         val (_, sendCommand) =
-            rememberSendHandlers(
+            CoroutineScope(mainDispatcherRule.dispatcher).rememberSendHandlers(
                 viewModel,
                 state,
                 mutations,
@@ -67,6 +103,7 @@ class GuardedSendTest : ChatViewModelTestBase() {
     }
 
     @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun guardedSend_keepsDraftUntilConfirmation() =
         runTest {
             val viewModel =
@@ -91,6 +128,7 @@ class GuardedSendTest : ChatViewModelTestBase() {
                 rememberSendHandlers(viewModel, ChatState(), mutations, focusManager, ChatScrollHandle(LazyListState()))
 
             send()
+            runCurrent()
 
             assertEquals("Keep my draft", mutations.messageText.text.toString())
             assertTrue(mutations.composerMode.value.isExpanded)
