@@ -16,7 +16,6 @@ import androidx.compose.material3.FloatingToolbarDefaults.floatingToolbarVertica
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +34,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.agentclientprotocol.annotations.UnstableApi
 import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.refresh.PullToRefreshLoadingIndicator
 import com.tamimarafat.ferngeist.core.git.ui.ProjectGitAction
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.isSameCwd
@@ -412,11 +412,10 @@ private fun Modifier.sessionListContainer(
             .nestedScroll(state.screen.scrollBehavior.nestedScrollConnection)
     }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun BoxScope.SessionListRefreshIndicator(state: SessionListState) {
     if (state.rows.supportsSessionList) {
-        PullToRefreshDefaults.LoadingIndicator(
+        PullToRefreshLoadingIndicator(
             state = state.screen.pullToRefreshState,
             isRefreshing = state.screen.isRefreshing,
             modifier =
