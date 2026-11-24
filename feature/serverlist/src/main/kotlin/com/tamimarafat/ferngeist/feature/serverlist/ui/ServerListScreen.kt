@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -42,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
-import com.tamimarafat.ferngeist.core.common.ui.loading.LoadingIndicator
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.TurnActivity
@@ -268,7 +266,6 @@ private fun ServerListScaffold(
             ServerListContent(
                 modifier = Modifier,
                 pager = pager,
-                isLoading = isLoading,
                 servers = servers,
                 heroSession = heroSession,
                 olderSessions = olderSessions,
@@ -447,7 +444,6 @@ private fun ServerListDialogsHost(
 private fun ServerListContent(
     modifier: Modifier,
     pager: HomePagerMotion,
-    isLoading: Boolean,
     servers: List<LaunchableTarget>,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
@@ -474,8 +470,7 @@ private fun ServerListContent(
                 .fillMaxSize(),
     ) {
         when {
-            // Wait for both queries before showing the backdrop.
-            isLoading -> ServerListLoadingContent()
+            // The splash covers the initial queries on a cold start.
             servers.isEmpty() ->
                 EmptyServerContent(
                     turnStatuses = turnStatuses,
@@ -509,18 +504,6 @@ private fun ServerListContent(
                     animatedContentScope = animatedContentScope,
                 )
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun ServerListLoadingContent() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        // Default expressive indicator morphs through a shape sequence.
-        LoadingIndicator(modifier = Modifier.size(48.dp))
     }
 }
 
