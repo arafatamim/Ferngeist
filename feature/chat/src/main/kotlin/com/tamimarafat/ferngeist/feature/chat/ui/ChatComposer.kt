@@ -340,8 +340,7 @@ internal fun ChatComposerBar(
             spring(stiffness = Spring.StiffnessMediumLow),
             label = "ComposerBarWidth",
         )
-        val fabProgress = compactFabProgress.coerceIn(0f, 1f)
-        val fabSize = lerp(mediumComposerFabSize, compactComposerFabSize, fabProgress)
+        val fabSize = lerp(mediumComposerFabSize, compactComposerFabSize, compactFabProgress)
         val toolbarMaxWidth = (barWidth - fabSize - toolbarToFabGap).coerceAtLeast(0.dp)
         // The FAB and the expanded composer are one shared element: expanding grows the FAB's
         // bounds into the panel's (an M3 container transform) while one cross-fades into the other.
@@ -410,7 +409,7 @@ internal fun ChatComposerBar(
                         }
                         ComposerFab(
                             size = fabSize,
-                            iconSize = lerp(FloatingActionButtonDefaults.MediumIconSize, 24.dp, fabProgress),
+                            iconSize = lerp(FloatingActionButtonDefaults.MediumIconSize, 24.dp, compactFabProgress),
                             dropTargetActive = dropTargetActive,
                             iconAlpha = buttonsAlpha,
                             onClick = { onModeChange(ComposerMode.EXPANDED) },
