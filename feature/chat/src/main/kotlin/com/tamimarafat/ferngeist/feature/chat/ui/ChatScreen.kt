@@ -208,9 +208,8 @@ internal data class ChatScreenMutations(
     val focusRequester: FocusRequester,
     val imageFocusTrigger: MutableState<Int>,
     val composerFocusTrigger: MutableState<Int>,
+    val sendCheckLock: Mutex = Mutex(),
 ) {
-    val sendCheckLock = Mutex()
-
     fun openComposer() {
         if (composerMode.value == ComposerMode.COLLAPSED) composerMode.value = ComposerMode.EXPANDED
     }

@@ -68,8 +68,8 @@ internal fun ChatMessageList(
     val listState = scroll.listState
     val allMessages = state.messages
     val itemKey: (ChatMessage) -> String = { state.listKeys[it.id] ?: it.id }
-    // Twice the skeleton's 24dp inset, so the first turn clears the bar's fade with room to spare.
-    val contentTop = listTopPadding + 48.dp
+    // Leave room for the first turn to clear the bar's fade.
+    val contentTop = listTopPadding + 16.dp
     val window = rememberMessageWindow(state, allMessages, scroll)
     val windowed = window.messages
     val rows = window.rows
