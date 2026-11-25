@@ -3,7 +3,8 @@ package com.tamimarafat.ferngeist.feature.chat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 
 /** In-memory scroll state store for tests. */
 class InMemoryChatScrollStateStore : ChatScrollStateStore {
@@ -40,18 +41,20 @@ class InMemorySwitcherHintStore : SwitcherHintStore {
     }
 }
 
-/** No-op recent selection store for tests. */
+/** In-memory recent selection store for tests: newest first, no cap. */
 class FakeRecentSelectionStore : RecentSelectionStore {
-    override fun getRecentSelections(key: String): Flow<List<String>> = emptyFlow()
+    private val entries = MutableStateFlow(emptyMap<String, List<String>>())
+
+    override fun getRecentSelections(key: String): Flow<List<String>> = entries.map { it[key].orEmpty() }
 
     override suspend fun addSelection(
         key: String,
         value: String,
     ) {
-        // No-op: recent selections are not tracked in this fake.
+        entries.update { it + (key to listOf(value) + it[key].orEmpty().minus(value)) }
     }
 
     override suspend fun clearByPrefix(prefix: String) {
-        // No-op: recent selections are not tracked in this fake.
+        entries.update { map -> map.filterKeys { !it.startsWith(prefix) } }
     }
 }

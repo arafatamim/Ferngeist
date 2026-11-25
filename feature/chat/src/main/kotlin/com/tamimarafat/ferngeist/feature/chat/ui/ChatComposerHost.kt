@@ -35,6 +35,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
 import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.core.model.hostPath
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
@@ -42,11 +43,14 @@ import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
 import com.tamimarafat.ferngeist.feature.chat.badgeStatus
+import com.tamimarafat.ferngeist.feature.chat.configOptionRecentsKey
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestion
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionState
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.matchingSuggestions
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.selectOptionFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
@@ -197,6 +201,15 @@ private fun ChatComposerRow(
     modifier: Modifier = Modifier,
 ) {
     val mentionState = rememberComposerSuggestionState(screenState)
+    val serverId = screenState.state.serverId
+    val modelOptionId =
+        screenState.state.configOptions
+            .selectOptionFor(ChatConfigCategory.Model)
+            ?.id
+    val recentModelValues by remember(serverId, modelOptionId) {
+        modelOptionId?.let { viewModel.recentSelectionStore.getRecentSelections(configOptionRecentsKey(serverId, it)) }
+            ?: flowOf(emptyList())
+    }.collectAsStateWithLifecycle(emptyList())
     val composerExpanded = screenState.mutations.composerMode.value.isExpanded
     // A collapse composes the bubble one frame before the FAB transform reports itself active,
     // which would flash the bubble above the still-tall panel. Hold it back until the transform
@@ -256,6 +269,7 @@ private fun ChatComposerRow(
             modifier = modifier.weight(1f, fill = false),
             state = screenState.state,
             toolbarConfigOptions = screenState.derived.toolbarConfigOptions,
+            recentModelValues = recentModelValues,
             mode = screenState.mutations.composerMode.value,
             onModeChange = { screenState.mutations.composerMode.value = it },
             messageText = screenState.mutations.messageText,

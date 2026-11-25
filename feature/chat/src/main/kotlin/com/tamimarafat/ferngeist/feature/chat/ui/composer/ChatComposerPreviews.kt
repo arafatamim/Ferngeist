@@ -85,6 +85,7 @@ private fun ComposerBarPreview(
             ChatComposerBar(
                 state = ChatState(configOptions = previewModelAndEffort, agentName = "Claude"),
                 toolbarConfigOptions = emptyList(),
+                recentModelValues = emptyList(),
                 mode = if (expanded) ComposerMode.EXPANDED else ComposerMode.COLLAPSED,
                 onModeChange = {},
                 messageText = TextFieldState("Ana!!\nThis place looks absolutely incredible!"),

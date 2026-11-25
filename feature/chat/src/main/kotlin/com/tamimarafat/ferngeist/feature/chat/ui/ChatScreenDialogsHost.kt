@@ -6,10 +6,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
+import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.selectOptionFor
 import kotlinx.coroutines.launch
 
 @Composable
@@ -22,6 +24,7 @@ internal fun ChatScreenDialogsHost(
     val noBrowserMessage = stringResource(R.string.chat_elicitation_no_browser)
     ChatScreenDialogs(
         selectedConfigPickerOption = screenState.derived.selectedConfigPickerOption,
+        effortOption = screenState.state.configOptions.selectOptionFor(ChatConfigCategory.ThoughtLevel),
         onConfigOptionSelected = { optionId, value ->
             viewModel.dispatch(
                 ChatIntent.SetConfigOption(

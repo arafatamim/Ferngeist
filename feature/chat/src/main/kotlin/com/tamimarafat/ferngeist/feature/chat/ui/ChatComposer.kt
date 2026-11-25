@@ -131,12 +131,12 @@ import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerActionGroup
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionMenu
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionState
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModeMenuButton
-import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModelEffortButton
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ToolbarOptionsButton
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.ComposerMode
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.FullscreenComposerDialog
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.composerPanelDrag
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen.rememberComposerBackProgress
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.model.ModelEffortButton
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.selectOptionFor
 import kotlin.math.roundToInt
 
@@ -167,6 +167,7 @@ private val expandedComposerMinHeight = 142.dp
  *
  * @param state The current chat UI state.
  * @param toolbarConfigOptions Configuration options to be displayed in the options menu.
+ * @param recentModelValues Model values picked most recently on this server, newest first.
  * @param mode The current composer presentation.
  * @param onModeChange Callback when the expansion state changes.
  * @param messageText Text field state backing the composer input.
@@ -195,6 +196,7 @@ internal fun ChatComposerBar(
     modifier: Modifier = Modifier,
     state: ChatState,
     toolbarConfigOptions: List<ChatConfigOption>,
+    recentModelValues: List<String>,
     mode: ComposerMode,
     onModeChange: (ComposerMode) -> Unit,
     messageText: TextFieldState,
@@ -289,6 +291,7 @@ internal fun ChatComposerBar(
             agentName = state.agentName,
             modelOption = modelOption,
             effortOption = effortOption,
+            recentModelValues = recentModelValues,
             onSetConfigOption = onSetStringConfigOption,
         )
     }
@@ -611,6 +614,7 @@ internal fun ExpandedComposerContent(
     agentName: String?,
     modelOption: ChatConfigOption.Select?,
     effortOption: ChatConfigOption.Select?,
+    recentModelValues: List<String>,
     onSetConfigOption: (String, String) -> Unit,
 ) {
     val hasAttachments =
@@ -646,6 +650,7 @@ internal fun ExpandedComposerContent(
             agentName = agentName,
             modelOption = modelOption,
             effortOption = effortOption,
+            recentModelValues = recentModelValues,
             onSetConfigOption = onSetConfigOption,
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -704,6 +709,7 @@ private fun ExpandedComposerHeader(
     agentName: String?,
     modelOption: ChatConfigOption.Select?,
     effortOption: ChatConfigOption.Select?,
+    recentModelValues: List<String>,
     onSetConfigOption: (String, String) -> Unit,
 ) {
     val resizeLabel =
@@ -736,6 +742,7 @@ private fun ExpandedComposerHeader(
                 agentName = agentName,
                 modelOption = modelOption,
                 effortOption = effortOption,
+                recentModelValues = recentModelValues,
                 onSetConfigOption = onSetConfigOption,
             )
         }
@@ -937,6 +944,7 @@ internal fun RowScope.CollapsedComposerActions(
     ToolbarOptionsButton(
         commandsAdvertised = state.commandsAdvertised,
         configOptions = toolbarConfigOptions,
+        effortOption = state.configOptions.selectOptionFor(ChatConfigCategory.ThoughtLevel),
         expanded = showOptionsMenu,
         onExpandedChange = onShowOptionsMenuChange,
         interactionSource = optionsMenuInteractionSource,

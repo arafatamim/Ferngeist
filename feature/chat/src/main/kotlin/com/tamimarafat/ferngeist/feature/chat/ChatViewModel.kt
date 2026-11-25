@@ -608,7 +608,10 @@ class ChatViewModel
                     state.value.gatewayWorkspaceConnection?.let { gitStatusLoader.refresh() }
                 }
                 is ChatIntent.CancelStreaming -> sessionCoordinator.cancelStreaming()
-                is ChatIntent.SetConfigOption -> sessionCoordinator.setConfigOption(intent.optionId, intent.value)
+                is ChatIntent.SetConfigOption -> {
+                    sessionCoordinator.setConfigOption(intent.optionId, intent.value)
+                    stores.recentSelections.recordConfigPick(serverId, intent.optionId, intent.value)
+                }
                 is ChatIntent.GrantPermission -> sessionCoordinator.grantPermission(intent.toolCallId, intent.optionId)
                 is ChatIntent.DenyPermission -> sessionCoordinator.denyPermission(intent.toolCallId)
                 is ChatIntent.RetryLoad -> sessionCoordinator.loadSession()

@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -132,6 +133,21 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                 assertEquals(operationError, (awaitItem() as ChatEffect.ShowError).message)
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    @Test
+    fun setConfigOption_selectValue_recordsItAsThatOptionsMostRecentForTheServer() =
+        runTest {
+            val recents = FakeRecentSelectionStore()
+            val viewModel = createViewModel(stores = testStores(recentSelectionStore = recents))
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SetConfigOption("model", ChatConfigValue.StringValue("sonnet")))
+            viewModel.dispatch(ChatIntent.SetConfigOption("model", ChatConfigValue.StringValue("opus")))
+            advanceUntilIdle()
+
+            // The key is the contract deleting a server clears by its `config_option:$serverId:` prefix.
+            assertEquals(listOf("opus", "sonnet"), recents.getRecentSelections("config_option:server_1:model").first())
         }
 
     @Test

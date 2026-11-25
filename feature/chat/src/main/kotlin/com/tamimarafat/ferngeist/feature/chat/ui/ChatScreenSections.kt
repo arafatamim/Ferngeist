@@ -32,6 +32,7 @@ import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.diagnostics.ConnectionDiagnosticsSheet
 import com.tamimarafat.ferngeist.core.model.ChatCommand
+import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
@@ -43,9 +44,11 @@ import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.RecentSelectionStore
+import com.tamimarafat.ferngeist.feature.chat.configOptionRecentsKey
 import com.tamimarafat.ferngeist.feature.chat.localizeChatError
 import com.tamimarafat.ferngeist.feature.chat.thoughtRuns
 import com.tamimarafat.ferngeist.feature.chat.ui.AGENT_TEXT_MAX_LINES
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.model.ModelEffortSheet
 import com.tamimarafat.ferngeist.feature.chat.ui.details.ThoughtDetailsSheet
 import com.tamimarafat.ferngeist.feature.chat.ui.details.ToolCallDetailsSheet
 import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
@@ -95,6 +98,7 @@ internal fun CollectChatEffects(
 @Composable
 internal fun ChatScreenDialogs(
     selectedConfigPickerOption: ChatConfigOption.Select?,
+    effortOption: ChatConfigOption.Select?,
     onConfigOptionSelected: (String, String) -> Unit,
     onDismissConfigPicker: () -> Unit,
     selectedThought: List<ContentBlock>?,
@@ -124,13 +128,12 @@ internal fun ChatScreenDialogs(
     onCommandClick: (String) -> Unit,
 ) {
     if (selectedConfigPickerOption != null) {
-        SelectConfigOptionSheet(
+        ConfigOptionPickerSheet(
             option = selectedConfigPickerOption,
+            effortOption = effortOption,
             serverId = serverId,
             recentSelectionStore = recentSelectionStore,
-            onOptionSelected = { value ->
-                onConfigOptionSelected(selectedConfigPickerOption.id, value)
-            },
+            onConfigOptionSelected = onConfigOptionSelected,
             onDismiss = onDismissConfigPicker,
         )
     }
@@ -348,4 +351,30 @@ private fun CommandsSheet(
         noResultsText = stringResource(R.string.chat_commands_no_results),
         searchPlaceholder = stringResource(R.string.chat_commands_search_hint),
     )
+}
+
+/** The model opens the shared model-and-effort sheet; every other select option its own list. */
+@Composable
+private fun ConfigOptionPickerSheet(
+    option: ChatConfigOption.Select,
+    effortOption: ChatConfigOption.Select?,
+    serverId: String,
+    recentSelectionStore: RecentSelectionStore,
+    onConfigOptionSelected: (String, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (option.category != ChatConfigCategory.Model) {
+        SelectConfigOptionSheet(
+            option = option,
+            serverId = serverId,
+            recentSelectionStore = recentSelectionStore,
+            onOptionSelected = { value -> onConfigOptionSelected(option.id, value) },
+            onDismiss = onDismiss,
+        )
+        return
+    }
+    val recentModels by remember(serverId, option.id) {
+        recentSelectionStore.getRecentSelections(configOptionRecentsKey(serverId, option.id))
+    }.collectAsState(initial = emptyList())
+    ModelEffortSheet(option, effortOption, recentModels, onConfigOptionSelected, onDismiss)
 }

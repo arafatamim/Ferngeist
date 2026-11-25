@@ -22,6 +22,7 @@ import com.tamimarafat.ferngeist.core.model.displayValueLabel
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollSnapshot
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.selectOptionFor
 import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
 import com.tamimarafat.ferngeist.feature.chat.ui.scroll.rememberChatScrollState
 
@@ -191,7 +192,12 @@ private fun rememberChatConfigDerived(
         }
     val toolbarConfigOptions =
         remember(state.configOptions) {
-            state.configOptions.filterNot { it.category is ChatConfigCategory.Mode }
+            // The effort is set in the model's sheet, so with a model it has no item of its own.
+            val mergedEffort =
+                state.configOptions
+                    .selectOptionFor(ChatConfigCategory.ThoughtLevel)
+                    ?.takeIf { state.configOptions.selectOptionFor(ChatConfigCategory.Model) != null }
+            state.configOptions.filterNot { it.category is ChatConfigCategory.Mode || it == mergedEffort }
         }
     val selectedConfigPickerOption =
         remember(state.configOptions, selectedConfigPickerOptionId.value) {

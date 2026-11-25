@@ -49,6 +49,7 @@ import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.allChoices
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.RecentSelectionStore
+import com.tamimarafat.ferngeist.feature.chat.configOptionRecentsKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.tamimarafat.ferngeist.core.git.R as GitR
@@ -348,10 +349,8 @@ internal fun SelectConfigOptionSheet(
     onOptionSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
-    // Key format: "config_option:$serverId:$optionId"
-    // clearByPrefix uses "config_option:$serverId:" trailing colon to avoid cross-server matches
-    val storageKey = remember(option.id, serverId) { "config_option:$serverId:${option.id}" }
+    // The view model records each pick under this key; the sheet only reads it.
+    val storageKey = remember(option.id, serverId) { configOptionRecentsKey(serverId, option.id) }
     val allChoices = remember(option) { option.allChoices() }
     val enableRecents = allChoices.size >= 10
     val recentValues by recentSelectionStore
@@ -387,12 +386,7 @@ internal fun SelectConfigOptionSheet(
             },
         selectedValue = option.currentValue,
         recentItems = recentItems,
-        onItemClick = { value ->
-            onOptionSelected(value)
-            if (enableRecents) {
-                scope.launch { recentSelectionStore.addSelection(storageKey, value) }
-            }
-        },
+        onItemClick = onOptionSelected,
         onDismiss = onDismiss,
         emptyText = stringResource(R.string.chat_picker_no_values),
         noResultsText = stringResource(R.string.chat_picker_no_models),

@@ -122,12 +122,13 @@ internal fun testStores(
     chatScrollStateStore: ChatScrollStateStore = InMemoryChatScrollStateStore(),
     pendingPromptStore: PendingPromptStore = InMemoryPendingPromptStore(),
     switcherHintStore: SwitcherHintStore = InMemorySwitcherHintStore(),
+    recentSelectionStore: RecentSelectionStore = FakeRecentSelectionStore(),
 ): ChatLocalStores =
     ChatLocalStores(
         chatScrollStateStore,
         pendingPromptStore,
         switcherHintStore,
-        FakeRecentSelectionStore(),
+        recentSelectionStore,
         PhoneTurnClock(InMemoryPreferencesDataStore(), Json),
         ArtifactCache(createTempDirectory("artifacts").toFile()),
     )

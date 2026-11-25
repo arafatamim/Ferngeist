@@ -278,8 +278,15 @@ class ComposerFullscreenTest {
 
     private fun assertSelectorInHeader(closeLabel: String) {
         val close = compose.onNodeWithContentDescription(closeLabel).getUnclippedBoundsInRoot()
-        val model = compose.onNodeWithText("Claude Sonnet").getUnclippedBoundsInRoot()
-        val effort = compose.onNodeWithContentDescription("Reasoning effort").getUnclippedBoundsInRoot()
+        val model = compose.onNodeWithText("Claude Sonnet", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        // The effort rides in the model button, after the name.
+        val effort =
+            compose
+                .onNodeWithText(
+                    "· Low",
+                    substring = true,
+                    useUnmergedTree = true,
+                ).getUnclippedBoundsInRoot()
         assertTrue(model.left >= close.right)
         assertTrue(effort.left >= model.right)
         assertTrue((model.top + model.bottom) / 2 in close.top..close.bottom)
@@ -308,6 +315,7 @@ class ComposerFullscreenTest {
                 modifier = modifier,
                 state = ChatState(configOptions = configOptions),
                 toolbarConfigOptions = emptyList(),
+                recentModelValues = emptyList(),
                 mode = mode,
                 onModeChange = { mode = it },
                 messageText = remember { TextFieldState("Original draft") },
