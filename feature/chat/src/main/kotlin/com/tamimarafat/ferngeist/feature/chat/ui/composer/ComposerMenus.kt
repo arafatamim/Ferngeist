@@ -24,10 +24,12 @@ import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.MenuItemShapes
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +38,7 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -46,6 +49,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.input.DragSelectMenuState
+import com.tamimarafat.ferngeist.core.common.ui.input.dragSelectMenuAnchor
+import com.tamimarafat.ferngeist.core.common.ui.input.dragSelectMenuItem
+import com.tamimarafat.ferngeist.core.common.ui.input.rememberDragSelectMenuState
 import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.allChoices
@@ -67,6 +74,7 @@ internal fun ModeMenuButton(
     interactionSource: MutableInteractionSource,
     onSetConfigOption: (String, String) -> Unit,
 ) {
+    val dragSelect = rememberDragSelectMenuState(onExpandedChange)
     Box(modifier = modifier) {
         TooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
@@ -92,6 +100,7 @@ internal fun ModeMenuButton(
                     iconOnly = !labelFits,
                     maxWidth = maxWidth,
                     onClick = { onExpandedChange(true) },
+                    modifier = Modifier.dragSelectMenuAnchor(dragSelect),
                 )
             }
         }
@@ -100,6 +109,7 @@ internal fun ModeMenuButton(
             onDismissRequest = { onExpandedChange(false) },
         ) {
             ModeMenuContent(
+                dragSelect = dragSelect,
                 modeOption = modeOption,
                 onExpandedChange = onExpandedChange,
                 interactionSource = interactionSource,
@@ -116,10 +126,11 @@ private fun ModeTextButton(
     iconOnly: Boolean,
     maxWidth: Dp,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     TextButton(
         onClick = onClick,
-        modifier = Modifier.widthIn(max = maxWidth).handCursor(),
+        modifier = modifier.widthIn(max = maxWidth).handCursor(),
         colors =
             ButtonDefaults.textButtonColors(
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -158,6 +169,7 @@ private fun PaddingValues.horizontalSum(): Dp =
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ModeMenuContent(
+    dragSelect: DragSelectMenuState,
     modeOption: ChatConfigOption.Select,
     onExpandedChange: (Boolean) -> Unit,
     interactionSource: MutableInteractionSource,
@@ -178,16 +190,13 @@ internal fun ModeMenuContent(
         } else {
             availableModes.forEachIndexed { index, mode ->
                 val item: @Composable () -> Unit = {
-                    CheckableDropdownMenuItem(
-                        text = { Text(mode.label.uppercase()) },
+                    ModeMenuItem(
+                        label = mode.label,
                         shapes = MenuDefaults.itemShape(index, modeCount),
-                        checked = mode.value == modeOption.currentValue,
-                        onCheckedChange = { checked ->
-                            if (checked && mode.value != modeOption.currentValue) {
-                                onExpandedChange(false)
-                                onSetConfigOption(modeOption.id, mode.value)
-                            }
-                        },
+                        current = mode.value == modeOption.currentValue,
+                        dragSelect = dragSelect,
+                        onDismiss = { onExpandedChange(false) },
+                        onSelect = { onSetConfigOption(modeOption.id, mode.value) },
                     )
                 }
                 val description = mode.description
@@ -208,6 +217,37 @@ internal fun ModeMenuContent(
     }
 }
 
+/** One mode in [ModeMenuContent]; picking the [current] mode only closes the menu. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ModeMenuItem(
+    label: String,
+    shapes: MenuItemShapes,
+    current: Boolean,
+    dragSelect: DragSelectMenuState,
+    onDismiss: () -> Unit,
+    onSelect: () -> Unit,
+) {
+    val itemSource = remember { MutableInteractionSource() }
+    CheckableDropdownMenuItem(
+        text = { Text(label.uppercase()) },
+        shapes = shapes,
+        checked = current,
+        onCheckedChange = { checked ->
+            if (checked && !current) {
+                onDismiss()
+                onSelect()
+            }
+        },
+        modifier =
+            Modifier.dragSelectMenuItem(dragSelect, itemSource) {
+                onDismiss()
+                if (!current) onSelect()
+            },
+        interactionSource = itemSource,
+    )
+}
+
 /**
  * A dropdown button containing various session options and commands.
  */
@@ -224,13 +264,17 @@ internal fun ToolbarOptionsButton(
     onShowCommands: () -> Unit,
     onShowConfigOptionPicker: (String) -> Unit,
 ) {
+    val dragSelect = rememberDragSelectMenuState(onExpandedChange)
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = { PlainTooltip { Text(stringResource(R.string.chat_options)) } },
         state = rememberTooltipState(),
     ) {
         Box {
-            IconButton(onClick = { onExpandedChange(true) }, modifier = Modifier.handCursor()) {
+            IconButton(
+                onClick = { onExpandedChange(true) },
+                modifier = Modifier.handCursor().dragSelectMenuAnchor(dragSelect),
+            ) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = stringResource(R.string.chat_options),
@@ -241,6 +285,7 @@ internal fun ToolbarOptionsButton(
                 onDismissRequest = { onExpandedChange(false) },
             ) {
                 ToolbarOptionsMenuContent(
+                    dragSelect = dragSelect,
                     commandsAdvertised = commandsAdvertised,
                     configOptions = configOptions,
                     effortOption = effortOption,
@@ -263,6 +308,7 @@ internal fun ToolbarOptionsButton(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ToolbarOptionsMenuContent(
+    dragSelect: DragSelectMenuState,
     commandsAdvertised: Boolean,
     configOptions: List<ChatConfigOption>,
     effortOption: ChatConfigOption.Select?,
@@ -278,12 +324,16 @@ internal fun ToolbarOptionsMenuContent(
     ) {
         val hasConfigOptions = configOptions.isNotEmpty()
         if (commandsAdvertised) {
+            val itemSource = remember { MutableInteractionSource() }
+            val showCommands = {
+                onExpandedChange(false)
+                onShowCommands()
+            }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.chat_commands)) },
-                onClick = {
-                    onExpandedChange(false)
-                    onShowCommands()
-                },
+                onClick = showCommands,
+                modifier = Modifier.dragSelectMenuItem(dragSelect, itemSource, onSelect = showCommands),
+                interactionSource = itemSource,
             )
         }
 
@@ -296,6 +346,7 @@ internal fun ToolbarOptionsMenuContent(
                         ?.takeIf { option.category == ChatConfigCategory.Model }
                         ?.let { "$subtitle · ${it.dropdownSubtitle()}" }
                         ?: subtitle,
+                dragSelect = dragSelect,
                 onClick = {
                     when (option) {
                         is ChatConfigOption.BooleanOption -> {
@@ -332,8 +383,11 @@ internal fun ToolbarOptionsMenuContent(
 internal fun ConfigOptionMenuItem(
     option: ChatConfigOption,
     subtitle: String,
+    dragSelect: DragSelectMenuState,
     onClick: () -> Unit,
 ) {
+    val itemSource = remember { MutableInteractionSource() }
+    val enabled = option is ChatConfigOption.Select || option is ChatConfigOption.BooleanOption
     DropdownMenuItem(
         text = {
             Column {
@@ -348,7 +402,9 @@ internal fun ConfigOptionMenuItem(
             }
         },
         onClick = onClick,
-        enabled = option is ChatConfigOption.Select || option is ChatConfigOption.BooleanOption,
+        modifier = Modifier.dragSelectMenuItem(dragSelect, itemSource, enabled, onClick),
+        enabled = enabled,
+        interactionSource = itemSource,
     )
 }
 
