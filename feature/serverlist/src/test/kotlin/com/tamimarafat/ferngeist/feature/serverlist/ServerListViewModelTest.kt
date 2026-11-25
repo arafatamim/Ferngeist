@@ -3,6 +3,8 @@ package com.tamimarafat.ferngeist.feature.serverlist
 import app.cash.turbine.test
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalogState
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectChat
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchEvent
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchOutcome
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchSession
@@ -115,6 +117,45 @@ class ServerListViewModelTest {
                 assertEquals(listOf("1", "6", "5", "4", "3"), awaitItem().map { it.sessionId })
                 statuses.value = mapOf("agent/1" to TurnActivity(TurnStatus.FINISHED))
                 assertEquals(listOf("6", "5", "4", "3", "2"), awaitItem().map { it.sessionId })
+            }
+        }
+
+    @Test
+    fun `recent worktree chat picks up its project and checkout when the catalog updates`() =
+        runTest(testDispatcher) {
+            val gateway = GatewaySource(id = "gw", name = "PC", host = "pc", gatewayCredential = "token")
+            val target =
+                LaunchableTarget.GatewayAgent(
+                    GatewayAgentBinding(id = "bound", name = "Agent", gatewaySourceId = "gw", agentId = "agent"),
+                    gateway,
+                )
+            val chat = SessionSummary(id = "chat", serverId = target.id, cwd = "/external/tree/src")
+            val catalog = MutableStateFlow(ProjectCatalogState(isReady = true))
+            every { projectCatalog.state } returns catalog
+            every { projectCatalog.getRecentSessions(any()) } returns flowOf(listOf(chat))
+            coEvery { launchableTargetRepository.getTarget(target.id) } returns target
+            val viewModel = createViewModel()
+
+            viewModel.recentSessions.test {
+                assertEquals(emptyList<RecentSession>(), awaitItem())
+                assertEquals(null, awaitItem().single().projectPath)
+                catalog.value =
+                    ProjectCatalogState(
+                        projects =
+                            listOf(
+                                ProjectSummary(
+                                    gateway,
+                                    "/repos/project",
+                                    listOf(ProjectChat(chat, target, "/external/tree")),
+                                    null,
+                                    null,
+                                ),
+                            ),
+                        isReady = true,
+                    )
+                val recent = awaitItem().single()
+                assertEquals("/repos/project", recent.projectPath)
+                assertEquals("/external/tree", recent.worktreePath)
             }
         }
 

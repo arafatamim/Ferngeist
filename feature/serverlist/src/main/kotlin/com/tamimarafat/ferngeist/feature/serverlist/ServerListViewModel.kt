@@ -74,6 +74,8 @@ data class RecentSession(
     val cwd: String?,
     val updatedAt: Long?,
     val activityUpdatedAt: Long? = null,
+    val projectPath: String? = null,
+    val worktreePath: String? = null,
 )
 
 data class PendingAuthentication(
@@ -195,7 +197,17 @@ class ServerListViewModel
                 projectCatalog.getRecentSessions(Int.MAX_VALUE),
                 projectCatalog.activityUpdatedAt,
                 projectCatalog.turnStatuses,
-            ) { summaries, activity, statuses ->
+                projectCatalog.state,
+            ) { summaries, activity, statuses, catalog ->
+                val worktrees =
+                    catalog.projects
+                        .flatMap { project ->
+                            project.chats.mapNotNull { chat ->
+                                chat.worktree?.let { path ->
+                                    (chat.target.id to chat.summary.id) to (project.repo to path)
+                                }
+                            }
+                        }.toMap()
                 summaries
                     .filter { summary ->
                         summary.serverId.isNotBlank().also { valid ->
@@ -214,6 +226,8 @@ class ServerListViewModel
                             cwd = summary.cwd,
                             updatedAt = summary.updatedAt,
                             activityUpdatedAt = activity["${summary.serverId}/${summary.id}"],
+                            projectPath = worktrees[summary.serverId to summary.id]?.first,
+                            worktreePath = worktrees[summary.serverId to summary.id]?.second,
                         )
                     }.take(RECENT_SESSIONS_LIMIT)
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

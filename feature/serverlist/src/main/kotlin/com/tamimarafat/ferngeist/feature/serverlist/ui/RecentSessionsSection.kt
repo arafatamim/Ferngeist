@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -211,6 +212,8 @@ private fun ContinueSessionCardContent(
             // on the fallback glyph gets its name here, where it carries information.
             FolderNamePrefix(
                 cwd = session.cwd,
+                projectPath = session.projectPath,
+                worktreePath = session.worktreePath,
                 tint =
                     MaterialTheme.colorScheme.turnStatusContentColor(
                         status.status,
@@ -295,8 +298,7 @@ private val driveRoot = Regex("""[A-Za-z]:""")
 private const val BULLET_SEPARATOR = "•"
 
 /**
- * The folder line: a folder icon and leaf name, optionally followed by [after] as
- * "folder - name".
+ * The folder line names the project and, when present, its worktree before [after].
  *
  * [after] carries the agent name only when the badge cannot. A registry logo already
  * names the agent, so repeating it in text is the redundancy the badge removed. An
@@ -306,11 +308,14 @@ private const val BULLET_SEPARATOR = "•"
 @Composable
 private fun FolderNamePrefix(
     cwd: String?,
+    projectPath: String?,
+    worktreePath: String?,
     tint: Color,
     after: String? = null,
 ) {
-    val folder = workingFolderName(cwd)
-    if (folder == null && after == null) return
+    val folder = workingFolderName(projectPath ?: cwd)
+    val worktree = workingFolderName(worktreePath)
+    if (folder == null && worktree == null && after == null) return
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -331,7 +336,22 @@ private fun FolderNamePrefix(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (folder != null && after != null) {
+        if (worktree != null) {
+            Icon(
+                imageVector = Icons.Outlined.AccountTree,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = tint,
+            )
+            Text(
+                text = worktree,
+                style = MaterialTheme.typography.bodySmall,
+                color = tint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if ((folder != null || worktree != null) && after != null) {
             Text(
                 text = BULLET_SEPARATOR,
                 style = MaterialTheme.typography.bodySmall,
@@ -466,6 +486,8 @@ private fun RecentSessionCardRow(
             // so the name goes on the folder line instead.
             FolderNamePrefix(
                 cwd = session.cwd,
+                projectPath = session.projectPath,
+                worktreePath = session.worktreePath,
                 tint =
                     MaterialTheme.colorScheme.turnStatusContentColor(
                         status.status,
