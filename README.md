@@ -10,7 +10,7 @@ Run Claude Code, Codex, OpenCode, Pi or another coding agent on your computer an
 [![Version](https://img.shields.io/github/v/release/arafatamim/ferngeist?color=4DB6AC&style=flat-square)](https://github.com/arafatamim/ferngeist/releases/latest)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/arafatamim/Ferngeist)
 
-<a href="https://play.google.com/store/apps/details?id=com.tamimarafat.ferngeist"><img alt="Get it on Google Play" src="https://github.com/pioug/google-play-badges/raw/refs/heads/main/svg/en.svg" width="200" /></a>
+<a href="https://play.google.com/store/apps/details?id=com.tamimarafat.ferngeist"><img alt="Get it on Google Play" src="https://github.com/pioug/google-play-badges/raw/refs/heads/main/svg/en.svg" width="200" /></a> <a href="https://f-droid.org/en/packages/com.tamimarafat.ferngeist/"><img alt="Get it on F-Droid" src="https://f-droid.org/badge/get-it-on.svg" width="200" /></a>
 
 Or grab the APK from [GitHub Releases](https://github.com/arafatamim/ferngeist/releases/latest) (no auto-updates). Requires Android 11 or later.
 
