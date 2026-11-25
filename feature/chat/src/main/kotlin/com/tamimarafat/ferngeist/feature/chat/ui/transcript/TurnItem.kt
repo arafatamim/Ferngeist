@@ -1,22 +1,22 @@
 package com.tamimarafat.ferngeist.feature.chat.ui.transcript
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyItemScope
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
@@ -28,6 +28,7 @@ import com.tamimarafat.ferngeist.feature.chat.ui.localWorkingTreeChanges
 import com.tamimarafat.ferngeist.feature.chat.ui.scroll.TurnRunway
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap
+import kotlin.math.max
 
 private const val TURN_ENTRANCE_MS = 180
 
@@ -44,17 +45,26 @@ internal fun LazyItemScope.TurnItem(
     onRetryMessage: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
+    // Placement springs because the app's SharedTransitionLayout is a lookahead scope: there the list
+    // places a row at its final offset in the first frame of a row above changing size.
     val entrance =
-        if (turn.prompt != null) {
-            Modifier.animateItem(fadeInSpec = tween(TURN_ENTRANCE_MS), placementSpec = null, fadeOutSpec = null)
-        } else {
-            Modifier
-        }
+        Modifier.animateItem(
+            fadeInSpec = if (turn.prompt != null) tween(TURN_ENTRANCE_MS) else null,
+            placementSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+            fadeOutSpec = null,
+        )
+    val heldPx = (runway as? TurnRunway.Held)?.px ?: 0
+    // Eased, not dropped: letting go in one frame jumped the prompt below by the whole gap. Holding
+    // takes effect at once (the max below), as the row must not shrink as its runway strut goes.
+    val release = remember { Animatable(0, Int.VectorConverter) }
+    val releaseSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Int>()
+    LaunchedEffect(heldPx) { if (heldPx > 0) release.snapTo(heldPx) else release.animateTo(0, releaseSpec) }
     val held =
-        if (runway is TurnRunway.Held) {
-            Modifier.heightIn(min = with(LocalDensity.current) { runway.px.toDp() }).wrapContentHeight(Alignment.Top)
-        } else {
-            Modifier
+        Modifier.layout { measurable, constraints ->
+            // Read in layout: the ease re-measures this row instead of recomposing it.
+            val minHeight = max(heldPx, release.value).coerceIn(constraints.minHeight, constraints.maxHeight)
+            val placeable = measurable.measure(constraints.copy(minHeight = minHeight))
+            layout(placeable.width, placeable.height) { placeable.place(0, 0) }
         }
     Box(modifier = modifier.then(entrance).then(held)) {
         if (runway is TurnRunway.Reserve) Spacer(modifier = runwayStrut(runway.belowPx))
