@@ -50,9 +50,9 @@ import com.tamimarafat.ferngeist.gateway.GatewayPairingPayload
 import kotlinx.coroutines.launch
 
 private const val COMMAND_INSTRUCTION_INDEX = 2
-private val URL_PATTERN = Regex("https?://\\S+")
+private val urlPattern = Regex("https?://\\S+")
 private const val PAIR_COMMAND = "ferngeist-gateway pair"
-private val StepBadgeSize = 28.dp
+private val stepBadgeSize = 28.dp
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -89,7 +89,7 @@ private fun NumberedInstruction(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.size(StepBadgeSize),
+            modifier = Modifier.size(stepBadgeSize),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(text = number.toString(), style = MaterialTheme.typography.labelLarge)
@@ -112,7 +112,7 @@ private fun linkified(text: String): AnnotatedString {
         TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline))
     return buildAnnotatedString {
         var cursor = 0
-        URL_PATTERN.findAll(text).forEach { match ->
+        urlPattern.findAll(text).forEach { match ->
             // A trailing period belongs to the sentence, not the link.
             val url = match.value.trimEnd('.')
             append(text.substring(cursor, match.range.first))

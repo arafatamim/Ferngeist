@@ -30,7 +30,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private val Context.homePreferences by preferencesDataStore(name = "home_preferences")
-private val LAST_HOME_TAB = stringPreferencesKey("last_home_tab")
+private val lastHomeTab = stringPreferencesKey("last_home_tab")
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -44,11 +44,11 @@ internal fun rememberHomePagerMotion(hasProjects: Boolean): HomePagerMotion {
     LaunchedEffect(motion) { motion.followRestingPage() }
     LaunchedEffect(state, hasProjects) {
         if (hasProjects) {
-            val savedTab = context.homePreferences.data.first()[LAST_HOME_TAB]
+            val savedTab = context.homePreferences.data.first()[lastHomeTab]
             val initialPage = tabs.indexOfFirst { it.name == savedTab }.coerceAtLeast(0)
             state.scrollToPage(initialPage)
             snapshotFlow { state.settledPage }.collect { page ->
-                context.homePreferences.edit { it[LAST_HOME_TAB] = tabs[page.coerceIn(0, tabs.lastIndex)].name }
+                context.homePreferences.edit { it[lastHomeTab] = tabs[page.coerceIn(0, tabs.lastIndex)].name }
             }
         }
     }

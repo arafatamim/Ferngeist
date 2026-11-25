@@ -75,14 +75,14 @@ import com.tamimarafat.ferngeist.core.git.R as GitR
 
 // The button row: its 40dp controls plus 8dp above and below, so the card beneath keeps an
 // 8dp gap from them.
-private val MastheadCollapsedHeight = 56.dp
+private val mastheadCollapsedHeight = 56.dp
 
 // How far the title slot over-insets the card on the left, and so how far the card is pulled
 // back to keep 8dp on both sides.
-private val MastheadCardShift = 8.dp
+private val mastheadCardShift = 8.dp
 
 // How far below the bar the fade keeps dissolving into the transcript.
-private val MastheadFadeOvershoot = 24.dp
+private val mastheadFadeOvershoot = 24.dp
 
 /**
  * The session masthead: a floating card in the same tonal field as its control bubbles, with
@@ -125,7 +125,7 @@ internal fun ChatTopBar(
     if (isWindowShort()) {
         TopAppBar(
             modifier = Modifier.mastheadFade(),
-            expandedHeight = MastheadCollapsedHeight,
+            expandedHeight = mastheadCollapsedHeight,
             navigationIcon = {
                 if (showBackButton) {
                     TopBarBackButton(onNavigateBack)
@@ -226,11 +226,11 @@ internal fun ChatTopBar(
                 onConnectionStatusClick = onConnectionStatusClick,
             )
         },
-        collapsedHeight = MastheadCollapsedHeight,
+        collapsedHeight = mastheadCollapsedHeight,
         // The card's height is its content, so the expanded row is measured from it too:
         // requesting no extra height lets the app bar grow to the card, instead of reserving
         // a fixed block with a hole above the card.
-        expandedHeight = MastheadCollapsedHeight,
+        expandedHeight = mastheadCollapsedHeight,
         scrollBehavior = scrollBehavior,
         colors =
             TopAppBarDefaults.topAppBarColors(
@@ -247,7 +247,7 @@ private fun Modifier.mastheadFade(): Modifier {
     return this
         .fillMaxWidth()
         .drawBehind {
-            val fadeHeight = size.height + MastheadFadeOvershoot.toPx()
+            val fadeHeight = size.height + mastheadFadeOvershoot.toPx()
             drawRect(
                 brush =
                     Brush.verticalGradient(
@@ -346,7 +346,7 @@ private fun ExpandedTitleCard(
  */
 private fun Modifier.headerCardInset(): Modifier =
     layout { measurable, constraints ->
-        val shift = MastheadCardShift.roundToPx()
+        val shift = mastheadCardShift.roundToPx()
         val placeable =
             measurable.measure(
                 constraints.copy(
