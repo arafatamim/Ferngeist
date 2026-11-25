@@ -23,8 +23,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 private const val DRAG_SELECT_LOG_TAG = "DragSelect"
 
 /**
- * Press-drag-release for a dropdown: pressing the anchor opens the menu, dragging onto an item
- * highlights it, releasing picks it. A plain tap still opens the menu and leaves it open.
+ * Press-drag-release for a dropdown: dragging off the anchor opens the menu, dragging onto an item
+ * highlights it, releasing picks it. A plain tap is left to the anchor's own click, which opens it.
  *
  * Hit-testing runs in screen space because the menu is a popup, which has its own window.
  */
@@ -44,7 +44,10 @@ class DragSelectMenuState internal constructor(
     }
 
     // A previous opening's items are detached; drop them before this one registers its own.
-    internal fun reset() = items.clear()
+    internal fun open() {
+        items.clear()
+        onExpandedChange(true)
+    }
 
     /** Moves the highlight to the item under [screenPoint], pressing it as a finger would. */
     internal fun hover(screenPoint: Offset?) {
@@ -121,8 +124,6 @@ fun Modifier.dragSelectMenuAnchor(state: DragSelectMenuState): Modifier =
         .pointerInput(state) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
-                state.reset()
-                state.onExpandedChange(true)
                 android.util.Log.d(DRAG_SELECT_LOG_TAG, "down at ${down.position}")
                 var finished = false
                 try {
@@ -150,7 +151,10 @@ private suspend fun AwaitPointerEventScope.trackUntilRelease(
         val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
         android.util.Log.d(DRAG_SELECT_LOG_TAG, "move change=${change?.position} pressed=${change?.pressed}")
         if (change == null || !change.pressed) return dragged
-        dragged = dragged || (change.position - down.position).getDistance() > touchSlop
+        if (!dragged && (change.position - down.position).getDistance() > touchSlop) {
+            dragged = true
+            state.open()
+        }
         if (dragged) {
             change.consume()
             state.hover(state.anchor?.takeIf { it.isAttached }?.localToScreen(change.position))
