@@ -99,7 +99,7 @@
     <string name="serverlist_add_gateway_challenge_label">Вызов (challenge) %1$s…</string>
     <string name="serverlist_add_gateway_instruction_1">Если у вас еще нет Ferngeist Gateway, скачайте его с https://github.com/arafatamim/ferngeist-acp-gateway.</string>
     <string name="serverlist_add_gateway_instruction_2">Откройте терминал на компьютере, где запущен Ferngeist Gateway.</string>
-    <string name="serverlist_add_gateway_instruction_3">Запустите `ferngeist-gateway pair`.</string>
+    <string name="serverlist_add_gateway_instruction_3">Выполните эту команду:</string>
     <string name="serverlist_add_gateway_instruction_4">Не закрывайте терминал.</string>
 
     <!-- Gateway Payload -->

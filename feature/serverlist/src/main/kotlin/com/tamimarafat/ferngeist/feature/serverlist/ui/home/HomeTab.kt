@@ -6,13 +6,17 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -22,33 +26,37 @@ import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.ButtonGroupDefaults
-import androidx.compose.material3.DropdownMenuGroup
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenuPopup
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import kotlinx.coroutines.launch
 
@@ -79,7 +87,7 @@ enum class HomeTab(
 internal fun HomeTabBar(
     pager: HomePagerMotion,
     quickChatAvailable: Boolean,
-    hasGateways: Boolean,
+    gatewayCount: Int,
     onQuickChat: () -> Unit,
     onGateways: () -> Unit,
     onAddAgent: () -> Unit,
@@ -112,7 +120,7 @@ internal fun HomeTabBar(
         }
         HomeFab(
             quickChat = showTabs && tab == HomeTab.PROJECTS && quickChatAvailable,
-            hasGateways = hasGateways,
+            gatewayCount = gatewayCount,
             onQuickChat = onQuickChat,
             onGateways = onGateways,
             onAddAgent = onAddAgent,
@@ -120,84 +128,127 @@ internal fun HomeTabBar(
     }
 }
 
-/** New chat on Projects; on Agents, or with nothing to chat in, a menu of ways to add an agent. */
+/** New chat on Projects; on Agents, or with nothing to chat in, a sheet of ways to add an agent. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun HomeFab(
     quickChat: Boolean,
-    hasGateways: Boolean,
+    gatewayCount: Int,
     onQuickChat: () -> Unit,
     onGateways: () -> Unit,
     onAddAgent: () -> Unit,
 ) {
-    var showMenu by rememberSaveable { mutableStateOf(false) }
+    var showSheet by rememberSaveable { mutableStateOf(false) }
     Box {
         FloatingActionButton(
-            onClick = { if (quickChat) onQuickChat() else showMenu = true },
+            onClick = { if (quickChat) onQuickChat() else showSheet = true },
             // The vibrant toolbar's FAB role, so the action separates from the tab pills.
             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
             contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
         ) {
-            // The icon swaps with the page; a crossfade keeps the FAB itself from seeming to change.
-            Crossfade(targetState = quickChat, animationSpec = MaterialTheme.motionScheme.fastEffectsSpec()) { chat ->
-                Icon(
-                    if (chat) Icons.AutoMirrored.Filled.Chat else Icons.Default.Add,
-                    contentDescription =
-                        stringResource(if (chat) R.string.serverlist_quick_chat else R.string.serverlist_fab_add),
-                )
-            }
+            HomeFabIcon(quickChat)
         }
-        AddAgentMenu(
-            expanded = showMenu,
-            onDismiss = { showMenu = false },
-            hasGateways = hasGateways,
-            onGateways = onGateways,
-            onAddAgent = onAddAgent,
+        if (showSheet) {
+            AddAgentSheet(
+                onDismiss = { showSheet = false },
+                gatewayCount = gatewayCount,
+                onGateways = onGateways,
+                onAddAgent = onAddAgent,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeFabIcon(quickChat: Boolean) {
+    // The icon swaps with the page; a crossfade keeps the FAB itself from seeming to change.
+    Crossfade(targetState = quickChat, animationSpec = MaterialTheme.motionScheme.fastEffectsSpec()) { chat ->
+        Icon(
+            if (chat) Icons.AutoMirrored.Filled.Chat else Icons.Default.Add,
+            contentDescription =
+                stringResource(if (chat) R.string.serverlist_quick_chat else R.string.serverlist_fab_add),
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddAgentSheet(
+    onDismiss: () -> Unit,
+    gatewayCount: Int,
+    onGateways: () -> Unit,
+    onAddAgent: () -> Unit,
+) {
+    val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
+    val scope = rememberCoroutineScope()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            modifier =
+                Modifier
+                    .padding(horizontal = 16.dp)
+                    .windowInsetsPadding(WindowInsets.navigationBars),
+            verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
+        ) {
+            Text(
+                text = stringResource(R.string.serverlist_add_sheet_title),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 12.dp),
+            )
+            AddAgentRow(
+                index = 0,
+                icon = Icons.Default.Devices,
+                label =
+                    stringResource(
+                        if (gatewayCount > 0) {
+                            R.string.serverlist_add_paired_btn
+                        } else {
+                            R.string.serverlist_add_gateway_btn
+                        },
+                    ),
+                subtitle =
+                    gatewayCount.takeIf { it > 0 }?.let {
+                        pluralStringResource(R.plurals.serverlist_gateways_paired, it, it)
+                    },
+                onClick = { scope.dismissSheet(sheetState) { onDismiss().also { onGateways() } } },
+            )
+            AddAgentRow(
+                index = 1,
+                icon = Icons.Default.Add,
+                label = stringResource(R.string.serverlist_add_agent_btn),
+                subtitle = null,
+                onClick = { scope.dismissSheet(sheetState) { onDismiss().also { onAddAgent() } } },
+            )
+            Spacer(Modifier.height(16.dp))
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun AddAgentMenu(
-    expanded: Boolean,
-    onDismiss: () -> Unit,
-    hasGateways: Boolean,
-    onGateways: () -> Unit,
-    onAddAgent: () -> Unit,
+private fun AddAgentRow(
+    index: Int,
+    icon: ImageVector,
+    label: String,
+    subtitle: String?,
+    onClick: () -> Unit,
 ) {
-    DropdownMenuPopup(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuGroup(
-            shapes = MenuDefaults.groupShape(0, 1),
-            interactionSource = remember { MutableInteractionSource() },
-        ) {
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        stringResource(
-                            if (hasGateways) {
-                                R.string.serverlist_add_paired_btn
-                            } else {
-                                R.string.serverlist_add_gateway_btn
-                            },
-                        ),
-                    )
-                },
-                leadingIcon = { Icon(Icons.Default.Devices, contentDescription = null) },
-                onClick = {
-                    onDismiss()
-                    onGateways()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.serverlist_add_agent_btn)) },
-                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
-                onClick = {
-                    onDismiss()
-                    onAddAgent()
-                },
-            )
-        }
+    SegmentedListItem(
+        onClick = onClick,
+        shapes = ListItemDefaults.segmentedShapes(index, 2),
+        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        leadingContent = {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.tertiaryContainer) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.padding(10.dp),
+                )
+            }
+        },
+        supportingContent = subtitle?.let { { Text(it) } },
+    ) {
+        Text(label, style = MaterialTheme.typography.titleMedium)
     }
 }
 

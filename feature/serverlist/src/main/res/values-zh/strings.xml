@@ -99,7 +99,7 @@
     <string name="serverlist_add_gateway_challenge_label">挑战 (Challenge) %1$s…</string>
     <string name="serverlist_add_gateway_instruction_1">如果您还没有 Ferngeist Gateway，请从 https://github.com/arafatamim/ferngeist-acp-gateway 下载。</string>
     <string name="serverlist_add_gateway_instruction_2">在运行 Ferngeist Gateway 的电脑上打开终端。</string>
-    <string name="serverlist_add_gateway_instruction_3">运行 `ferngeist-gateway pair`。</string>
+    <string name="serverlist_add_gateway_instruction_3">运行此命令：</string>
     <string name="serverlist_add_gateway_instruction_4">保持该终端开启。</string>
 
     <!-- Gateway Payload -->

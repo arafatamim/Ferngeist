@@ -91,7 +91,7 @@
     <string name="serverlist_add_gateway_challenge_label">Desafio %1$s…</string>
     <string name="serverlist_add_gateway_instruction_1">Se você ainda não tem o Ferngeist Gateway, baixe-o em https://github.com/arafatamim/ferngeist-acp-gateway.</string>
     <string name="serverlist_add_gateway_instruction_2">Abra um terminal no computador que está executando o Ferngeist Gateway.</string>
-    <string name="serverlist_add_gateway_instruction_3">Execute `ferngeist-gateway pair`.</string>
+    <string name="serverlist_add_gateway_instruction_3">Execute este comando:</string>
     <string name="serverlist_add_gateway_instruction_4">Mantenha esse terminal aberto.</string>
 
     <string name="serverlist_payload_code_label">Código %1$s</string>

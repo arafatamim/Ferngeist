@@ -91,7 +91,7 @@
     <string name="serverlist_add_gateway_challenge_label">চ্যালেঞ্জ %1$s…</string>
     <string name="serverlist_add_gateway_instruction_1">আপনার কাছে এখনও Ferngeist Gateway না থাকলে, https://github.com/arafatamim/ferngeist-acp-gateway থেকে ডাউনলোড করুন।</string>
     <string name="serverlist_add_gateway_instruction_2">Ferngeist Gateway চালানো কম্পিউটারে একটি টার্মিনাল খুলুন।</string>
-    <string name="serverlist_add_gateway_instruction_3">`ferngeist-gateway pair` চালান।</string>
+    <string name="serverlist_add_gateway_instruction_3">এই কমান্ডটি চালান:</string>
     <string name="serverlist_add_gateway_instruction_4">ওই টার্মিনালটি খোলা রাখুন।</string>
 
     <string name="serverlist_payload_code_label">কোড %1$s</string>

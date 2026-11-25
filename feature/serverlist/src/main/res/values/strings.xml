@@ -16,6 +16,8 @@
     <string name="home_agents_direct">Direct</string>
     <string name="home_agents_offline">Offline</string>
 
+    <plurals name="serverlist_gateways_paired"><item quantity="one">%d gateway paired</item><item quantity="other">%d gateways paired</item></plurals>
+    <string name="serverlist_add_sheet_title">Add an agent</string>
     <plurals name="home_agents_count"><item quantity="one">%d agent</item><item quantity="other">%d agents</item></plurals>
     <plurals name="home_agents_attention_count"><item quantity="one">%d needs you</item><item quantity="other">%d need you</item></plurals>
     <plurals name="home_agents_working_count"><item quantity="one">%d working</item><item quantity="other">%d working</item></plurals>
@@ -104,6 +106,11 @@
     <string name="serverlist_add_gateway_name_placeholder">Workstation</string>
     <string name="serverlist_add_gateway_host_label">Gateway host</string>
     <string name="serverlist_add_gateway_payload_label">Pairing payload</string>
+    <string name="serverlist_add_gateway_copy_command">Copy command</string>
+    <string name="serverlist_add_gateway_command_copied">Command copied</string>
+    <string name="serverlist_add_gateway_paste">Paste from clipboard</string>
+    <string name="serverlist_add_gateway_section_connection">Connection</string>
+    <string name="serverlist_add_gateway_section_names">Names</string>
     <string name="serverlist_add_gateway_or">OR</string>
     <string name="serverlist_add_gateway_device_label">This device name</string>
     <string name="serverlist_add_gateway_manual_hint">The payload usually fills these details for you.</string>
@@ -122,7 +129,7 @@
     <string name="serverlist_add_gateway_challenge_label">Challenge %1$s…</string>
     <string name="serverlist_add_gateway_instruction_1">If you do not have Ferngeist Gateway yet, download it from https://github.com/arafatamim/ferngeist-acp-gateway.</string>
     <string name="serverlist_add_gateway_instruction_2">Open a terminal on the computer running Ferngeist Gateway.</string>
-    <string name="serverlist_add_gateway_instruction_3">Run `ferngeist-gateway pair`.</string>
+    <string name="serverlist_add_gateway_instruction_3">Run this command:</string>
     <string name="serverlist_add_gateway_instruction_4">Keep that terminal open.</string>
 
     <!-- Gateway Payload -->

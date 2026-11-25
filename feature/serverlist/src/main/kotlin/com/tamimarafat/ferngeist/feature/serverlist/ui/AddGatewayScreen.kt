@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -34,6 +37,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -52,11 +56,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.formContentMaxWidth
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
@@ -108,6 +116,12 @@ private fun AddGatewayFlow(
     var pairingDialogRequest by rememberSaveable { mutableIntStateOf(0) }
     val steps = rememberGatewaySteps()
     val step = steps[stepIndex]
+
+    // A scanned or pasted payload fills in everything, so go straight to review instead of
+    // making the user press Next on a screen that has nothing left to do.
+    LaunchedEffect(ui.uiState.importedPairingPayload) {
+        if (ui.uiState.importedPairingPayload != null && stepIndex == 1) stepIndex = 2
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(ui.snackbarHostState) },
@@ -602,36 +616,33 @@ private fun AddGatewayBottomBar(
     isSaving: Boolean,
     onNext: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Button(
-            onClick = onNext,
-            enabled = !isSaving,
-            modifier = Modifier.weight(1f).handCursor(enabled = !isSaving),
-        ) {
-            Text(
-                when (stepIndex) {
-                    0 -> stringResource(R.string.serverlist_add_gateway_next)
-                    1 ->
-                        if (hasImportedPayload) {
-                            stringResource(R.string.serverlist_add_gateway_next)
-                        } else {
-                            stringResource(R.string.serverlist_add_gateway_skip)
-                        }
-                    else -> stringResource(R.string.serverlist_add_gateway_pair)
-                },
-                style = MaterialTheme.typography.labelLargeEmphasized,
-            )
-            if (stepIndex < totalSteps - 1) {
+    val isLast = stepIndex == totalSteps - 1
+    // Skipping is the escape hatch, so it must not look like the main path on the import step.
+    val isSkip = stepIndex == 1 && !hasImportedPayload
+    val label =
+        stringResource(
+            when {
+                isLast -> R.string.serverlist_add_gateway_pair
+                isSkip -> R.string.serverlist_add_gateway_skip
+                else -> R.string.serverlist_add_gateway_next
+            },
+        )
+    val content: @Composable RowScope.() -> Unit = {
+        if (isSaving) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        } else {
+            Text(label, style = MaterialTheme.typography.labelLargeEmphasized)
+            if (!isLast) {
                 Spacer(modifier = Modifier.size(8.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                )
+                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
             }
         }
+    }
+    val modifier = Modifier.fillMaxWidth().height(56.dp).handCursor(enabled = !isSaving)
+    if (isSkip) {
+        OutlinedButton(onClick = onNext, enabled = !isSaving, modifier = modifier, content = content)
+    } else {
+        Button(onClick = onNext, enabled = !isSaving, modifier = modifier, content = content)
     }
 }
 
@@ -643,6 +654,7 @@ private fun PairingCodeDialog(
     onConfirm: () -> Unit,
     isLoading: Boolean,
 ) {
+    val focusRequester = remember { FocusRequester() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.serverlist_add_gateway_pairing_code_title)) },
@@ -654,8 +666,12 @@ private fun PairingCodeDialog(
                 placeholder = { Text(stringResource(R.string.serverlist_add_gateway_placeholder_code)) },
                 singleLine = true,
                 enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth(),
+                textStyle = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (code.isNotBlank() && !isLoading) onConfirm() }),
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
             )
+            LaunchedEffect(Unit) { focusRequester.requestFocus() }
         },
         confirmButton = {
             val canConfirm = code.isNotBlank() && !isLoading

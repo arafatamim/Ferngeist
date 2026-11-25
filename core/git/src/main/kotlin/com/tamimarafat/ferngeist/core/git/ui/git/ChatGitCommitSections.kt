@@ -2,14 +2,9 @@
 
 package com.tamimarafat.ferngeist.core.git.ui.git
 
-import android.content.ClipData
 import android.content.res.Configuration
 import android.text.format.DateUtils
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,9 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CloudOff
-import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,18 +37,14 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ClipEntry
-import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -69,6 +58,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
+import com.tamimarafat.ferngeist.core.common.ui.copy.CopyGlyph
+import com.tamimarafat.ferngeist.core.common.ui.copy.rememberCopyState
 import com.tamimarafat.ferngeist.core.common.ui.darkGitSemanticColors
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.localGitSemanticColors
@@ -81,13 +72,10 @@ import com.tamimarafat.ferngeist.core.git.ui.history.order
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatGitCommit
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 private const val SHORT_SHA = 7
 private const val BODY_COLLAPSED_LINES = 4
 private const val SUBJECT_COLLAPSED_LINES = 3
-private const val COPIED_MILLIS = 1_500L
 
 /**
  * The page a tapped history row opens: what the commit says and who made it, then the
@@ -217,15 +205,8 @@ private fun GitCommitMeta(commit: ChatGitCommit) {
 /** Short sha that copies the full one. The icon turning into a check is the only confirmation. */
 @Composable
 private fun ShaChip(sha: String) {
-    val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
-    var copied by remember { mutableStateOf(false) }
-    LaunchedEffect(copied) {
-        if (copied) {
-            delay(COPIED_MILLIS)
-            copied = false
-        }
-    }
+    val copyState = rememberCopyState()
+    val copied = copyState.copied
     val short = sha.take(SHORT_SHA)
     val description =
         if (copied) stringResource(R.string.chat_git_sha_copied) else stringResource(R.string.chat_git_copy_sha, short)
@@ -241,12 +222,8 @@ private fun ShaChip(sha: String) {
             Row(
                 modifier =
                     Modifier
-                        .clickable(role = Role.Button) {
-                            scope.launch {
-                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("sha", sha)))
-                                copied = true
-                            }
-                        }.padding(horizontal = 10.dp, vertical = 6.dp),
+                        .clickable(role = Role.Button) { copyState.copy(sha) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -254,32 +231,13 @@ private fun ShaChip(sha: String) {
                     text = short,
                     style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
                 )
-                ShaCopyIcon(copied)
+                CopyGlyph(
+                    copied = copied,
+                    size = 14.dp,
+                    doneTint = localGitSemanticColors.current.added,
+                )
             }
         }
-    }
-}
-
-/** Copy glyph that cross-fades to a check, in the added colour, once the sha is on the clipboard. */
-@Composable
-private fun ShaCopyIcon(copied: Boolean) {
-    val fade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
-    AnimatedContent(
-        targetState = copied,
-        transitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
-        label = "shaCopied",
-    ) { done ->
-        Icon(
-            imageVector = if (done) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
-            contentDescription = null,
-            tint =
-                if (done) {
-                    localGitSemanticColors.current.added
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            modifier = Modifier.size(14.dp),
-        )
     }
 }
 

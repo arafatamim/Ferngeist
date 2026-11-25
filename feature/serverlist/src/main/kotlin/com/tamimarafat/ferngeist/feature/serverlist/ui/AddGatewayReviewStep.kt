@@ -2,34 +2,27 @@ package com.tamimarafat.ferngeist.feature.serverlist.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -88,20 +81,27 @@ private fun GatewayReviewForm(
     isCheckingStatus: Boolean,
     onCheckStatus: () -> Unit,
 ) {
-    Card(
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            ),
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        FormSection(title = stringResource(R.string.serverlist_add_gateway_section_connection)) {
+            Text(
+                text = stringResource(R.string.serverlist_add_gateway_manual_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            GatewayProtocolSelector(selected = scheme, onSelect = onSelectScheme)
+            OutlinedTextField(
+                value = host,
+                onValueChange = onUpdateHost,
+                label = { Text(stringResource(R.string.serverlist_add_gateway_host_label)) },
+                placeholder = { Text(stringResource(R.string.serverlist_add_gateway_host_placeholder)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
+            )
+            GatewayCheckButton(isCheckingStatus = isCheckingStatus, onCheckStatus = onCheckStatus)
+            status?.let { GatewayStatusCard(status = it) }
+        }
+        FormSection(title = stringResource(R.string.serverlist_add_gateway_section_names)) {
             OutlinedTextField(
                 value = name,
                 onValueChange = onUpdateName,
@@ -117,151 +117,72 @@ private fun GatewayReviewForm(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
-            GatewayProtocolSelector(selected = scheme, onSelect = onSelectScheme)
-            OutlinedTextField(
-                value = host,
-                onValueChange = onUpdateHost,
-                label = { Text(stringResource(R.string.serverlist_add_gateway_host_label)) },
-                placeholder = { Text(stringResource(R.string.serverlist_add_gateway_host_placeholder)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Link,
-                        contentDescription = stringResource(R.string.serverlist_add_server_host_label),
-                    )
-                },
-            )
-
-            GatewayReviewActions(
-                isCheckingStatus = isCheckingStatus,
-                onCheckStatus = onCheckStatus,
-            )
-
-            status?.let { GatewayStatusCard(status = it) }
         }
     }
 }
 
 @Composable
-private fun GatewayReviewActions(
+private fun FormSection(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        content()
+    }
+}
+
+@Composable
+private fun GatewayCheckButton(
     isCheckingStatus: Boolean,
     onCheckStatus: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text(
-            text = stringResource(R.string.serverlist_add_gateway_manual_hint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Button(
-            onClick = onCheckStatus,
-            enabled = !isCheckingStatus,
-            modifier = Modifier.handCursor(enabled = !isCheckingStatus),
-        ) {
-            if (isCheckingStatus) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            } else {
-                Text(stringResource(R.string.serverlist_add_gateway_check))
-            }
+    OutlinedButton(
+        onClick = onCheckStatus,
+        enabled = !isCheckingStatus,
+        modifier = Modifier.handCursor(enabled = !isCheckingStatus),
+    ) {
+        if (isCheckingStatus) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else {
+            Text(stringResource(R.string.serverlist_add_gateway_check))
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun GatewayProtocolSelector(
     selected: String,
     onSelect: (String) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        GatewayProtocolOption(
-            label = stringResource(R.string.serverlist_add_gateway_http),
-            code = HTTP_SCHEME,
-            isSelected = selected.equals(HTTP_SCHEME, ignoreCase = true) || selected.equals("ws", ignoreCase = true),
+    val secure = selected.equals(HTTPS_SCHEME, ignoreCase = true) || selected.equals("wss", ignoreCase = true)
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        SegmentedButton(
+            selected = !secure,
             onClick = { onSelect(HTTP_SCHEME) },
-            modifier = Modifier.weight(1f),
-        )
-        GatewayProtocolOption(
-            label = stringResource(R.string.serverlist_add_gateway_https),
-            code = HTTPS_SCHEME,
-            isSelected = selected.equals(HTTPS_SCHEME, ignoreCase = true) || selected.equals("wss", ignoreCase = true),
-            onClick = { onSelect(HTTPS_SCHEME) },
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun GatewayProtocolOption(
-    label: String,
-    code: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val containerColor =
-        if (isSelected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        }
-    val contentColor =
-        if (isSelected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        }
-    val borderColor =
-        if (isSelected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-        } else {
-            MaterialTheme.colorScheme.outlineVariant
-        }
-
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = containerColor,
-        contentColor = contentColor,
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
-        modifier =
-            modifier
-                .height(52.dp)
-                .handCursor()
-                .semantics {
-                    contentDescription = label
-                },
-    ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
+            shape = SegmentedButtonDefaults.itemShape(0, 2),
+            modifier = Modifier.handCursor(),
         ) {
-            if (code == HTTPS_SCHEME) {
-                Icon(
-                    Icons.Default.Key,
-                    contentDescription = stringResource(R.string.serverlist_add_gateway_https),
-                    modifier = Modifier.size(16.dp),
+            Text(stringResource(R.string.serverlist_add_gateway_http))
+        }
+        SegmentedButton(
+            selected = secure,
+            onClick = { onSelect(HTTPS_SCHEME) },
+            shape = SegmentedButtonDefaults.itemShape(1, 2),
+            icon = {
+                SegmentedButtonDefaults.Icon(
+                    active = secure,
+                    activeContent = { Icon(Icons.Default.Lock, null) },
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-            }
-            Text(
-                text = label,
-                style =
-                    if (isSelected) {
-                        MaterialTheme.typography.labelLargeEmphasized
-                    } else {
-                        MaterialTheme.typography.labelLarge
-                    },
-            )
+            },
+            modifier = Modifier.handCursor(),
+        ) {
+            Text(stringResource(R.string.serverlist_add_gateway_https))
         }
     }
 }

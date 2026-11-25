@@ -290,7 +290,7 @@ private fun ServerListScaffold(
                 HomeTabBar(
                     pager = pager,
                     quickChatAvailable = quickChatAvailable,
-                    hasGateways = gatewayCount > 0,
+                    gatewayCount = gatewayCount,
                     onQuickChat = onQuickChat,
                     onGateways = if (gatewayCount > 0) onNavigateToGateways else onNavigateToPairGateway,
                     onAddAgent = onNavigateToAddServer,
