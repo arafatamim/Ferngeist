@@ -103,4 +103,9 @@
     <string name="sessionlist_agent_listing_unsupported">Can\'t list chats. New chats stay on this phone until you leave the app.</string>
     <string name="sessionlist_agent_auth_required">Authentication required</string>
     <string name="sessionlist_agent_listing_failed">Couldn\'t refresh chats. You can still start a chat.</string>
+    <string name="sessionlist_worktrees_show_less">Show less</string>
+    <plurals name="sessionlist_worktrees_more">
+        <item quantity="one">%d more worktree</item>
+        <item quantity="other">%d more worktrees</item>
+    </plurals>
 </resources>

@@ -70,6 +70,48 @@ class WorktreeScopeTest {
         assertEquals("1", options[0].worktree.id)
     }
 
+    @Test
+    fun staleWorktrees_hideOnlyKnownInactiveWorktreesOutsideTheSelectedScope() {
+        val now = 2_000_000_000L
+        val week = 7L * 24 * 60 * 60 * 1000
+        val trees =
+            listOf("old", "recent", "unknown", "selected").map {
+                managed(it, "/r", "/r/$it", it)
+            }
+        val chats =
+            listOf(
+                session("old", "/r/old").copy(updatedAt = now - week),
+                session("recent-old", "/r/recent").copy(updatedAt = now - week),
+                session("recent-new", "/r/recent/src").copy(updatedAt = now - week + 1),
+                session("selected", "/r/selected").copy(updatedAt = now - week),
+            )
+        val options = worktreeScopeOptions("/r", trees, chats)
+
+        assertEquals(
+            listOf("old"),
+            staleWorktrees(options, WorktreeScope.Worktree("/r/selected"), now).map { it.branch },
+        )
+    }
+
+    @Test
+    fun worktreesWithoutChats_hideWhenOldOrCreationTimeUnknown() {
+        val trees =
+            listOf(
+                managed("old", "/r", "/r/old", "old").copy(createdAt = "2026-10-01T00:00:00Z"),
+                managed("new", "/r", "/r/new", "new").copy(createdAt = "2026-10-07T00:00:00Z"),
+                managed("unknown", "/r", "/r/unknown", "unknown").copy(createdAt = ""),
+            )
+        val now =
+            java.time.Instant
+                .parse("2026-10-08T00:00:00Z")
+                .toEpochMilli()
+
+        assertEquals(
+            listOf("old", "unknown"),
+            staleWorktrees(worktreeScopeOptions("/r", trees, emptyList()), WorktreeScope.All, now).map { it.branch },
+        )
+    }
+
     private fun session(
         id: String,
         cwd: String?,

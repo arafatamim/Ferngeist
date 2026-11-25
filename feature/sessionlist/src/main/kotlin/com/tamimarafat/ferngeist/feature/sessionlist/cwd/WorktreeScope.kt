@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.core.model.isInside
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.worktreeRepoOf
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
+import java.time.Instant
 
 /** Which part of the chosen repo the session list shows, and where New chat starts. */
 sealed interface WorktreeScope {
@@ -125,6 +126,7 @@ internal fun scopeCwd(
 internal data class ScopeOption(
     val worktree: GatewayWorktree,
     val chats: Int,
+    val lastActivity: Long?,
 )
 
 internal val ScopeOption.path: String get() = worktree.path
@@ -143,4 +145,26 @@ internal fun worktreeScopeOptions(
 ): List<ScopeOption> =
     worktrees
         .filter { isSameCwd(it.repo, repo) }
-        .map { ScopeOption(it, filterSessionsByScope(sessions, repo, WorktreeScope.Worktree(it.path)).size) }
+        .map { worktree ->
+            val chats = filterSessionsByScope(sessions, repo, WorktreeScope.Worktree(worktree.path))
+            ScopeOption(worktree, chats.size, chats.maxOfOrNull { it.updatedAt ?: 0L }?.takeIf { it > 0 })
+        }
+
+/** Keep the selected worktree visible even when its activity is old or unknown. */
+internal fun staleWorktrees(
+    options: List<ScopeOption>,
+    scope: WorktreeScope,
+    now: Long,
+): List<ScopeOption> =
+    options.filter { option ->
+        val selected = scope is WorktreeScope.Worktree && isSameCwd(scope.path, option.path)
+        val lastActivity =
+            option.lastActivity ?: if (option.chats == 0) {
+                runCatching { Instant.parse(option.worktree.createdAt).toEpochMilli() }.getOrNull()?.takeIf { it > 0 }
+            } else {
+                null
+            }
+        !selected && (lastActivity == null || lastActivity <= now - WORKTREE_ACTIVITY_WINDOW_MS)
+    }
+
+private const val WORKTREE_ACTIVITY_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
