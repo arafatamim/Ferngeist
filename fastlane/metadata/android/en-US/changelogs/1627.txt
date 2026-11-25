@@ -1,0 +1,5 @@
+• Improved project and chat cards, with easier gateway setup
+• Improved the composer with drag gestures and queued prompts
+• Added photo and camera attachments to chat
+• Added search for models and reasoning effort
+• Fixed connection redirects and chat display issues
