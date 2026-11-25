@@ -2,7 +2,10 @@ package com.tamimarafat.ferngeist.feature.chat.ui.composer.model
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -55,9 +59,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.AgentLogo
 import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
+import com.tamimarafat.ferngeist.core.common.ui.edgeFadeMask
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
@@ -344,27 +350,46 @@ private fun EffortButtonGroup(
     onSetConfigOption: (String, String) -> Unit,
 ) {
     val choices = effortOption.allChoices()
-    // shortcut: every level shares one row, so labels ellipsize past ~6 levels; wrap to a FlowRow if agents ship more.
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-    ) {
-        choices.forEachIndexed { index, choice ->
-            val checked = choice.value == effortOption.currentValue
-            ToggleButton(
-                checked = checked,
-                onCheckedChange = { if (it && !checked) onSetConfigOption(effortOption.id, choice.value) },
-                shapes =
-                    when (index) {
-                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                        choices.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                    },
-                contentPadding = PaddingValues(horizontal = 4.dp),
-                modifier = Modifier.weight(1f).handCursor().semantics { role = Role.RadioButton },
-            ) {
-                Text(choice.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+    val scrollState = rememberScrollState()
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val gaps = ButtonGroupDefaults.ConnectedSpaceBetween * (choices.size - 1)
+        // An equal share fills the row when the levels fit; past that they keep their labels and scroll.
+        val minButtonWidth = (maxWidth - gaps) / choices.size
+        Row(
+            modifier =
+                Modifier
+                    .edgeFadeMask(scrollState = scrollState, orientation = Orientation.Horizontal)
+                    .horizontalScroll(scrollState),
+            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+        ) {
+            EffortToggleButtons(choices, effortOption, minButtonWidth, onSetConfigOption)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun EffortToggleButtons(
+    choices: List<ChatConfigChoice>,
+    effortOption: ChatConfigOption.Select,
+    minButtonWidth: Dp,
+    onSetConfigOption: (String, String) -> Unit,
+) {
+    choices.forEachIndexed { index, choice ->
+        val checked = choice.value == effortOption.currentValue
+        ToggleButton(
+            checked = checked,
+            onCheckedChange = { if (it && !checked) onSetConfigOption(effortOption.id, choice.value) },
+            shapes =
+                when (index) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    choices.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            modifier = Modifier.widthIn(min = minButtonWidth).handCursor().semantics { role = Role.RadioButton },
+        ) {
+            Text(choice.label, maxLines = 1)
         }
     }
 }
