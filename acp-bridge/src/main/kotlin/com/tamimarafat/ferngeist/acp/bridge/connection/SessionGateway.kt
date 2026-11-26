@@ -433,12 +433,7 @@ internal class SessionGateway(
             // settled it, so the status must not claim the success `end_turn` would. Only a
             // cancel the user asked for reads as one; otherwise the agent may still be running.
             withContext(NonCancellable) {
-                val reason =
-                    if (cancelsRequested.remove(sessionId)) {
-                        AppSessionEvent.STOP_REASON_CANCELLED
-                    } else {
-                        AppSessionEvent.STOP_REASON_DROPPED
-                    }
+                val reason = turnEndReason(sessionId, AppSessionEvent.STOP_REASON_DROPPED)
                 bridge.emitEvent(AppSessionEvent.TurnComplete(reason))
             }
             throw error
@@ -451,16 +446,20 @@ internal class SessionGateway(
             connection.diagnosticsStore.appendError("session/prompt", formatAcpErrorMessage(error, "Prompt failed"))
             // A cancel the user already asked for still owns the outcome; otherwise the
             // stream failed, which is an error rather than a completion.
-            val reason =
-                if (cancelsRequested.remove(sessionId)) {
-                    AppSessionEvent.STOP_REASON_CANCELLED
-                } else {
-                    AppSessionEvent.STOP_REASON_FAILED
-                }
+            val reason = turnEndReason(sessionId, AppSessionEvent.STOP_REASON_FAILED)
             bridge.emitEvent(AppSessionEvent.TurnComplete(reason))
             throw error
         }
     }
+
+    /**
+     * The user's cancel owns the turn's outcome; without one the turn ended with no reply,
+     * so it keeps the [fallback] reason instead of claiming a success.
+     */
+    private fun turnEndReason(
+        sessionId: String,
+        fallback: String,
+    ): String = if (cancelsRequested.remove(sessionId)) AppSessionEvent.STOP_REASON_CANCELLED else fallback
 
     /** A reply proves [clientId]'s prompt reached the agent; the proof lands before the turn end. */
     private suspend fun forwardPromptEvent(
