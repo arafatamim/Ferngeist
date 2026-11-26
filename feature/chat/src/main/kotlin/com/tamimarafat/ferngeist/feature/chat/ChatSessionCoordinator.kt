@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
+import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
+import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
@@ -167,7 +169,14 @@ internal class ChatSessionCoordinator(
         optionId: String,
         value: ChatConfigValue,
     ) {
-        facade.setConfigOption(optionId, value)
+        val model =
+            facade.sessionSnapshot.value
+                ?.configOptions
+                ?.firstOrNull {
+                    it.id == optionId && it.category == ChatConfigCategory.Model
+                } as? ChatConfigOption.Select
+        val current = model?.currentValue?.let { ChatConfigValue.StringValue(it) }
+        if (value != current) facade.setConfigOption(optionId, value)
     }
 
     /** Grants a permission prompt for a tool call. */

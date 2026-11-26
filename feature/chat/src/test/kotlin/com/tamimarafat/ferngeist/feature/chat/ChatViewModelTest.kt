@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -136,10 +137,21 @@ class ChatViewModelTest : ChatViewModelTestBase() {
         }
 
     @Test
-    fun setConfigOption_selectValue_recordsItAsThatOptionsMostRecentForTheServer() =
+    fun setConfigOption_agentNotYetReplied_recordsItAsThatOptionsMostRecentForTheServer() =
         runTest {
             val recents = FakeRecentSelectionStore()
-            val viewModel = createViewModel(stores = testStores(recentSelectionStore = recents))
+            // An agent that never answers set_config_option: the pick must not wait on it.
+            val silentAgent =
+                TestFacadeFactory {
+                    object : TestFacade() {
+                        override suspend fun setConfigOption(
+                            optionId: String,
+                            value: ChatConfigValue,
+                        ): Unit = awaitCancellation()
+                    }
+                }
+            val viewModel =
+                createViewModel(facadeFactory = silentAgent, stores = testStores(recentSelectionStore = recents))
             advanceUntilIdle()
 
             viewModel.dispatch(ChatIntent.SetConfigOption("model", ChatConfigValue.StringValue("sonnet")))

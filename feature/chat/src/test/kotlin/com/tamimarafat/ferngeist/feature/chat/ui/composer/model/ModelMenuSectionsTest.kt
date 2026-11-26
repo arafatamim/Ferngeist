@@ -37,12 +37,74 @@ class ModelMenuSectionsTest {
     }
 
     @Test
-    fun shortUngroupedList_skipsRecentsAndListsEveryChoiceInOneGroup() {
+    fun query_matchesEveryWordAcrossProviderAndPunctuation() {
+        val sections = models.modelMenuSections(query = "openai gpt3", recentValues = emptyList())
+
+        assertEquals(listOf("gpt-3"), sections.groups.flatMap { group -> group.choices.map { it.value } })
+    }
+
+    @Test
+    fun query_ranksLabelPrefixThenWordPrefixThenAnywhere_andLeadsWithTheBestGroup() {
+        fun named(label: String) = ChatConfigChoice(id = label, label = label, value = label)
+        val mixed =
+            ChatConfigOption.Select(
+                id = "model",
+                name = "Model",
+                groups =
+                    listOf(
+                        ChatConfigChoiceGroup("other", "Other", listOf(named("Turbomini"))),
+                        ChatConfigChoiceGroup(
+                            "openai",
+                            "OpenAI",
+                            listOf(named("Turbomini 2"), named("GPT Mini"), named("Mini")),
+                        ),
+                    ),
+            )
+
+        val sections = mixed.modelMenuSections(query = "mini", recentValues = emptyList())
+
+        assertEquals(listOf("openai", "other"), sections.groups.map { it.id })
+        assertEquals(
+            listOf("Mini", "GPT Mini", "Turbomini 2"),
+            sections.groups
+                .first()
+                .choices
+                .map { it.value },
+        )
+    }
+
+    private fun flat(vararg labels: String) =
+        ChatConfigOption.Select(
+            id = "model",
+            name = "Model",
+            choices = labels.map { ChatConfigChoice(id = it, label = it, value = it) },
+        )
+
+    private fun ModelMenuSections.values() = groups.flatMap { group -> group.choices.map { it.value } }
+
+    @Test
+    fun query_fuzzyMatchesLettersInOrder_belowExactHits() {
+        val models = flat("DeepSeek V4.1 Pro", "DeepSeek V4.1 Flash", "DSV4F Lab")
+
+        val sections = models.modelMenuSections(query = "dsv4f", recentValues = emptyList())
+
+        assertEquals(listOf("DSV4F Lab", "DeepSeek V4.1 Flash"), sections.values())
+    }
+
+    @Test
+    fun query_fuzzyMatchMustStartAtAWord() {
+        val sections = flat("DeepSeek V4.1 Flash").modelMenuSections(query = "eekf", recentValues = emptyList())
+
+        assertEquals(emptyList<String>(), sections.values())
+    }
+
+    @Test
+    fun shortUngroupedList_showsRecentPicksAndListsEveryChoiceInOneGroup() {
         val few = ChatConfigOption.Select(id = "model", name = "Model", choices = listOf(choice("a"), choice("b")))
 
         val sections = few.modelMenuSections(query = "", recentValues = listOf("b"))
 
-        assertEquals(emptyList<ChatConfigChoice>(), sections.recent)
+        assertEquals(listOf("b"), sections.recent.map { it.value })
         assertEquals(
             listOf("a", "b"),
             sections.groups

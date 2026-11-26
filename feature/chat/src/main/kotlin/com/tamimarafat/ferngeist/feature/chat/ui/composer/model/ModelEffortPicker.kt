@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.ui.composer.model
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -11,13 +12,19 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -44,9 +51,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateSet
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -54,6 +63,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -133,7 +144,12 @@ internal fun ModelEffortSheet(
     onSetConfigOption: (String, String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
+    // No partial stop: the sheet opens at full height so the list and effort row show at once.
+    val sheetState =
+        rememberBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+        )
     val scope = rememberCoroutineScope()
     val escapeFocus = rememberEscapeFocusAnchor()
     val dismiss = { scope.dismissSheet(sheetState, onDismiss) }
@@ -175,100 +191,163 @@ private fun ColumnScope.ModelList(
 ) {
     var query by remember { mutableStateOf("") }
     val sections = remember(option, recentValues, query) { option.modelMenuSections(query, recentValues) }
+    val listState = rememberLazyListState()
+    LaunchedEffect(sections.recent) {
+        // A keyed list otherwise keeps showing its old top row as new recents move above it.
+        if (sections.recent.isNotEmpty()) listState.requestScrollToItem(0)
+    }
+    val pick: (ChatConfigChoice) -> Unit = { choice ->
+        query = ""
+        onPick(choice)
+    }
     if (option.allChoices().size >= SEARCH_THRESHOLD) {
         SheetSearchField(
             query = query,
-            onQueryChange = { query = it },
+            onQueryChange = {
+                query = it
+                // Re-ranking moves rows, and a keyed list would otherwise scroll after its top row.
+                listState.requestScrollToItem(0)
+            },
             placeholder = stringResource(R.string.chat_search_placeholder, option.name),
         )
     }
-    // Takes what the sheet has left, so the effort row below stays on screen.
-    Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-        if (sections.recent.isNotEmpty()) {
-            SectionLabel(stringResource(R.string.chat_recent))
-            ChoiceList(sections.recent, option.currentValue, onPick)
+    // Each provider folds behind its label, except the one holding the current model.
+    val expandedIds =
+        remember(option.id) {
+            sections.groups
+                .filter { g -> g.choices.any { it.value == option.currentValue } }
+                .mapTo(mutableStateSetOf()) { it.id }
         }
-        // Folding only helps when there is more than one provider and no search narrowing them.
-        if (query.isBlank() && sections.groups.size > 1) {
-            FoldableProviderGroups(option, sections.groups, onPick)
-        } else {
-            // An unlabelled list still needs a heading to part it from the recents above.
-            val fallbackLabel = stringResource(R.string.chat_all_items).takeIf { sections.recent.isNotEmpty() }
-            sections.groups.forEach { group ->
-                (group.label ?: fallbackLabel)?.let { SectionLabel(it) }
-                ChoiceList(group.choices, option.currentValue, onPick)
+    val recentLabel = stringResource(R.string.chat_recent)
+    // An unlabelled list still needs a heading to part it from the recents above.
+    val fallbackLabel = stringResource(R.string.chat_all_items).takeIf { sections.recent.isNotEmpty() }
+    val emptyText = stringResource(R.string.chat_picker_no_models)
+    // Folding only helps when there is more than one provider and no search narrowing them.
+    val foldable = query.isBlank() && sections.groups.size > 1
+    // Takes what the sheet has left, so the effort row below stays on screen.
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.weight(1f, fill = false).edgeFadeMask(listState = listState),
+    ) {
+        if (sections.recent.isNotEmpty()) {
+            sectionLabel(key = "recent-label", text = recentLabel)
+            choiceRun("recent", sections.recent, option.currentValue, pick)
+        }
+        providerGroups(
+            groups = sections.groups,
+            currentValue = option.currentValue,
+            expandedIds = expandedIds.takeIf { foldable },
+            unlabelled = if (foldable) option.name else fallbackLabel,
+            onPick = pick,
+        )
+        if (sections.recent.isEmpty() && sections.groups.isEmpty()) {
+            item(key = "empty") {
+                Text(
+                    text = emptyText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = itemMotion().padding(vertical = 16.dp),
+                )
             }
         }
-        if (sections.recent.isEmpty() && sections.groups.isEmpty()) {
-            Text(
-                text = stringResource(R.string.chat_picker_no_models),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 16.dp),
-            )
-        }
     }
 }
 
-/** Each provider folded behind its label, except the one holding the current model. */
-@Composable
-private fun FoldableProviderGroups(
-    option: ChatConfigOption.Select,
+/**
+ * Each provider's choices; with [expandedIds] they fold behind a header the user toggles, otherwise
+ * they sit under a label. [unlabelled] names a group that has no label of its own.
+ */
+private fun LazyListScope.providerGroups(
     groups: List<ChatConfigChoiceGroup>,
+    currentValue: String?,
+    expandedIds: SnapshotStateSet<String>?,
+    unlabelled: String?,
     onPick: (ChatConfigChoice) -> Unit,
-) {
-    var expandedIds by remember(option.id) {
-        mutableStateOf(groups.filter { g -> g.choices.any { it.value == option.currentValue } }.map { it.id }.toSet())
-    }
-    groups.forEach { group ->
-        val expanded = group.id in expandedIds
-        FoldHeader(group.label ?: option.name, group.choices.size, expanded) {
-            expandedIds = if (expanded) expandedIds - group.id else expandedIds + group.id
+) = groups.forEach { group ->
+    val expanded = expandedIds == null || group.id in expandedIds
+    if (expandedIds != null) {
+        item(key = "fold:${group.id}") {
+            FoldHeader(group.label ?: unlabelled.orEmpty(), group.choices.size, expanded, itemMotion()) {
+                if (!expandedIds.remove(group.id)) expandedIds.add(group.id)
+            }
         }
-        if (expanded) ChoiceList(group.choices, option.currentValue, onPick)
+    } else {
+        (group.label ?: unlabelled)?.let { sectionLabel(key = "label:${group.id}", text = it) }
     }
+    if (expanded) choiceRun("group:${group.id}", group.choices, currentValue, onPick)
 }
 
-/** One run of choices as a connected segmented list; the current one is selected and checked. */
+/** Re-ranking and folding move rows: fade what comes and goes, glide what stays. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ChoiceList(
+private fun LazyItemScope.itemMotion(): Modifier {
+    val effects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+    return Modifier.animateItem(
+        fadeInSpec = effects,
+        placementSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+        fadeOutSpec = effects,
+    )
+}
+
+private fun LazyListScope.sectionLabel(
+    key: String,
+    text: String,
+) = item(key = key) { SectionLabel(text, itemMotion()) }
+
+/** One run of choices as a connected segmented list, keyed by [runId] so rows keep their identity. */
+private fun LazyListScope.choiceRun(
+    runId: String,
     choices: List<ChatConfigChoice>,
     currentValue: String?,
     onPick: (ChatConfigChoice) -> Unit,
+) = itemsIndexed(choices, key = { _, choice -> "$runId:${choice.value}" }) { index, choice ->
+    ChoiceRow(choice, choice.value == currentValue, index, choices.size, onPick, itemMotion())
+}
+
+/** One choice in its run; the current one is selected and checked. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ChoiceRow(
+    choice: ChatConfigChoice,
+    current: Boolean,
+    index: Int,
+    count: Int,
+    onPick: (ChatConfigChoice) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
-        choices.forEachIndexed { index, choice ->
-            val current = choice.value == currentValue
-            SegmentedListItem(
-                selected = current,
-                onClick = { if (!current) onPick(choice) },
-                shapes = ListItemDefaults.segmentedShapes(index = index, count = choices.size),
-                trailingContent =
-                    if (current) {
-                        { Icon(Icons.Default.Check, contentDescription = null) }
-                    } else {
-                        null
-                    },
-                supportingContent =
-                    choice.description?.let { description ->
-                        { Text(description, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    },
-                modifier = Modifier.handCursor(),
-            ) {
-                Text(choice.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
+    SegmentedListItem(
+        selected = current,
+        onClick = { onPick(choice) },
+        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+        trailingContent =
+            if (current) {
+                { Icon(Icons.Default.Check, contentDescription = null) }
+            } else {
+                null
+            },
+        supportingContent =
+            choice.description?.let { description ->
+                { Text(description, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            },
+        modifier =
+            modifier
+                .padding(top = if (index > 0) ListItemDefaults.SegmentedGap else 0.dp)
+                .handCursor(),
+    ) {
+        Text(choice.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+private fun SectionLabel(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp),
+        modifier = modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp),
     )
 }
 
@@ -277,6 +356,7 @@ private fun FoldHeader(
     label: String,
     count: Int,
     expanded: Boolean,
+    modifier: Modifier = Modifier,
     onToggle: () -> Unit,
 ) {
     // Spec: a disclosure chevron turns on the standard scheme, not the expressive one.
@@ -287,7 +367,7 @@ private fun FoldHeader(
     )
     Row(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp)
                 .handCursor()
@@ -323,6 +403,9 @@ private fun SheetSearchField(
 ) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
+    // Registered after the sheet's own back handler, so back drops the keyboard before the sheet.
+    val focusManager = LocalFocusManager.current
+    BackHandler(enabled = WindowInsets.ime.getBottom(LocalDensity.current) > 0) { focusManager.clearFocus() }
     TextField(
         value = query,
         onValueChange = onQueryChange,
@@ -404,8 +487,8 @@ internal data class ModelMenuSections(
 
 /**
  * Splits the choices for the sheet. A blank [query] lists [recentValues] still on offer ahead of
- * every group, and short lists skip recents since they fit on screen anyway; a query drops the
- * recents and keeps only the matching choices, hiding the groups it empties.
+ * every group. A query drops the recents and keeps only the matching choices
+ * (see [modelMatchRank]), hiding the groups it empties.
  */
 internal fun ChatConfigOption.Select.modelMenuSections(
     query: String,
@@ -416,19 +499,18 @@ internal fun ChatConfigOption.Select.modelMenuSections(
     val q = query.trim()
     if (q.isEmpty()) {
         val recent = recentValues.mapNotNull { v -> all.firstOrNull { it.value == v } }
-        return ModelMenuSections(if (all.size < SEARCH_THRESHOLD) emptyList() else recent, groups)
+        return ModelMenuSections(recent, groups)
     }
+    // Best hits first within each group, and the group holding the best hit first; ties keep order.
     val matching =
         groups
-            .map { group ->
-                group.copy(
-                    choices =
-                        group.choices.filter {
-                            it.label.contains(q, ignoreCase = true) ||
-                                it.value.contains(q, ignoreCase = true) ||
-                                it.description?.contains(q, ignoreCase = true) == true
-                        },
-                )
-            }.filter { it.choices.isNotEmpty() }
+            .mapNotNull { group ->
+                val ranked =
+                    group.choices
+                        .mapNotNull { choice -> modelMatchRank(choice, group.label, q)?.let { choice to it } }
+                        .sortedBy { it.second }
+                ranked.firstOrNull()?.let { (_, best) -> best to group.copy(choices = ranked.map { it.first }) }
+            }.sortedBy { it.first }
+            .map { it.second }
     return ModelMenuSections(emptyList(), matching)
 }

@@ -611,8 +611,9 @@ class ChatViewModel
                 }
                 is ChatIntent.CancelStreaming -> sessionCoordinator.cancelStreaming()
                 is ChatIntent.SetConfigOption -> {
-                    sessionCoordinator.setConfigOption(intent.optionId, intent.value)
+                    // Recorded before the agent round trip, so the picker's recents move on the tap.
                     stores.recentSelections.recordConfigPick(serverId, intent.optionId, intent.value)
+                    sessionCoordinator.setConfigOption(intent.optionId, intent.value)
                 }
                 is ChatIntent.GrantPermission -> sessionCoordinator.grantPermission(intent.toolCallId, intent.optionId)
                 is ChatIntent.DenyPermission -> sessionCoordinator.denyPermission(intent.toolCallId)
