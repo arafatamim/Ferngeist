@@ -30,14 +30,23 @@ class AndroidConnectivityObserver(
     override val isConnected: Flow<Boolean> =
         callbackFlow {
             val manager = context.getSystemService(ConnectivityManager::class.java)!!
+            // Callbacks arrive per network: losing the lingering cellular one while Wi-Fi stays up
+            // is not going offline, and reading it as such stopped the turn-status stream.
+            val networks = HashSet<Network>()
             val callback =
                 object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {
-                        trySend(true)
+                        synchronized(networks) {
+                            networks += network
+                            trySend(true)
+                        }
                     }
 
                     override fun onLost(network: Network) {
-                        trySend(false)
+                        synchronized(networks) {
+                            networks -= network
+                            trySend(networks.isNotEmpty())
+                        }
                     }
                 }
             val request =
@@ -47,7 +56,7 @@ class AndroidConnectivityObserver(
                     .build()
 
             manager.registerNetworkCallback(request, callback)
-            trySend(manager.activeNetwork != null)
+            synchronized(networks) { trySend(networks.isNotEmpty() || manager.activeNetwork != null) }
 
             awaitClose { manager.unregisterNetworkCallback(callback) }
         }.distinctUntilChanged()
