@@ -1,0 +1,5 @@
+• Redesigned composer with drag gestures and queued prompts while agents work.
+• New Home with project and agent tabs, live activity, and unread completion dots.
+• Attach photos or take a picture, with previews in chat.
+• Find models with ranked search and recents, and adjust reasoning effort in the same sheet.
+• Easier gateway pairing, clearer worktree navigation, and more reliable reconnects.
