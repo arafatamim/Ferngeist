@@ -811,7 +811,11 @@ class AcpChatSessionFacade(
     private suspend fun ensureSessionReadyForSend(): SessionPort? =
         bridgeOperationMutex.withLock {
             if (authentication.value != null) return@withLock null
-            sessionBridge?.let { return@withLock it }
+            // A transport reset keeps the bridge but drops its SDK session; such a bridge
+            // must reattach below before it can prompt.
+            sessionBridge
+                ?.takeIf { connectionManager.sessions.getSession(it.sessionId) != null }
+                ?.let { return@withLock it }
             if (!ensureConnectedAndInitialized()) return@withLock null
 
             if (activeSessionId != NEW_SESSION_ARG) {

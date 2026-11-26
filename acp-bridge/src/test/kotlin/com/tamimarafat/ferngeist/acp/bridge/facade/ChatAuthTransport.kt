@@ -33,6 +33,11 @@ internal class ChatAuthTransport : Transport {
     var authFailure: String? = null
     var promptFailure: String? = null
     var dropOnPrompt = false
+
+    /** Advertises `loadSession` and answers `session/load`, so a detached session can reattach. */
+    var loadable = false
+    var loads = 0
+        private set
     private var closeHandler: () -> Unit = {}
     var prompts = 0
     val authenticatedMethods = mutableListOf<String>()
@@ -74,7 +79,13 @@ internal class ChatAuthTransport : Transport {
         }
         val result =
             when (request.method.name) {
-                "initialize" -> Json.parseToJsonElement(INITIALIZE_RESPONSE)
+                "initialize" -> {
+                    Json.parseToJsonElement(if (loadable) LOADABLE_INITIALIZE_RESPONSE else INITIALIZE_RESPONSE)
+                }
+                "session/load" -> {
+                    loads++
+                    JsonObject(emptyMap())
+                }
                 "session/new" -> {
                     creations++
                     if (!authenticated) {
@@ -118,3 +129,6 @@ private const val INITIALIZE_RESPONSE = """
     "authMethods":[{"id":"login","name":"Sign in"},
     {"id":"terminal","name":"Terminal login","type":"terminal","args":["login"]}]}
 """
+
+private val LOADABLE_INITIALIZE_RESPONSE =
+    INITIALIZE_RESPONSE.replace(""""agentCapabilities":{}""", """"agentCapabilities":{"loadSession":true}""")

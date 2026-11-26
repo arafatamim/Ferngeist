@@ -398,8 +398,10 @@ class AcpChatSessionFacadeTest {
         )
 
     /** A facade whose session is created and authenticated over [transport]'s SDK wire. */
-    private suspend fun TestScope.readyFacade(transport: ChatAuthTransport): AcpChatSessionFacade {
-        val manager = newManager(backgroundScope)
+    private suspend fun TestScope.readyFacade(
+        transport: ChatAuthTransport,
+        manager: AcpConnection = newManager(backgroundScope),
+    ): AcpChatSessionFacade {
         transport.install(manager, backgroundScope)
         val facade = newFacade(RecordingSurface(), backgroundScope, manager)
         facade.loadSession()
@@ -428,6 +430,27 @@ class AcpChatSessionFacadeTest {
             assertEquals(1, transport.prompts)
             val actual = error.await()
             assertEquals("Send failed: invalid parameters. Unsupported model", actual.message)
+        }
+
+    @Test
+    fun `send after a transport reset reattaches the session before prompting`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val transport =
+                ChatAuthTransport().apply {
+                    loadable = true
+                    promptFailure = "after reattach"
+                }
+            val manager = newManager(backgroundScope)
+            val facade = readyFacade(transport, manager)
+            val error = async(start = CoroutineStart.UNDISPATCHED) { facade.operationError.first() }
+
+            // What a transport reset does: SDK sessions dropped, bridges kept.
+            manager.sessions.detachAllSessions()
+            facade.sendMessage("hello", emptyList(), emptyList(), "client-1", PromptExtras())
+
+            assertEquals(1, transport.loads)
+            assertEquals("the prompt must reach the agent, not die on a missing SDK session", 1, transport.prompts)
+            assertEquals("Send failed: invalid parameters. after reattach", error.await().message)
         }
 
     @Test
