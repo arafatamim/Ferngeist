@@ -369,7 +369,7 @@ class ChatViewModel
                     }
                 }
             }
-            updateState { copy(serverId = serverId, isNewChat = !openedExistingSession) }
+            updateState { copy(serverId = this@ChatViewModel.serverId, isNewChat = !openedExistingSession) }
             // Announce this chat's screen presence to the hub so the connection
             // notification deep-links back here instead of dropping the user on
             // the home screen. A create-on-arrival chat still holds the __new__
