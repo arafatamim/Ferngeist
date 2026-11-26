@@ -1,12 +1,17 @@
 package com.tamimarafat.ferngeist.gateway
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.model.AgentInstallProgress
 import com.tamimarafat.ferngeist.core.model.ChatFileContents
+import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
+import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactMetadata
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import java.io.OutputStream
 
 /** Pairing and initial status operations. */
@@ -52,6 +57,10 @@ interface GatewayAuthRepository {
 
 /** Agent runtime lifecycle operations. */
 interface GatewayRuntimeRepository {
+    /** Installing agents keyed by the local launchable target id. */
+    val agentInstallations: Flow<Map<String, AgentInstallProgress>>
+        get() = flowOf(emptyMap())
+
     suspend fun fetchAgents(
         scheme: String,
         host: String,
@@ -59,14 +68,12 @@ interface GatewayRuntimeRepository {
     ): List<GatewayAgent>
 
     /**
-     * Connects [agentId] on the gateway: one call that launches a fresh agent process
+     * Connects the agent in [binding] on the gateway: one call that launches a fresh agent process
      * and returns the session handoff plus the ACP WebSocket URL to attach to.
      */
     suspend fun connectAgent(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        agentId: String,
+        gatewaySource: GatewaySource,
+        binding: GatewayAgentBinding,
     ): GatewayConnectResponse
 
     /**
@@ -74,11 +81,10 @@ interface GatewayRuntimeRepository {
      * session only after the new one starts, and the handoff names a **new** runtime.
      */
     suspend fun restartRuntime(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
+        gatewaySource: GatewaySource,
         runtimeId: String,
         envVars: Map<String, String>,
+        installTargetId: String,
     ): GatewayConnectResponse
 
     suspend fun fetchRuntimeLogs(
@@ -92,15 +98,13 @@ interface GatewayRuntimeRepository {
 /** Gateway session lifecycle operations. */
 interface GatewaySessionRepository {
     /**
-     * Reattaches chat [acpSessionId] of [agentId] in one call (`POST /v1/sessions/attach`):
+     * Reattaches [binding]'s chat [acpSessionId] in one call (`POST /v1/sessions/attach`):
      * the gateway session holding it, taken over, or a fresh runtime that needs a load. A
      * blank [acpSessionId] starts a new chat. Fails with a 404 on a gateway that predates it.
      */
     suspend fun attachSession(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        agentId: String,
+        gatewaySource: GatewaySource,
+        binding: GatewayAgentBinding,
         acpSessionId: String,
     ): GatewaySessionAttachResponse
 

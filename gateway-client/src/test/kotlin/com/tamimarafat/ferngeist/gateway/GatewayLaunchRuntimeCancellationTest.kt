@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.gateway
 
+import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.launch.GatewayRuntimeLauncher
 import io.ktor.client.HttpClient
@@ -44,10 +46,7 @@ class GatewayLaunchRuntimeCancellationTest {
 
             val thrown =
                 try {
-                    GatewayRuntimeLauncher(repository, FakeGatewaySources()).launch(
-                        gatewaySource = SOURCE,
-                        agentId = "pi-acp",
-                    )
+                    GatewayRuntimeLauncher(repository, FakeGatewaySources()).launch(SERVER)
                     null
                 } catch (error: CancellationException) {
                     error
@@ -81,6 +80,18 @@ class GatewayLaunchRuntimeCancellationTest {
                 scheme = "http",
                 host = "gw.local:5788",
                 gatewayCredential = "cred",
+            )
+
+        val SERVER =
+            LaunchableTarget.GatewayAgent(
+                binding =
+                    GatewayAgentBinding(
+                        id = "target",
+                        name = "Pi",
+                        gatewaySourceId = SOURCE.id,
+                        agentId = "pi-acp",
+                    ),
+                gatewaySource = SOURCE,
             )
     }
 }

@@ -52,6 +52,8 @@
     <string name="common_rpc_direction_ntf">NTF</string>
     <string name="common_just_now">Just now</string>
     <string name="common_status_ago">%1$s ago</string>
+    <string name="common_installing_agent">Installing agent</string>
+    <string name="common_installing_agent_bytes">Installing agent · %1$s downloaded</string>
     <string name="common_in_progress">In progress</string>
     <string name="common_status_needs_attention">Needs attention</string>
     <string name="common_status_needs_you">Needs you</string>

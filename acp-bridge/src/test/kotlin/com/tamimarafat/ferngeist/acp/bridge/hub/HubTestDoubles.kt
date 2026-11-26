@@ -8,6 +8,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.testHttpClient
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatFileContents
+import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
@@ -206,10 +207,8 @@ internal class FakeGatewayRepo : GatewayRepository {
     ) = TODO("unused in these tests")
 
     override suspend fun connectAgent(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        agentId: String,
+        gatewaySource: GatewaySource,
+        binding: GatewayAgentBinding,
     ): GatewayConnectResponse {
         connectCalls += 1
         connectFailure?.let { throw it }
@@ -222,11 +221,10 @@ internal class FakeGatewayRepo : GatewayRepository {
     }
 
     override suspend fun restartRuntime(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
+        gatewaySource: GatewaySource,
         runtimeId: String,
         envVars: Map<String, String>,
+        installTargetId: String,
     ) = TODO("unused in these tests")
 
     override suspend fun fetchRuntimeLogs(
@@ -238,10 +236,8 @@ internal class FakeGatewayRepo : GatewayRepository {
 
     // An older gateway without the one-call attach, so launches take the status/list/connect path.
     override suspend fun attachSession(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        agentId: String,
+        gatewaySource: GatewaySource,
+        binding: GatewayAgentBinding,
         acpSessionId: String,
     ): GatewaySessionAttachResponse = throw GatewayRequestException(statusCode = 404, message = "not found")
 

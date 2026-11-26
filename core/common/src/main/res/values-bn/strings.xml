@@ -45,6 +45,8 @@
     <string name="common_rpc_direction_ntf">NTF</string>
     <string name="common_just_now">এইমাত্র</string>
     <string name="common_status_ago">%1$s আগে</string>
+    <string name="common_installing_agent">এজেন্ট ইনস্টল হচ্ছে</string>
+    <string name="common_installing_agent_bytes">এজেন্ট ইনস্টল হচ্ছে · %1$s ডাউনলোড হয়েছে</string>
     <string name="common_in_progress">চলমান</string>
     <string name="common_recently_active">সম্প্রতি সক্রিয়</string>
     <string name="common_status_needs_attention">মনোযোগ প্রয়োজন</string>

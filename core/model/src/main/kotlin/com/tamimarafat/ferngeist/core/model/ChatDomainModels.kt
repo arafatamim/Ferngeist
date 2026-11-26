@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * Nav-arg sentinel for the chat route: the chat screen must CREATE a fresh
@@ -439,6 +440,9 @@ interface ChatSessionFacade :
 
 /** Observable session snapshots, independent of one-shot events. */
 interface ChatSessionState {
+    val agentInstallProgress: Flow<AgentInstallProgress?>
+        get() = flowOf(null)
+
     val authentication: StateFlow<AuthenticationRequest?>
 
     /** Current transport-level connection state. */

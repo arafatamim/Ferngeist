@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.model.AgentInstallProgress
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -271,6 +272,7 @@ internal data class ServerConnectionUiState(
     val isConnecting: Boolean,
     val isConnected: Boolean,
     val isFailed: Boolean,
+    val installProgress: AgentInstallProgress? = null,
 ) {
     companion object {
         fun from(
@@ -288,6 +290,7 @@ internal data class ServerConnectionUiState(
                 isConnecting = isConnecting,
                 isConnected = isConnected,
                 isFailed = isFailed,
+                installProgress = uiState.installingAgents[serverId],
             )
         }
     }

@@ -5,6 +5,7 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.res.stringResource
 import com.tamimarafat.ferngeist.core.common.ui.auth.AuthenticationDialog
 import com.tamimarafat.ferngeist.core.common.ui.diagnostics.ConnectionDiagnosticsSheet
+import com.tamimarafat.ferngeist.core.model.AgentInstallProgress
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -49,6 +50,7 @@ internal fun SessionListOverlays(
     onDismissConnectionStatusDialog: () -> Unit,
     pendingAuthentication: SessionListPendingAuthentication?,
     isAuthenticating: Boolean,
+    installProgress: AgentInstallProgress?,
     selectedAuthMethodId: String?,
     onSelectedAuthMethodChange: (String) -> Unit,
     onSubmit: (String, Map<String, String>) -> Unit,
@@ -105,6 +107,7 @@ internal fun SessionListOverlays(
         PendingAuthenticationDialog(
             pendingAuthentication = pending,
             isAuthenticating = isAuthenticating,
+            installProgress = installProgress,
             selectedAuthMethodId = selectedAuthMethodId,
             onSelectedAuthMethodChange = onSelectedAuthMethodChange,
             onSubmit = onSubmit,
@@ -173,6 +176,7 @@ private fun SessionConnectionStatusDialog(
 private fun PendingAuthenticationDialog(
     pendingAuthentication: SessionListPendingAuthentication,
     isAuthenticating: Boolean,
+    installProgress: AgentInstallProgress?,
     selectedAuthMethodId: String?,
     onSelectedAuthMethodChange: (String) -> Unit,
     onSubmit: (String, Map<String, String>) -> Unit,
@@ -181,6 +185,7 @@ private fun PendingAuthenticationDialog(
 ) {
     key(pendingAuthentication.serverId, pendingAuthentication.pendingAction) {
         AuthenticationDialog(
+            installProgress = installProgress,
             request =
                 AuthenticationRequest(
                     agentName = pendingAuthentication.agentName,

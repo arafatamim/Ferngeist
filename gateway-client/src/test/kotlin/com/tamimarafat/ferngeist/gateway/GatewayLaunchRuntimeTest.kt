@@ -1,6 +1,9 @@
 package com.tamimarafat.ferngeist.gateway
 
+import app.cash.turbine.test
+import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.launch.GatewayRuntimeLauncher
 import com.tamimarafat.ferngeist.gateway.launch.ReattachRequest
@@ -11,8 +14,12 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -23,8 +30,8 @@ import org.junit.Test
 /**
  * A gateway launch is one protocol-v2 connect call: the gateway spawns (or reuses)
  * the agent's runtime and hands back the session to attach to. There is no start
- * stage, no runtime pick, and no client-side retry — the gateway owns the agent
- * process lifetime, and a failed connect surfaces the gateway's own error.
+ * stage or runtime pick. The gateway owns the agent process lifetime, and a
+ * failed connect surfaces the gateway's own error.
  */
 class GatewayLaunchRuntimeTest {
     private val json = Json { ignoreUnknownKeys = true }
@@ -34,10 +41,7 @@ class GatewayLaunchRuntimeTest {
         runTest {
             val requested = mutableListOf<String>()
             val result =
-                GatewayRuntimeLauncher(repo(requested), FakeGatewaySources()).launch(
-                    gatewaySource = SOURCE,
-                    agentId = "pi-acp",
-                )
+                GatewayRuntimeLauncher(repo(requested), FakeGatewaySources()).launch(SERVER)
 
             val launched = result.getOrThrow()
             assertEquals(SOURCE, launched.gatewaySource)
@@ -73,10 +77,8 @@ class GatewayLaunchRuntimeTest {
 
             val handoff =
                 GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
-                    .launch(
-                        gatewaySource = SOURCE,
-                        agentId = "pi-acp",
-                    ).getOrThrow()
+                    .launch(SERVER)
+                    .getOrThrow()
                     .handoff
 
             assertEquals("s-old", handoff.sessionId)
@@ -132,13 +134,121 @@ class GatewayLaunchRuntimeTest {
                 }
             val repository = GatewayRepositoryImpl(HttpClient(engine), json)
 
-            val restarted = repository.restartRuntime("http", "gw.local:5788", "cred", "runtime-3", emptyMap())
+            val restarted = repository.restartRuntime(SOURCE, "runtime-3", emptyMap(), "target")
 
             // A restart launches a new runtime; the client must attach to that one.
             assertEquals("runtime-4", restarted.runtimeId)
             assertEquals("sess-7", restarted.sessionId)
             assertEquals("at-7", restarted.attachToken)
             assertEquals(listOf("POST /v1/runtimes/runtime-3/restart"), requested)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `connect waits through the end of the download for the launch handoff`() =
+        runTest {
+            val retries = mutableListOf<Long>()
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val engine =
+                MockEngine.create {
+                    this.dispatcher = dispatcher
+                    addHandler { request ->
+                        when (request.url.encodedPath) {
+                            "/v1/sessions" -> respond("""{"sessions":[]}""", HttpStatusCode.OK)
+                            else -> {
+                                retries += testScheduler.currentTime
+                                when (retries.size) {
+                                    1 ->
+                                        respond(
+                                            """{"error":"installing","code":"agent_installing","bytesReceived":24}""",
+                                            HttpStatusCode.ServiceUnavailable,
+                                            headersOf(HttpHeaders.RetryAfter, "3"),
+                                        )
+                                    2 ->
+                                        respond(
+                                            """{"error":"installing","code":"agent_installing",""" +
+                                                """"bytesReceived":42,"bytesTotal":42}""",
+                                            HttpStatusCode.ServiceUnavailable,
+                                        )
+                                    else -> respond(CONNECT_BODY, HttpStatusCode.OK)
+                                }
+                            }
+                        }
+                    }
+                }
+            val repository = GatewayRepositoryImpl(HttpClient(engine), json)
+            repository.agentInstallations.test {
+                assertTrue(awaitItem().isEmpty())
+                val launch =
+                    async {
+                        GatewayRuntimeLauncher(repository, FakeGatewaySources(), dispatcher)
+                            .launch(SERVER)
+                    }
+
+                val downloading = awaitItem().getValue("target")
+                assertEquals(24L, downloading.bytesReceived)
+                assertEquals(null, downloading.bytesTotal)
+                val extracting = awaitItem().getValue("target")
+                assertEquals(42L, extracting.bytesReceived)
+                assertEquals(42L, extracting.bytesTotal)
+                assertTrue(awaitItem().isEmpty())
+                val handoff = launch.await().getOrThrow().handoff
+                assertEquals("sess-1", handoff.sessionId)
+                assertEquals(listOf(0L, 3_000L, 5_000L), retries)
+            }
+        }
+
+    @Test
+    fun `a service unavailable response without the installing code fails the launch immediately`() =
+        runTest {
+            var connectAttempts = 0
+            val engine =
+                MockEngine { request ->
+                    if (request.url.encodedPath == "/v1/sessions") {
+                        respond("""{"sessions":[]}""", HttpStatusCode.OK)
+                    } else if (connectAttempts++ == 0) {
+                        respond("""{"error":"session service not available"}""", HttpStatusCode.ServiceUnavailable)
+                    } else {
+                        respond(CONNECT_BODY, HttpStatusCode.OK)
+                    }
+                }
+            val repository = GatewayRepositoryImpl(HttpClient(engine), json)
+            val result =
+                GatewayRuntimeLauncher(repository, FakeGatewaySources())
+                    .launch(SERVER)
+
+            val failure = result.exceptionOrNull() as? GatewayRequestException
+            assertEquals(503, failure?.statusCode)
+            assertTrue(failure?.message?.contains("session service not available") == true)
+        }
+
+    @Test
+    fun `cancelling a pending restart clears progress and stops requests`() =
+        runTest {
+            var restartAttempts = 0
+            val engine =
+                MockEngine {
+                    restartAttempts++
+                    respond(
+                        """{"error":"installing","code":"agent_installing","bytesReceived":10}""",
+                        HttpStatusCode.ServiceUnavailable,
+                        headersOf(HttpHeaders.RetryAfter, "60"),
+                    )
+                }
+            val repository = GatewayRepositoryImpl(HttpClient(engine), json)
+            repository.agentInstallations.test {
+                assertTrue(awaitItem().isEmpty())
+                val restart =
+                    async {
+                        repository.restartRuntime(SOURCE, "runtime-3", emptyMap(), "target")
+                    }
+                assertEquals(10L, awaitItem().getValue("target").bytesReceived)
+
+                restart.cancelAndJoin()
+
+                assertTrue(awaitItem().isEmpty())
+                assertEquals(1, restartAttempts)
+            }
         }
 
     @Test
@@ -152,10 +262,8 @@ class GatewayLaunchRuntimeTest {
                     )
                 }
             val result =
-                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources()).launch(
-                    gatewaySource = SOURCE,
-                    agentId = "pi-acp",
-                )
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
+                    .launch(SERVER)
 
             val message = result.exceptionOrNull()?.message.orEmpty()
             assertTrue(
@@ -179,8 +287,7 @@ class GatewayLaunchRuntimeTest {
             val launched =
                 GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
                     .launch(
-                        gatewaySource = SOURCE,
-                        agentId = "pi-acp",
+                        server = SERVER,
                         requireSupportedProtocol = true,
                         acpSessionId = "chat-1",
                     ).getOrThrow()
@@ -198,8 +305,7 @@ class GatewayLaunchRuntimeTest {
             val result =
                 GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
                     .launch(
-                        gatewaySource = SOURCE,
-                        agentId = "pi-acp",
+                        server = SERVER,
                         requireSupportedProtocol = true,
                         acpSessionId = "chat-1",
                     )
@@ -223,7 +329,7 @@ class GatewayLaunchRuntimeTest {
 
             val handoff =
                 GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
-                    .launch(gatewaySource = SOURCE, agentId = "pi-acp", acpSessionId = "chat-1")
+                    .launch(SERVER, acpSessionId = "chat-1")
                     .getOrThrow()
                     .handoff
 
@@ -246,7 +352,7 @@ class GatewayLaunchRuntimeTest {
 
             val result =
                 GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
-                    .launch(gatewaySource = SOURCE, agentId = "pi-acp", acpSessionId = "chat-1")
+                    .launch(SERVER, acpSessionId = "chat-1")
 
             assertEquals(listOf("POST /v1/sessions/attach"), requested)
             assertFalse(result.isSuccess)
@@ -283,6 +389,18 @@ class GatewayLaunchRuntimeTest {
                 scheme = "http",
                 host = "gw.local:5788",
                 gatewayCredential = "cred",
+            )
+
+        val SERVER =
+            LaunchableTarget.GatewayAgent(
+                binding =
+                    GatewayAgentBinding(
+                        id = "target",
+                        name = "Pi",
+                        gatewaySourceId = SOURCE.id,
+                        agentId = "pi-acp",
+                    ),
+                gatewaySource = SOURCE,
             )
 
         val CONNECT_BODY =

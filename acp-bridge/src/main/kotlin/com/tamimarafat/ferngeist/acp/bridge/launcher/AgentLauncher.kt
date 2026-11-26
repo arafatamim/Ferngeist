@@ -290,14 +290,14 @@ class AgentLaunchSession internal constructor(
             runCatching {
                 withContext(ioDispatcher) {
                     repositories.gatewayRepository.restartRuntime(
-                        scheme = source.scheme,
-                        host = source.host,
-                        gatewayCredential = source.gatewayCredential,
+                        gatewaySource = source,
                         runtimeId = gateway.runtimeId,
                         envVars = envPayload,
+                        installTargetId = server.id,
                     )
                 }
             }.getOrElse { error ->
+                if (error is CancellationException) throw error
                 return AgentAuthOutcome.Failure(error.message ?: "Failed to restart ${server.name}.")
             }
         // Restart launches a new runtime; later retries and diagnostics must target it.

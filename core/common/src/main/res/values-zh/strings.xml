@@ -50,6 +50,8 @@
     <string name="common_rpc_direction_ntf">通知</string>
     <string name="common_just_now">刚刚</string>
     <string name="common_status_ago">%1$s前</string>
+    <string name="common_installing_agent">正在安装智能体</string>
+    <string name="common_installing_agent_bytes">正在安装智能体 · 已下载 %1$s</string>
     <string name="common_in_progress">进行中</string>
     <string name="common_recently_active">最近活跃</string>
     <string name="common_status_needs_attention">需要注意</string>

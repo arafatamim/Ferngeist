@@ -151,6 +151,8 @@ class ChatViewModel
                 sessionId = trackedSessionId,
                 cwd = cwd,
             )
+        val agentInstallProgress = sessionFacade.agentInstallProgress
+
         private val markdownStateStore = MarkdownStateStore.retainedFor(durableSessionId?.let { "$serverId/$it" })
         private val sessionCoordinator: ChatSessionCoordinator =
             ChatSessionCoordinator(

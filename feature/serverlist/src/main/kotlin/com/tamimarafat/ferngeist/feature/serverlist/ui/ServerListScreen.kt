@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingToolbarDefaults
@@ -25,8 +26,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
+import com.tamimarafat.ferngeist.core.common.ui.install.AgentInstallStatus
+import com.tamimarafat.ferngeist.core.model.AgentInstallProgress
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.TurnActivity
@@ -57,6 +63,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomeTab
 import com.tamimarafat.ferngeist.feature.serverlist.ui.home.HomeTabBar
 import com.tamimarafat.ferngeist.feature.serverlist.ui.home.rememberHomePagerMotion
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectLine
+import com.tamimarafat.ferngeist.core.common.R as CommonR
 
 /** Quick chat's sheet: projects, agents, their listing statuses, start (agent, cwd), dismiss. */
 typealias QuickChatSheetSlot = @Composable (
@@ -133,9 +140,15 @@ fun ServerListScreen(
     onHomeScreenReady: (Boolean) -> Unit = {},
 ) {
     val screenState = rememberServerListState(viewModel)
+    DisposableEffect(viewModel) {
+        onDispose {
+            if (viewModel.uiState.value.connectingServerId != null) viewModel.disconnect()
+        }
+    }
     val servers = screenState.servers
     val gatewayCount = screenState.gatewayCount
-    val uiState = screenState.uiState
+    val installingAgents by viewModel.agentInstallations.collectAsStateWithLifecycle(emptyMap())
+    val uiState = screenState.uiState.copy(installingAgents = installingAgents)
     val isLoading = screenState.isLoading
     val recentSessions = screenState.recentSessions
     val snackbarHostState = screenState.snackbarHostState
@@ -194,6 +207,7 @@ fun ServerListScreen(
         turnStatuses = screenState.turnStatuses,
         onResumeSession = onResumeSession,
         onConnect = { viewModel.connectAndOpenServer(it) },
+        onCancelLaunch = viewModel::disconnect,
         onEdit = onNavigateToEditServer,
         onDelete = { viewModel.deleteServer(it) },
         sharedTransitionScope = sharedTransitionScope,
@@ -241,6 +255,7 @@ private fun ServerListScaffold(
     turnStatuses: Map<String, TurnActivity>,
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
+    onCancelLaunch: () -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
     onDelete: (String) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
@@ -248,6 +263,16 @@ private fun ServerListScaffold(
 ) {
     val pager = rememberHomePagerMotion(hasProjects = projects.isNotEmpty())
     val gatewayHealth = rememberGatewayHealth(gatewayHealthFlow, pager, isLoading, servers)
+    val installProgress = uiState.connectingServerId?.let(uiState.installingAgents::get)
+    if (pager.currentTab != HomeTab.AGENTS && uiState.pendingAuthentication == null && installProgress != null) {
+        AlertDialog(
+            onDismissRequest = onCancelLaunch,
+            text = { AgentInstallStatus(installProgress) },
+            confirmButton = {
+                TextButton(onClick = onCancelLaunch) { Text(stringResource(CommonR.string.common_auth_cancel)) }
+            },
+        )
+    }
     Scaffold(
         // Background surface; the lighter foreground sheet reads as elevated against it.
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -349,6 +374,7 @@ private fun ServerListDialogsAndEffects(
 
     ServerListDialogsHost(
         pendingAuthentication = pendingAuthentication,
+        installProgress = pendingAuthentication?.let { uiState.installingAgents[it.serverId] },
         isAuthenticating =
             uiState.connectingServerId != null && uiState.connectingServerId == pendingAuthentication?.serverId,
         pendingLaunchConsent = pendingLaunchConsent,
@@ -403,6 +429,7 @@ private fun ServerListEventEffects(
 private fun ServerListDialogsHost(
     pendingAuthentication: PendingAuthentication?,
     isAuthenticating: Boolean,
+    installProgress: AgentInstallProgress?,
     pendingLaunchConsent: PendingLaunchConsent?,
     showAboutDialog: Boolean,
     selectedAuthMethodId: String?,
@@ -418,6 +445,7 @@ private fun ServerListDialogsHost(
         PendingAuthenticationDialog(
             pendingAuthentication = it,
             isAuthenticating = isAuthenticating,
+            installProgress = installProgress,
             selectedAuthMethodId = selectedAuthMethodId,
             onSelectedAuthMethodChange = onSelectedAuthMethodChange,
             onSubmit = onAuthenticate,

@@ -152,10 +152,8 @@ class AcpChatSessionFacadeTest {
             )
 
         override suspend fun connectAgent(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            agentId: String,
+            gatewaySource: GatewaySource,
+            binding: GatewayAgentBinding,
         ): GatewayConnectResponse {
             connectCalls += 1
             connectFailure?.let { throw it }
@@ -229,11 +227,10 @@ class AcpChatSessionFacadeTest {
         ) = TODO("unused in facade tests")
 
         override suspend fun restartRuntime(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
+            gatewaySource: GatewaySource,
             runtimeId: String,
             envVars: Map<String, String>,
+            installTargetId: String,
         ) = TODO("unused in facade tests")
 
         override suspend fun fetchRuntimeLogs(
@@ -245,10 +242,8 @@ class AcpChatSessionFacadeTest {
 
         // An older gateway without the one-call attach, so launches take the status/list/connect path.
         override suspend fun attachSession(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            agentId: String,
+            gatewaySource: GatewaySource,
+            binding: GatewayAgentBinding,
             acpSessionId: String,
         ): GatewaySessionAttachResponse {
             attachedSessionIds += acpSessionId

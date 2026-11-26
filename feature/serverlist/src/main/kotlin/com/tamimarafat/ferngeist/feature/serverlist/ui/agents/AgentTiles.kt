@@ -36,6 +36,7 @@ import com.tamimarafat.ferngeist.core.common.ui.AgentLogo
 import com.tamimarafat.ferngeist.core.common.ui.agentIconTransition
 import com.tamimarafat.ferngeist.core.common.ui.chat.StatusWaveLine
 import com.tamimarafat.ferngeist.core.common.ui.chat.rememberStatusLineState
+import com.tamimarafat.ferngeist.core.common.ui.install.AgentInstallIndicator
 import com.tamimarafat.ferngeist.core.common.ui.status.AgentMark
 import com.tamimarafat.ferngeist.core.common.ui.status.CardTone
 import com.tamimarafat.ferngeist.core.common.ui.status.containerColor
@@ -122,8 +123,7 @@ internal fun AgentHeroTile(
                     }
                     AgentBadge(
                         target = target,
-                        connecting = connection.isConnecting,
-                        connected = connection.isConnected,
+                        connection = connection,
                         status = status,
                         tone = tone,
                         size = 44,
@@ -174,7 +174,7 @@ internal fun AgentTile(
                 Box(Modifier.weight(1f).padding(end = 12.dp)) {
                     StatusWaveLine(rememberStatusLineState(status), color = waveLineColor)
                 }
-                AgentBadge(target, connection.isConnecting, connection.isConnected, status, tone, size = 36)
+                AgentBadge(target, connection, status, tone, size = 36)
             }
             AgentName(
                 target = target,
@@ -225,7 +225,7 @@ internal fun DirectAgentRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            AgentBadge(target, connection.isConnecting, connection.isConnected, status, tone, size = 40)
+            AgentBadge(target, connection, status, tone, size = 40)
             Column(Modifier.weight(1f)) {
                 AgentName(
                     target = target,
@@ -285,15 +285,19 @@ internal fun AgentGroupHeader(
 @Composable
 private fun AgentBadge(
     target: LaunchableTarget,
-    connecting: Boolean,
-    connected: Boolean,
+    connection: ServerConnectionUiState,
     status: TurnStatus,
     tone: CardTone,
     size: Int,
     hero: Boolean = false,
 ) {
+    val installProgress = connection.installProgress
+    if (installProgress != null) {
+        AgentInstallIndicator(installProgress, Modifier.size(size.dp))
+        return
+    }
     AnimatedContent(
-        targetState = connecting,
+        targetState = connection.isConnecting,
         modifier = Modifier.size(size.dp),
         transitionSpec = { agentIconTransition() },
         label = "agentConnectionBadge",
@@ -308,7 +312,7 @@ private fun AgentBadge(
                 )
             }
         } else {
-            AgentMark(target, size = size.dp, active = connected, status = status, tone = tone)
+            AgentMark(target, size = size.dp, active = connection.isConnected, status = status, tone = tone)
         }
     }
 }

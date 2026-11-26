@@ -295,6 +295,7 @@ internal class GatewayHttpPipeline(
             statusDescription = response.status.description,
             endpoint = request.endpoint,
             responseBody = response.bodyAsText(),
+            retryAfter = response.headers[HttpHeaders.RetryAfter],
         )
     }
 

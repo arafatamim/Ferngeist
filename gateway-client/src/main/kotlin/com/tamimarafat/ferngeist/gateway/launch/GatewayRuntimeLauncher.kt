@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.gateway.launch
 
+import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -25,10 +27,10 @@ class GatewayRuntimeLauncher(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     /**
-     * Connects [agentId] on the gateway (protocol v2) and returns the runtime/session
+     * Connects [server] on the gateway (protocol v2) and returns the runtime/session
      * handoff. One call does both: the gateway owns the agent process lifetime, so there
-     * is no start-then-connect sequence, no runtime selection, and no client-side retry —
-     * a launch either gets a runtime with an attached session or fails.
+     * is no start-then-connect sequence or runtime selection. The repository polls while
+     * the gateway reports an installation in progress.
      *
      * Refreshes the stored credential when it is due. Returns [Result.failure]
      * with a user-facing message when the gateway is unpaired or the credential
@@ -37,16 +39,14 @@ class GatewayRuntimeLauncher(
      */
     @Suppress("TooGenericExceptionCaught")
     suspend fun launch(
-        gatewaySource: GatewaySource,
-        agentId: String,
+        server: LaunchableTarget.GatewayAgent,
         requireSupportedProtocol: Boolean = false,
         acpSessionId: String? = null,
         claimedAcpSessionIds: Set<String> = emptySet(),
     ): Result<GatewayLaunchResult> =
         try {
             launchRefreshedRuntime(
-                gatewaySource = gatewaySource,
-                agentId = agentId,
+                server = server,
                 requireSupportedProtocol = requireSupportedProtocol,
                 target = ReattachRequest(acpSessionId, claimedAcpSessionIds),
             )
@@ -65,8 +65,7 @@ class GatewayRuntimeLauncher(
      * than cancellation into the [Result] its callers are written against.
      */
     private suspend fun launchRefreshedRuntime(
-        gatewaySource: GatewaySource,
-        agentId: String,
+        server: LaunchableTarget.GatewayAgent,
         requireSupportedProtocol: Boolean,
         target: ReattachRequest,
     ): Result<GatewayLaunchResult> {
@@ -74,13 +73,13 @@ class GatewayRuntimeLauncher(
         val refreshedSource =
             try {
                 withContext(ioDispatcher) {
-                    refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
+                    refreshGatewaySourceIfNeeded(server.gatewaySource, gatewayRepository, gatewaySourceRepository)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: GatewayCredentialExpiredException) {
                 withContext(ioDispatcher) {
-                    gatewaySourceRepository.deleteGateway(gatewaySource.id)
+                    gatewaySourceRepository.deleteGateway(server.gatewaySource.id)
                 }
                 return Result.failure(
                     IllegalStateException("Gateway credential expired. Please pair this gateway again."),
@@ -91,7 +90,7 @@ class GatewayRuntimeLauncher(
         }
 
         if (acpSessionId != null) {
-            attachChat(refreshedSource, agentId, acpSessionId)?.let { attached ->
+            attachChat(refreshedSource, server.binding, acpSessionId)?.let { attached ->
                 // The attach skips the status fetch that checks the protocol; its reply carries the version.
                 val version = attached.protocolVersion
                 if (requireSupportedProtocol && version != null && version !in GatewayProtocol.supported) {
@@ -106,7 +105,7 @@ class GatewayRuntimeLauncher(
             gatewayRepository.verifyProtocol(refreshedSource.scheme, refreshedSource.host)
         }
 
-        return attemptConnect(refreshedSource, agentId, target)
+        return attemptConnect(refreshedSource, server.binding, target)
     }
 
     /**
@@ -116,16 +115,14 @@ class GatewayRuntimeLauncher(
      */
     private suspend fun attachChat(
         gatewaySource: GatewaySource,
-        agentId: String,
+        binding: GatewayAgentBinding,
         acpSessionId: String,
     ): GatewaySessionAttachResponse? =
         try {
             withContext(ioDispatcher) {
                 gatewayRepository.attachSession(
-                    scheme = gatewaySource.scheme,
-                    host = gatewaySource.host,
-                    gatewayCredential = gatewaySource.gatewayCredential,
-                    agentId = agentId,
+                    gatewaySource = gatewaySource,
+                    binding = binding,
                     acpSessionId = acpSessionId,
                 )
             }
@@ -151,19 +148,14 @@ class GatewayRuntimeLauncher(
     @Suppress("TooGenericExceptionCaught")
     private suspend fun attemptConnect(
         gatewaySource: GatewaySource,
-        agentId: String,
+        binding: GatewayAgentBinding,
         target: ReattachRequest,
     ): Result<GatewayLaunchResult> =
         try {
             val handoff =
                 withContext(ioDispatcher) {
-                    resumeExistingSession(gatewaySource, agentId, target)
-                        ?: gatewayRepository.connectAgent(
-                            scheme = gatewaySource.scheme,
-                            host = gatewaySource.host,
-                            gatewayCredential = gatewaySource.gatewayCredential,
-                            agentId = agentId,
-                        )
+                    resumeExistingSession(gatewaySource, binding.agentId, target)
+                        ?: gatewayRepository.connectAgent(gatewaySource, binding)
                 }
             Result.success(GatewayLaunchResult(gatewaySource = gatewaySource, handoff = handoff))
         } catch (error: CancellationException) {

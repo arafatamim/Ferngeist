@@ -50,6 +50,8 @@
     <string name="common_rpc_direction_ntf">УВЕД</string>
     <string name="common_just_now">Только что</string>
     <string name="common_status_ago">%1$s назад</string>
+    <string name="common_installing_agent">Установка агента</string>
+    <string name="common_installing_agent_bytes">Установка агента · скачано %1$s</string>
     <string name="common_in_progress">В процессе</string>
     <string name="common_recently_active">Недавняя активность</string>
     <string name="common_status_needs_attention">Требует внимания</string>

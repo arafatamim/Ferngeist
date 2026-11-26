@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchSession
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLauncher
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.common.ui.status.isActive
+import com.tamimarafat.ferngeist.core.model.AgentInstallProgress
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -20,6 +21,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -64,6 +66,7 @@ data class ServerListUiState(
     val showConnectionError: String? = null,
     val pendingAuthentication: PendingAuthentication? = null,
     val pendingLaunchConsent: PendingLaunchConsent? = null,
+    val installingAgents: Map<String, AgentInstallProgress> = emptyMap(),
 )
 
 data class RecentSession(
@@ -133,7 +136,7 @@ class ServerListViewModel
         private val stores: ServerLocalStores,
         private val agentLauncher: AgentLauncher,
         private val projectCatalog: ProjectCatalog,
-        gatewayPairingRepository: GatewayRepository,
+        private val gatewayPairingRepository: GatewayRepository,
         @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
         /** This screen's verification transport; [AgentLauncher] owns everything behind it. */
@@ -234,6 +237,9 @@ class ServerListViewModel
 
         private val _uiState = MutableStateFlow(ServerListUiState())
         val uiState: StateFlow<ServerListUiState> = _uiState.asStateFlow()
+        val agentInstallations
+            get() = gatewayPairingRepository.agentInstallations
+        private var launchJob: Job? = null
 
         private val _events = MutableSharedFlow<ServerListEvent>()
         val events = _events.asSharedFlow()
@@ -283,6 +289,7 @@ class ServerListViewModel
             target: LaunchableTarget.GatewayAgent,
             cwd: String,
         ) {
+            if (launchJob?.isActive == true) return
             pendingQuickChat =
                 RecentSession(
                     sessionId = com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG,
@@ -329,61 +336,57 @@ class ServerListViewModel
             server: LaunchableTarget,
             resumePendingLaunch: Boolean = false,
         ) {
+            if (launchJob?.isActive == true) return
             if (!resumePendingLaunch) pendingQuickChat = null
-            viewModelScope.launch {
-                // REUSE GUARD: If already connected to this server (and no pending auth), skip re-connection
-                val connected = _uiState.value.connectedServerState?.serverId == server.id && session.isConnected
-                // A hub-tracked chat owns this agent's gateway slot: its transport
-                // is already connected+initialized, so skip the tap handshake —
-                // a fresh start+connect would steal the single-attach slot and
-                // evict the live chat socket (gateway logs the intentional
-                // CloseNow as "use of closed network connection").
-                if ((connected || agentLauncher.hasWarmChat(server.id)) &&
-                    _uiState.value.pendingAuthentication == null
-                ) {
-                    _uiState.update { it.copy(connectingServerId = null) }
-                    openConnectedServer(server.id, server.name)
-                    return@launch
-                }
+            launchJob =
+                viewModelScope.launch {
+                    // REUSE GUARD: If already connected to this server (and no pending auth), skip re-connection
+                    val connected = _uiState.value.connectedServerState?.serverId == server.id && session.isConnected
+                    // A hub-tracked chat owns this agent's gateway slot: its transport
+                    // is already connected+initialized, so skip the tap handshake —
+                    // a fresh start+connect would steal the single-attach slot and
+                    // evict the live chat socket (gateway logs the intentional
+                    // CloseNow as "use of closed network connection").
+                    if ((connected || agentLauncher.hasWarmChat(server.id)) &&
+                        _uiState.value.pendingAuthentication == null
+                    ) {
+                        _uiState.update { it.copy(connectingServerId = null) }
+                        openConnectedServer(server.id, server.name)
+                        return@launch
+                    }
 
-                if (!hasLaunchConsent(server)) return@launch
-                // Gateway-backed agents should start from a fresh ACP transport. If we
-                // request a new gateway handoff before closing the existing socket,
-                // the old runtime can survive long enough to be reused, which some
-                // stdio agents do not handle correctly on reattach.
-                if (_uiState.value.connectionState !is ChatConnectionState.Disconnected) {
-                    withContext(ioDispatcher) {
-                        session.disconnect()
+                    if (!hasLaunchConsent(server)) return@launch
+                    // Close the existing socket before requesting a gateway handoff. Otherwise
+                    // the gateway can reuse a runtime that can't handle reattach.
+                    if (_uiState.value.connectionState !is ChatConnectionState.Disconnected) {
+                        withContext(ioDispatcher) {
+                            session.disconnect()
+                        }
+                    }
+
+                    // Mark the launch pending before the gateway starts work.
+                    _uiState.update {
+                        it.copy(
+                            connectingServerId = server.id,
+                            connectionState = ChatConnectionState.Connecting,
+                            showConnectionError = null,
+                            pendingAuthentication = null,
+                            pendingLaunchConsent = null,
+                            connectedServerState = ConnectedServerState(serverId = server.id, isInitializing = true),
+                        )
+                    }
+
+                    when (val outcome = session.launch(server)) {
+                        is AgentLaunchOutcome.Ready -> openLaunchedServer(server, outcome)
+                        is AgentLaunchOutcome.AuthenticationRequired ->
+                            _uiState.update { it.withAuthenticationPrompt(server, outcome) }
+
+                        is AgentLaunchOutcome.Failed -> {
+                            pendingQuickChat = null
+                            _uiState.update { it.withLaunchFailure(outcome) }
+                        }
                     }
                 }
-
-                // Update UI state
-                _uiState.update {
-                    it.copy(
-                        connectingServerId = server.id,
-                        connectionState = ChatConnectionState.Connecting,
-                        showConnectionError = null,
-                        pendingAuthentication = null,
-                        pendingLaunchConsent = null,
-                        connectedServerState =
-                            ConnectedServerState(
-                                serverId = server.id,
-                                isInitializing = true,
-                            ),
-                    )
-                }
-
-                when (val outcome = session.launch(server)) {
-                    is AgentLaunchOutcome.Ready -> openLaunchedServer(server, outcome)
-                    is AgentLaunchOutcome.AuthenticationRequired ->
-                        _uiState.update { it.withAuthenticationPrompt(server, outcome) }
-
-                    is AgentLaunchOutcome.Failed -> {
-                        pendingQuickChat = null
-                        _uiState.update { it.withLaunchFailure(outcome) }
-                    }
-                }
-            }
         }
 
         /**
@@ -419,44 +422,46 @@ class ServerListViewModel
             methodId: String,
             envValues: Map<String, String> = emptyMap(),
         ) {
-            viewModelScope.launch {
-                val pending = _uiState.value.pendingAuthentication
-                if (pending == null || pending.serverId != serverId) return@launch
-                if (pending.authMethods.none { it.id == methodId }) return@launch
+            if (launchJob?.isActive == true) return
+            launchJob =
+                viewModelScope.launch {
+                    val pending = _uiState.value.pendingAuthentication
+                    if (pending == null || pending.serverId != serverId) return@launch
+                    if (pending.authMethods.none { it.id == methodId }) return@launch
 
-                _uiState.update {
-                    it.copy(
-                        connectingServerId = serverId,
-                        showConnectionError = null,
-                        pendingAuthentication = pending.copy(authErrorMessage = null),
-                    )
-                }
-
-                val outcome = session.authenticate(serverId, methodId, envValues)
-                if (outcome is AgentAuthOutcome.Failure) {
                     _uiState.update {
                         it.copy(
-                            connectingServerId = null,
-                            showConnectionError = outcome.connectionError ?: it.showConnectionError,
-                            pendingAuthentication =
-                                it.pendingAuthentication?.copy(authErrorMessage = outcome.message),
+                            connectingServerId = serverId,
+                            showConnectionError = null,
+                            pendingAuthentication = pending.copy(authErrorMessage = null),
                         )
                     }
-                    return@launch
-                }
 
-                savePreferredAuthMethod(serverId, methodId)
+                    val outcome = session.authenticate(serverId, methodId, envValues)
+                    if (outcome is AgentAuthOutcome.Failure) {
+                        _uiState.update {
+                            it.copy(
+                                connectingServerId = null,
+                                showConnectionError = outcome.connectionError ?: it.showConnectionError,
+                                pendingAuthentication =
+                                    it.pendingAuthentication?.copy(authErrorMessage = outcome.message),
+                            )
+                        }
+                        return@launch
+                    }
 
-                // Spinner stays up through the prewarm listing below;
-                // openConnectedServer clears it on navigate.
-                _uiState.update {
-                    it.copy(
-                        pendingAuthentication = null,
-                        connectedServerState = it.connectedServerState?.copy(isInitializing = false),
-                    )
+                    savePreferredAuthMethod(serverId, methodId)
+
+                    // Spinner stays up through the prewarm listing below;
+                    // openConnectedServer clears it on navigate.
+                    _uiState.update {
+                        it.copy(
+                            pendingAuthentication = null,
+                            connectedServerState = it.connectedServerState?.copy(isInitializing = false),
+                        )
+                    }
+                    openConnectedServer(serverId, pending.serverName, prewarmSessions = true)
                 }
-                openConnectedServer(serverId, pending.serverName, prewarmSessions = true)
-            }
         }
 
         fun retryPendingAuthentication(serverId: String) {
@@ -474,6 +479,7 @@ class ServerListViewModel
         }
 
         fun dismissAuthenticationPrompt() {
+            launchJob?.cancel()
             pendingQuickChat = null
             _uiState.update { it.copy(pendingAuthentication = null, connectingServerId = null) }
         }
@@ -506,6 +512,8 @@ class ServerListViewModel
         }
 
         fun disconnect() {
+            launchJob?.cancel()
+            pendingQuickChat = null
             viewModelScope.launch {
                 session.disconnect()
                 _uiState.update {
@@ -513,6 +521,7 @@ class ServerListViewModel
                         connectionState = ChatConnectionState.Disconnected,
                         connectingServerId = null,
                         connectedServerState = null,
+                        pendingAuthentication = null,
                     )
                 }
             }

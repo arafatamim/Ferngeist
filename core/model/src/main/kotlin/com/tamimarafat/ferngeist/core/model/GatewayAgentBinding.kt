@@ -42,3 +42,9 @@ sealed interface LaunchableTarget {
         override val preferredAuthMethodId: String? = binding.preferredAuthMethodId
     }
 }
+
+/** Download bytes reported while the gateway installs an agent. */
+data class AgentInstallProgress(
+    val bytesReceived: Long,
+    val bytesTotal: Long?,
+)

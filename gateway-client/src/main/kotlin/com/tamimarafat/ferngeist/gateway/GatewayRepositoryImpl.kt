@@ -2,6 +2,8 @@ package com.tamimarafat.ferngeist.gateway
 
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.ChatFileContents
+import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
+import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactMetadata
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
@@ -11,6 +13,7 @@ import com.tamimarafat.ferngeist.gateway.files.previewRange
 import com.tamimarafat.ferngeist.gateway.files.toPreview
 import com.tamimarafat.ferngeist.gateway.files.wholeFile
 import com.tamimarafat.ferngeist.gateway.files.writeWholeFile
+import com.tamimarafat.ferngeist.gateway.launch.GatewayAgentInstalls
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 import io.ktor.client.HttpClient
@@ -49,6 +52,10 @@ class GatewayRepositoryImpl
         GatewayWorktreeRepository {
         /** Every JSON call, along with its signed send and retry recovery, in one pipeline. */
         private val http = GatewayHttpPipeline(httpClient, json, gatewayClock)
+
+        private val installs = GatewayAgentInstalls()
+
+        override val agentInstallations = installs.progress
 
         suspend fun fetchQuotas(
             scheme: String,
@@ -134,20 +141,20 @@ class GatewayRepositoryImpl
         }
 
         override suspend fun connectAgent(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            agentId: String,
+            gatewaySource: GatewaySource,
+            binding: GatewayAgentBinding,
         ): GatewayConnectResponse =
-            http.postJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                "v1",
-                AGENTS_SEGMENT,
-                agentId,
-                "connect",
-            )
+            installs.poll(binding.id) {
+                http.postJson(
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    credential = gatewaySource.gatewayCredential,
+                    "v1",
+                    AGENTS_SEGMENT,
+                    binding.agentId,
+                    "connect",
+                )
+            }
 
         override suspend fun createCustomAgent(
             scheme: String,
@@ -289,21 +296,21 @@ class GatewayRepositoryImpl
         }
 
         override suspend fun attachSession(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            agentId: String,
+            gatewaySource: GatewaySource,
+            binding: GatewayAgentBinding,
             acpSessionId: String,
         ): GatewaySessionAttachResponse =
-            http.postJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                "v1",
-                SESSIONS_SEGMENT,
-                "attach",
-                body = json.encodeToString(GatewaySessionAttachRequest(agentId, acpSessionId)),
-            )
+            installs.poll(binding.id) {
+                http.postJson(
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    credential = gatewaySource.gatewayCredential,
+                    "v1",
+                    SESSIONS_SEGMENT,
+                    "attach",
+                    body = json.encodeToString(GatewaySessionAttachRequest(binding.agentId, acpSessionId)),
+                )
+            }
 
         override suspend fun resumeSession(
             scheme: String,
@@ -395,22 +402,23 @@ class GatewayRepositoryImpl
         }
 
         override suspend fun restartRuntime(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
+            gatewaySource: GatewaySource,
             runtimeId: String,
             envVars: Map<String, String>,
+            installTargetId: String,
         ): GatewayConnectResponse =
-            http.postJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                "v1",
-                RUNTIMES_SEGMENT,
-                runtimeId,
-                "restart",
-                body = json.encodeToString(GatewayRestartRequest(env = envVars)),
-            )
+            installs.poll(installTargetId) {
+                http.postJson(
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    credential = gatewaySource.gatewayCredential,
+                    "v1",
+                    RUNTIMES_SEGMENT,
+                    runtimeId,
+                    "restart",
+                    body = json.encodeToString(GatewayRestartRequest(env = envVars)),
+                )
+            }
 
         override suspend fun fetchRuntimeLogs(
             scheme: String,
@@ -743,8 +751,9 @@ class GatewayRequestException(
     override val message: String,
     /** The raw response body, so callers can read the gateway's `{"error": "..."}` envelope. */
     val responseBody: String? = null,
-    /** Machine-readable auth rejection code (`proof_expired`, ...), when the gateway sent one. */
+    /** Machine-readable gateway error code, when the gateway sent one. */
     val code: String? = null,
+    internal val retryAfter: String? = null,
 ) : IllegalStateException(message)
 
 internal fun gatewayRequestException(
@@ -752,6 +761,7 @@ internal fun gatewayRequestException(
     statusDescription: String,
     endpoint: String,
     responseBody: String,
+    retryAfter: String? = null,
 ): GatewayRequestException {
     val normalizedBody = responseBody.trim()
     val statusLine = "$statusCode ${statusDescription.ifBlank { "unknown" }}".trim()
@@ -793,5 +803,6 @@ internal fun gatewayRequestException(
         message = message,
         responseBody = normalizedBody.takeIf { it.isNotBlank() },
         code = parseGatewayErrorBody(normalizedBody)?.code,
+        retryAfter = retryAfter,
     )
 }

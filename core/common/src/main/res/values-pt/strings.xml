@@ -45,6 +45,8 @@
     <string name="common_rpc_direction_ntf">NTF</string>
     <string name="common_just_now">Agora mesmo</string>
     <string name="common_status_ago">há %1$s</string>
+    <string name="common_installing_agent">A instalar o agente</string>
+    <string name="common_installing_agent_bytes">A instalar o agente · %1$s transferidos</string>
     <string name="common_in_progress">Em andamento</string>
     <string name="common_recently_active">Atividade recente</string>
     <string name="common_status_needs_attention">Precisa de atenção</string>

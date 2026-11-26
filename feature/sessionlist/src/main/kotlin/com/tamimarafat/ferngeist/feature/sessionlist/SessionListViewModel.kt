@@ -38,6 +38,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -104,6 +105,8 @@ class SessionListViewModel
         val gitReaderFactory: ProjectGitReaderFactory = repos.gitReaderFactory
 
         val serverId: String = savedStateHandle.get<String>("serverId").orEmpty()
+        val agentInstallProgress = repos.gatewayRepository.agentInstallations.map { it[serverId] }
+        private var authenticationJob: Job? = null
 
         suspend fun fetchProviderQuotas() = repos.providerQuotas.fetch(serverId)
 
@@ -740,9 +743,11 @@ class SessionListViewModel
             methodId: String,
             envValues: Map<String, String> = emptyMap(),
         ) {
-            viewModelScope.launch {
-                auth.authenticate(methodId, envValues)?.let(::completeAuthentication)
-            }
+            if (authenticationJob?.isActive == true) return
+            authenticationJob =
+                viewModelScope.launch {
+                    auth.authenticate(methodId, envValues)?.let(::completeAuthentication)
+                }
         }
 
         /**
@@ -760,6 +765,7 @@ class SessionListViewModel
 
         /** Dismisses the authentication dialog and clears loading state. */
         fun dismissAuthenticationPrompt() {
+            authenticationJob?.cancel()
             auth.dismiss()
         }
 

@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.ChatFileContents
+import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
+import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactMetadata
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
@@ -83,18 +85,15 @@ class FakeGatewayRepository : GatewayRepository {
     ) = TODO()
 
     override suspend fun connectAgent(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        agentId: String,
+        gatewaySource: GatewaySource,
+        binding: GatewayAgentBinding,
     ) = TODO()
 
     override suspend fun restartRuntime(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
+        gatewaySource: GatewaySource,
         runtimeId: String,
         envVars: Map<String, String>,
+        installTargetId: String,
     ) = TODO()
 
     override suspend fun fetchRuntimeLogs(
@@ -119,10 +118,8 @@ class FakeGatewayRepository : GatewayRepository {
     ) = TODO()
 
     override suspend fun attachSession(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        agentId: String,
+        gatewaySource: GatewaySource,
+        binding: GatewayAgentBinding,
         acpSessionId: String,
     ) = TODO()
 

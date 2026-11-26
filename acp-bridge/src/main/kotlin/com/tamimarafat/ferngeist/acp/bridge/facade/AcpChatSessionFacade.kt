@@ -51,6 +51,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -164,6 +165,7 @@ class AcpChatSessionFacade(
     private val chatAuthentication =
         ChatAuthentication(connectionManager, repositories, serverId)
     override val authentication = chatAuthentication.request
+    override val agentInstallProgress = repositories.gatewayRepository.agentInstallations.map { it[serverId] }
 
     // Times the steps of the open in flight; null outside one. Only touched under
     // bridgeOperationMutex, so it needs no further synchronization.

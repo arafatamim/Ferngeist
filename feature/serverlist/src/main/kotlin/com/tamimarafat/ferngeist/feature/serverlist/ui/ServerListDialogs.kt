@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.auth.AuthenticationDialog
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.isWindowShort
+import com.tamimarafat.ferngeist.core.model.AgentInstallProgress
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationEnvVar
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationMethod
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
@@ -238,6 +239,7 @@ internal fun AboutDialog(onDismiss: () -> Unit) {
 internal fun PendingAuthenticationDialog(
     pendingAuthentication: PendingAuthentication,
     isAuthenticating: Boolean,
+    installProgress: AgentInstallProgress?,
     selectedAuthMethodId: String?,
     onSelectedAuthMethodChange: (String) -> Unit,
     onSubmit: (String, Map<String, String>) -> Unit,
@@ -246,6 +248,7 @@ internal fun PendingAuthenticationDialog(
 ) {
     key(pendingAuthentication.serverId) {
         AuthenticationDialog(
+            installProgress = installProgress,
             request =
                 AuthenticationRequest(
                     agentName = pendingAuthentication.agentName,

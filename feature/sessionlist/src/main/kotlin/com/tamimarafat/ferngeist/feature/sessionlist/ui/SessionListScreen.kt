@@ -163,6 +163,7 @@ fun SessionListScreen(
         pendingAuthentication = state.connection.pendingAuthentication,
         selectedAuthMethodId = state.connection.selectedAuthMethodId.value,
         isAuthenticating = viewModel.isLoading.collectAsState().value,
+        installProgress = viewModel.agentInstallProgress.collectAsState(initial = null).value,
         onSelectedAuthMethodChange = { state.connection.selectedAuthMethodId.value = it },
         onSubmit = { methodId, values -> viewModel.authenticate(methodId, values) },
         onReconnect = viewModel::reconnectPendingAuthentication,

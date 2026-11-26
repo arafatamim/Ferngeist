@@ -378,6 +378,7 @@ private fun BoxScope.ChatScreenContentOverlays(
     ) {
         ChatScreenBody(
             state = screenState.state,
+            installProgress = viewModel.agentInstallProgress.collectAsStateWithLifecycle(initialValue = null).value,
             scroll = screenState.derived.scrollHandle,
             appBarScrollConnection = appBarScrollConnection,
             renderedLastMessageId = screenState.derived.renderedLastMessageId,

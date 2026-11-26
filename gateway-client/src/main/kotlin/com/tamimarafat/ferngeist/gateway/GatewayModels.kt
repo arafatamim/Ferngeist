@@ -413,13 +413,13 @@ fun GatewayStatus.requireSupportedProtocol() {
 @Serializable
 data class GatewayErrorResponse(
     val error: String? = null,
-    // Machine-readable rejection code (see GatewayErrorCode). The gateway sets it only
-    // on credential/proof/scope rejections, and omits it on older builds; every other
-    // failure is code-less so it cannot be mistaken for an auth rejection.
+    // Machine-readable rejection code, when the gateway exposes one.
     val code: String? = null,
     // RFC 3339 UTC clock of the gateway at the moment it composed the rejection, when
     // the gateway exposes one; the client corrects its device clock from it.
     val serverTime: String? = null,
+    val bytesReceived: Long? = null,
+    val bytesTotal: Long? = null,
 )
 
 /** Machine-readable auth-gate rejection codes the gateway returns in the envelope's `code`. */
@@ -435,8 +435,7 @@ private val errorBodyJson = Json { ignoreUnknownKeys = true }
 
 /**
  * The error envelope parsed out of a non-2xx body, or null when the body is not one
- * (plain strings, HTML error pages, empty bodies, ...). The gateway only fills `code`
- * and `serverTime` on auth rejections; all other `GatewayErrorResponse` fields stay null.
+ * (plain strings, HTML error pages, empty bodies, ...). The fields depend on the failure.
  */
 internal fun parseGatewayErrorBody(responseBody: String?): GatewayErrorResponse? =
     responseBody

@@ -35,7 +35,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.R
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.install.AgentInstallStatus
 import com.tamimarafat.ferngeist.core.common.ui.status.InProgressIndicator
+import com.tamimarafat.ferngeist.core.model.AgentInstallProgress
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationMethod
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
 
@@ -51,6 +53,7 @@ fun AuthenticationDialog(
     onSubmit: (String, Map<String, String>) -> Unit,
     onReconnect: () -> Unit,
     onDismiss: () -> Unit,
+    installProgress: AgentInstallProgress? = null,
 ) {
     val uriHandler = LocalUriHandler.current
     val selectedMethod =
@@ -75,14 +78,18 @@ fun AuthenticationDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            AuthDialogBody(
-                request = request,
-                gatewayBacked = gatewayBacked,
-                selectedMethod = selectedMethod,
-                envFields = envFields,
-                onSelectedAuthMethodChange = onSelectedAuthMethodChange,
-                onOpenLink = { uriHandler.openUri(it) },
-            )
+            if (installProgress != null && request.isAuthenticating) {
+                AgentInstallStatus(installProgress)
+            } else {
+                AuthDialogBody(
+                    request = request,
+                    gatewayBacked = gatewayBacked,
+                    selectedMethod = selectedMethod,
+                    envFields = envFields,
+                    onSelectedAuthMethodChange = onSelectedAuthMethodChange,
+                    onOpenLink = { uriHandler.openUri(it) },
+                )
+            }
         },
         confirmButton = {
             AuthDialogConfirmButton(

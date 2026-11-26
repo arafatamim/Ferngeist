@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.diagnostics.ConnectionDiagnosticsSheet
+import com.tamimarafat.ferngeist.core.common.ui.install.AgentInstallStatus
+import com.tamimarafat.ferngeist.core.model.AgentInstallProgress
 import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
@@ -207,8 +209,15 @@ internal fun ChatScreenBody(
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     onRetryMessage: ((String) -> Unit)? = null,
+    installProgress: AgentInstallProgress? = null,
 ) {
     when {
+        installProgress != null && state.isLoading && state.messages.isEmpty() -> {
+            Box(Modifier.fillMaxSize().padding(top = listTopPadding), contentAlignment = Alignment.Center) {
+                AgentInstallStatus(installProgress)
+            }
+        }
+
         state.isLoading && state.messages.isEmpty() -> {
             ChatLoadingSkeleton(listTopPadding = listTopPadding)
         }

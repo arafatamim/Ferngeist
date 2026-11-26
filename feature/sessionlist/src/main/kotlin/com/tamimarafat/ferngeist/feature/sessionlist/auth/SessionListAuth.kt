@@ -14,6 +14,7 @@ import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentic
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListRepositories
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -318,14 +319,14 @@ internal class SessionListAuth(
             runCatching {
                 withContext(ioDispatcher) {
                     repos.gatewayRepository.restartRuntime(
-                        scheme = gatewaySource.scheme,
-                        host = gatewaySource.host,
-                        gatewayCredential = gatewaySource.gatewayCredential,
+                        gatewaySource = gatewaySource,
                         runtimeId = runtimeId,
                         envVars = sessionCatalog.envPayload(method, envValues),
+                        installTargetId = serverId,
                     )
                 }
             }.getOrElse { error ->
+                if (error is CancellationException) throw error
                 return fail(error.message ?: "Failed to restart ${currentServer.name}.")
             }
 
