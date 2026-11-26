@@ -738,7 +738,8 @@ private fun ColumnScope.TurnFooter(
         val empty = message.segments.isEmpty()
         // Fade only: the live bubble's height spring already carries the size change.
         AnimatedVisibility(
-            visible = empty || rememberTurnWaiting(message, reveals),
+            // A reply that is not streaming shows it only while held for hydration: at once.
+            visible = empty || !message.isStreaming || rememberTurnWaiting(message, reveals),
             enter = fadeIn(),
             exit = fadeOut(),
         ) {

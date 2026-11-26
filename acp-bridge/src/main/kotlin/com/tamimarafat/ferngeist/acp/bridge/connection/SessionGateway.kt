@@ -404,8 +404,8 @@ internal class SessionGateway(
      * [AppSessionEvent.TurnComplete] of its own, because no awaiter may be left to run
      * the rollback.
      *
-     * A synthetic end reports `"cancelled"` (the stream died under the turn) or
-     * `"error"` (its stream failed) - never `"end_turn"`, which would claim a success no
+     * A synthetic end reports `"cancelled"` (the user's cancel), `"dropped"` (the stream
+     * was cut off under the turn) or `"error"` (its stream failed) - never `"end_turn"`, which would claim a success no
      * reply established. The cancel mark is consumed either way so the next turn starts
      * clean.
      */
@@ -430,10 +430,16 @@ internal class SessionGateway(
             // Interrupted (transport reset) or torn down with the session. Either way the
             // turn is over: without a terminal event the bridge would read as streaming
             // forever, and the hub would never evict it or let it be closed. No reply
-            // settled it, so the status must not claim the success `end_turn` would.
+            // settled it, so the status must not claim the success `end_turn` would. Only a
+            // cancel the user asked for reads as one; otherwise the agent may still be running.
             withContext(NonCancellable) {
-                cancelsRequested.remove(sessionId)
-                bridge.emitEvent(AppSessionEvent.TurnComplete(AppSessionEvent.STOP_REASON_CANCELLED))
+                val reason =
+                    if (cancelsRequested.remove(sessionId)) {
+                        AppSessionEvent.STOP_REASON_CANCELLED
+                    } else {
+                        AppSessionEvent.STOP_REASON_DROPPED
+                    }
+                bridge.emitEvent(AppSessionEvent.TurnComplete(reason))
             }
             throw error
         } catch (error: Exception) {

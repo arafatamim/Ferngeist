@@ -37,6 +37,7 @@ class TurnItemHeldRunwayTest {
                     TurnItem(
                         turn = Turn(prompt, emptyList()),
                         isLast = true,
+                        awaitingHydration = false,
                         markdownDocuments = emptyMap(),
                         workingTree = emptyList(),
                         runway = runway,

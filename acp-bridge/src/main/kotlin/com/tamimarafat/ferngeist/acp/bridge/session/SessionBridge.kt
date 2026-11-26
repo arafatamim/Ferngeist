@@ -308,8 +308,14 @@ class SessionBridge(
 
 sealed interface AppSessionEvent {
     companion object {
-        /** Local stop reason for a turn cancelled under the client (transport reset, teardown). */
+        /** Local stop reason for a turn the user cancelled whose stream died before the agent's reply. */
         const val STOP_REASON_CANCELLED = "cancelled"
+
+        /**
+         * Local stop reason for a prompt stream cut off under the client (transport reset, teardown)
+         * with no cancel asked for: the agent may still be running it, so it claims no outcome.
+         */
+        const val STOP_REASON_DROPPED = "dropped"
 
         /** Local stop reason for a prompt stream that failed before reporting a reply. */
         const val STOP_REASON_FAILED = "error"
@@ -449,8 +455,9 @@ sealed interface AppSessionEvent {
     /**
      * The turn's terminal event: normally the agent's reply, whose [stopReason] is the ACP
      * reason, or a synthetic end when the prompt stream died without one
-     * ([STOP_REASON_CANCELLED] for a turn cancelled under the client, [STOP_REASON_FAILED]
-     * for a stream that failed). Neither synthetic reason is a successful completion.
+     * ([STOP_REASON_CANCELLED] for a cancelled turn, [STOP_REASON_DROPPED] for a stream cut off
+     * under the client, [STOP_REASON_FAILED] for a stream that failed). No synthetic reason is a
+     * successful completion.
      */
     data class TurnComplete(
         val stopReason: String,

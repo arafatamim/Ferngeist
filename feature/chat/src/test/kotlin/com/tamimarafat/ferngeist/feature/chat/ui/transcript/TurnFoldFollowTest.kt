@@ -45,6 +45,7 @@ class TurnFoldFollowTest {
                         TurnItem(
                             turn = turn,
                             isLast = turn === next,
+                            awaitingHydration = false,
                             markdownDocuments = emptyMap(),
                             workingTree = emptyList(),
                             runway = TurnRunway.None,

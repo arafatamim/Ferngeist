@@ -424,7 +424,9 @@ class ChatViewModel
                 }
             }
             viewModelScope.launch {
+                updateState { copy(awaitingHydration = true) }
                 sessionCoordinator.attachCachedThenLoad()
+                updateState { copy(awaitingHydration = false) }
             }
             viewModelScope.launch {
                 sessionFacade.connectionState.collect { connectionState ->

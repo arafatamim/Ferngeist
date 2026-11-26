@@ -105,6 +105,7 @@ internal fun ChatMessageList(
                     TurnItem(
                         turn = turn,
                         isLast = isLast,
+                        awaitingHydration = isLast && state.awaitingHydration,
                         markdownDocuments = state.markdownDocuments,
                         workingTree = if (isLast) workingTree else emptyList(),
                         runway = runway.of(key, scroll.following),

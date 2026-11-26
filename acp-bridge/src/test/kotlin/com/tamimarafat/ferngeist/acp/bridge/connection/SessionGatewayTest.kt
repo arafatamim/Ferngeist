@@ -575,8 +575,8 @@ class SessionGatewayTest {
             // A CancellationException here would silently end the caller's coroutine.
             assertTrue(send.await().exceptionOrNull() is AcpDisconnectedException)
             assertEquals(
-                "the turn must end without claiming the success no reply established",
-                listOf("cancelled"),
+                "the turn must end claiming neither success nor a cancel nobody asked for",
+                listOf(AppSessionEvent.STOP_REASON_DROPPED),
                 turnReasons(bridge),
             )
         }

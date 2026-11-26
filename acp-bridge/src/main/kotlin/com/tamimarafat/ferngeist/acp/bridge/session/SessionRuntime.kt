@@ -349,10 +349,9 @@ class SessionRuntime(
             live = reduce(live, event, clock(), eventSeq).after(updateSeq)
             // A reply closed by a reattach ended while this client was away; stamping it now would
             // time the outage, not the turn, so it gets no time at all.
-            when (event) {
-                is AppSessionEvent.TurnEndUnheard ->
-                    live = live.copy(openReplyId = null, turnStartedAt = null, turnFinishedAt = null)
-                is AppSessionEvent.TurnComplete ->
+            when {
+                event.endsUnheard() -> live = live.copy(openReplyId = null, turnStartedAt = null, turnFinishedAt = null)
+                event is AppSessionEvent.TurnComplete ->
                     live =
                         live.copy(turnDurationMs = event.durationMs, turnFinishedAt = TimeSource.Monotonic.markNow())
                 else -> Unit
@@ -588,3 +587,8 @@ class SessionRuntime(
         SessionDebug.d(TAG, sessionId, message)
     }
 }
+
+/** A turn end that says nothing of how the turn went; a dropped stream's agent may still be running it. */
+private fun AppSessionEvent.endsUnheard(): Boolean =
+    this is AppSessionEvent.TurnEndUnheard ||
+        (this as? AppSessionEvent.TurnComplete)?.stopReason == AppSessionEvent.STOP_REASON_DROPPED

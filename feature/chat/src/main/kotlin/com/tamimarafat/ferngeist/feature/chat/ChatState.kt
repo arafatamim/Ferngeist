@@ -30,6 +30,11 @@ data class ChatState(
     val isLoading: Boolean = false,
     val isStreaming: Boolean = false,
     val isSessionReady: Boolean = false,
+    /**
+     * True until the screen's first load settles. A transcript painted from the saved state may
+     * end on a turn whose outcome the live session has not confirmed yet, so its close waits.
+     */
+    val awaitingHydration: Boolean = false,
     /** See [com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot.dropsRepeatPrompts]. */
     val dropsRepeatPrompts: Boolean? = false,
     val connectionState: ChatConnectionState = ChatConnectionState.Disconnected,

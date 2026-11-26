@@ -36,6 +36,7 @@ private const val TURN_ENTRANCE_MS = 180
 internal fun LazyItemScope.TurnItem(
     turn: Turn,
     isLast: Boolean,
+    awaitingHydration: Boolean,
     markdownDocuments: Map<String, MarkdownRenderedDocument>,
     workingTree: List<ChatChangedFile>,
     runway: TurnRunway,
@@ -87,6 +88,7 @@ internal fun LazyItemScope.TurnItem(
                 TurnReplies(
                     turn,
                     isLast,
+                    awaitingHydration,
                     markdownDocuments,
                     workingTree,
                     onThoughtClick,
@@ -106,6 +108,7 @@ internal fun LazyItemScope.TurnItem(
 private fun TurnReplies(
     turn: Turn,
     isLast: Boolean,
+    awaitingHydration: Boolean,
     markdownDocuments: Map<String, MarkdownRenderedDocument>,
     workingTree: List<ChatChangedFile>,
     onThoughtClick: (String) -> Unit,
@@ -117,14 +120,16 @@ private fun TurnReplies(
         turn.replies.forEachIndexed { index, reply ->
             key(reply.id) {
                 val closes = index == turn.replies.lastIndex
+                // A saved paint's last turn may still be running: it reads as live, with no close.
+                val held = closes && awaitingHydration
                 CompositionLocalProvider(
                     localWorkingTreeChanges provides if (closes) workingTree else emptyList(),
                 ) {
                     TurnBubble(
                         reply,
                         markdownDocuments,
-                        isLast && closes && reply.isStreaming,
-                        segments.takeIf { closes },
+                        (isLast && closes && reply.isStreaming) || held,
+                        segments.takeIf { closes && !held },
                         onThoughtClick,
                         onToolCallClick,
                         onRetryMessage,

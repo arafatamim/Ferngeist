@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
@@ -664,6 +665,28 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                 state.error,
             )
             assertFalse("the screen must not fall back to the loading state", state.isLoading)
+        }
+
+    @Test
+    fun `a cached paint awaits hydration until its load settles`() =
+        runTest {
+            val load = CompletableDeferred<Unit>()
+            val facadeFactory =
+                TestFacadeFactory {
+                    object : TestFacade() {
+                        override suspend fun cachedSnapshot() = readySnapshot()
+
+                        override suspend fun loadSessionQuietly() = load.await()
+                    }
+                }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            advanceUntilIdle()
+            assertTrue("the saved paint's last turn is unconfirmed", viewModel.state.value.awaitingHydration)
+
+            load.complete(Unit)
+            advanceUntilIdle()
+
+            assertFalse(viewModel.state.value.awaitingHydration)
         }
 
     @Test
