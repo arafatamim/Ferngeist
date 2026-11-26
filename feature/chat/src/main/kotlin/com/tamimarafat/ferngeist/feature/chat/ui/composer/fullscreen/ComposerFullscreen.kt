@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.chat.ui.composer.fullscreen
 import android.net.Uri
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animate
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -169,6 +171,7 @@ private class ComposerPanelDrag(
 
 @Composable
 internal fun FullscreenComposerDialog(
+    editorScroll: ScrollState,
     canSendImages: Boolean,
     canSendFiles: Boolean,
     canSendAudio: Boolean,
@@ -213,7 +216,11 @@ internal fun FullscreenComposerDialog(
                         onNothingToAttach = { scope.launch { snackbarHostState.showSnackbar(nothingToAttach) } },
                     ).padding(composerPanelContentPadding),
             ) {
-                content(dropTargetActive)
+                // Scrolls when the editor card's floor pushes the editor past the window.
+                // Passes the window down as the editor's minimum height, which is what it fills.
+                Box(Modifier.fillMaxSize().verticalScroll(editorScroll), propagateMinConstraints = true) {
+                    content(dropTargetActive)
+                }
                 SnackbarHost(
                     hostState = snackbarHostState,
                     modifier =

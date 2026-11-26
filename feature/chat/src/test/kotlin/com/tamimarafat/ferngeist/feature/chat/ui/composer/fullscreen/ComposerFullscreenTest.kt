@@ -28,6 +28,7 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.isDialog
@@ -37,6 +38,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
@@ -49,6 +51,7 @@ import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatComposerBar
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.AttachmentPickers
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionState
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -151,6 +154,35 @@ class ComposerFullscreenTest {
         editor.performTouchInput { moveBy(Offset(0f, 30f)) }
         compose.onNode(isDialog()).assertDoesNotExist()
         compose.onNode(hasSetTextAction()).assertTextContains("Revised draft")
+    }
+
+    @Test
+    @Config(qualifiers = "w480dp-h200dp")
+    fun fullScreenComposer_shortWindow_keepsThreeLineEditor() {
+        compose.setContent {
+            MaterialExpressiveTheme {
+                ComposerInNarrowPane(Modifier.width(280.dp), ComposerMode.FULLSCREEN)
+            }
+        }
+
+        // Header, send row and insets leave less than this; the editor keeps it and the stack scrolls.
+        compose.onNode(hasSetTextAction()).assertHeightIsAtLeast(72.dp)
+    }
+
+    @Test
+    @Config(qualifiers = "w480dp-h200dp")
+    fun fullScreenComposer_scrolledToSend_keepsBackButtonPinned() {
+        compose.setContent {
+            MaterialExpressiveTheme {
+                ComposerInNarrowPane(Modifier.width(280.dp), ComposerMode.FULLSCREEN)
+            }
+        }
+        val back = compose.onNodeWithContentDescription("Exit full-screen composer")
+        val restingTop = back.getBoundsInRoot().top
+
+        compose.onNodeWithContentDescription("Send").performScrollTo()
+
+        assertEquals(restingTop, back.getBoundsInRoot().top)
     }
 
     @Test

@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
@@ -39,7 +40,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,6 +51,7 @@ import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ScheduleSend
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -81,6 +82,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableFloatState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -98,6 +100,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.MeasurePolicy
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
@@ -109,10 +114,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.zIndex
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.onSubmitShortcut
@@ -259,9 +267,12 @@ internal fun ChatComposerBar(
         if (nextMode == ComposerMode.COLLAPSED) closeComposer() else onModeChange(nextMode)
     }
     val backProgress = rememberComposerBackProgress(enabled = mode == ComposerMode.EXPANDED, onClose = closeComposer)
+    // One scroll for whichever host shows the editor, so its close button can stay pinned against it.
+    val editorScroll = rememberScrollState()
     val editor: @Composable (Boolean, Boolean, Boolean) -> Unit = { fullscreen, fillEditor, editorDropTargetActive ->
         focusEditor()
         ExpandedComposerContent(
+            editorScroll = editorScroll,
             messageText = messageText,
             mentionState = mentionState,
             onMentionSelected = onMentionSelected,
@@ -298,6 +309,7 @@ internal fun ChatComposerBar(
 
     if (mode == ComposerMode.FULLSCREEN) {
         FullscreenComposerDialog(
+            editorScroll = editorScroll,
             canSendImages = canSendImages,
             canSendFiles = canSendFiles,
             canSendAudio = canSendAudio,
@@ -434,6 +446,7 @@ internal fun ChatComposerBar(
                     exit = ExitTransition.None,
                 ) {
                     ComposerPanel(
+                        editorScroll = editorScroll,
                         expandedWidth = expandedWidth,
                         expandedHeight = expandedHeight,
                         collapsedSize = fabSize,
@@ -462,12 +475,12 @@ internal fun ChatComposerBar(
  * The expanded composer's panel: neutral and opaque so the transcript never shows through.
  *
  * Its height is animated explicitly rather than with `animateContentSize`: what the content
- * needs is measured with the panel's own constraint lifted (see
- * `wrapContentHeight(unbounded = true)`), and that is information an animator watching the
- * node's own size does not have.
+ * needs is measured with the panel's own constraint lifted (inside its `verticalScroll`), and
+ * that is information an animator watching the node's own size does not have.
  */
 @Composable
 private fun ComposerPanel(
+    editorScroll: ScrollState,
     expandedWidth: Dp,
     expandedHeight: Dp,
     collapsedSize: Dp,
@@ -508,17 +521,21 @@ private fun ComposerPanel(
                 } else {
                     Modifier
                 }
+            // One chain in both states: swapping the scroll node out as a drag starts would cancel
+            // that drag before it can settle back.
             val bounds =
-                if (fillEditor) {
-                    Modifier.fillMaxSize()
-                } else {
-                    Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight(unbounded = true)
-                        .onSizeChanged { onContentHeightPx(it.height) }
-                }
+                Modifier
+                    .then(if (fillEditor) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                    // Scrolls the content when the panel is shorter than it: capped by the screen, or
+                    // dragged below the editor card's floor.
+                    .verticalScroll(editorScroll)
+                    // A filled editor measures the panel, not what its content wants.
+                    .onSizeChanged { if (!fillEditor) onContentHeightPx(it.height) }
             // Inside the size report, so the panel's measured height includes it.
-            Box(width.then(bounds).padding(composerPanelContentPadding)) { content(fillEditor) }
+            // Propagated: under the scroll, the minimum height is the only bound a filled editor gets.
+            Box(width.then(bounds).padding(composerPanelContentPadding), propagateMinConstraints = true) {
+                content(fillEditor)
+            }
         }
     }
 }
@@ -585,6 +602,7 @@ private fun ComposerFab(
  */
 @Composable
 internal fun ExpandedComposerContent(
+    editorScroll: ScrollState,
     messageText: TextFieldState,
     mentionState: ComposerSuggestionState,
     onMentionSelected: (String, Int?) -> Unit,
@@ -629,7 +647,12 @@ internal fun ExpandedComposerContent(
         } else {
             TextFieldLineLimits.MultiLine(minHeightInLines = 3, maxHeightInLines = 8)
         }
-    Column(
+    // About the inline field's three-line floor, so a filled editor never squeezes below it.
+    val minEditorCardHeight =
+        with(LocalDensity.current) { (MaterialTheme.typography.bodyLarge.lineHeight * 3).toDp() } + 28.dp
+    val measurePolicy = expandedComposerMeasurePolicy(fillEditor, minEditorCardHeight)
+    Layout(
+        measurePolicy = measurePolicy,
         modifier =
             editorBounds
                 .graphicsLayer { alpha = inputAlpha() }
@@ -641,67 +664,100 @@ internal fun ExpandedComposerContent(
                     enabled = messageText.text.isNotBlank() || hasAttachments,
                     onSubmit = onSend,
                 ),
-    ) {
-        ExpandedComposerHeader(
-            fullscreen = fullscreen,
-            onToggleFullscreen = onToggleFullscreen,
-            onClose = onClose,
-            agentIconUrl = agentIconUrl,
-            agentName = agentName,
-            modelOption = modelOption,
-            effortOption = effortOption,
-            recentModelValues = recentModelValues,
-            onSetConfigOption = onSetConfigOption,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        // Outside the text card, on the panel: what is attached reads apart from what is typed.
-        AnimatedComposerAttachments(
-            images = selectedImages,
-            audios = selectedAudios,
-            files = selectedFiles,
-            links = selectedResourceLinks,
-            onImagesChanged = onImagesChanged,
-            onAudiosChanged = onAudiosChanged,
-            onFilesChanged = onFilesChanged,
-            onLinksChanged = onResourceLinksChanged,
-        )
-        Surface(
-            // Concentric with the panel: its 28dp corner less the 12dp inset.
-            shape = MaterialTheme.shapes.large,
-            // Two tones above the panel, so the field reads as raised without a shadow.
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            modifier = if (fillEditor) Modifier.weight(1f).fillMaxWidth() else Modifier,
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-                ExpandedComposerTextField(
-                    messageText = messageText,
-                    mentionState = mentionState,
-                    onMentionSelected = onMentionSelected,
-                    commandInputHint = commandInputHint,
-                    focusRequester = focusRequester,
-                    onSend = onSend,
-                    lineLimits = lineLimits,
-                    modifier = editorBounds,
-                )
+        content = {
+            ExpandedComposerHeader(
+                editorScroll = editorScroll,
+                fullscreen = fullscreen,
+                onToggleFullscreen = onToggleFullscreen,
+                onClose = onClose,
+                agentIconUrl = agentIconUrl,
+                agentName = agentName,
+                modelOption = modelOption,
+                effortOption = effortOption,
+                recentModelValues = recentModelValues,
+                onSetConfigOption = onSetConfigOption,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            // Outside the text card, on the panel: what is attached reads apart from what is typed.
+            AnimatedComposerAttachments(
+                images = selectedImages,
+                audios = selectedAudios,
+                files = selectedFiles,
+                links = selectedResourceLinks,
+                onImagesChanged = onImagesChanged,
+                onAudiosChanged = onAudiosChanged,
+                onFilesChanged = onFilesChanged,
+                onLinksChanged = onResourceLinksChanged,
+            )
+            Surface(
+                // Concentric with the panel: its 28dp corner less the 12dp inset.
+                shape = MaterialTheme.shapes.large,
+                // Two tones above the panel, so the field reads as raised without a shadow.
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.layoutId(EDITOR_CARD_ID),
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+                    ExpandedComposerTextField(
+                        messageText = messageText,
+                        mentionState = mentionState,
+                        onMentionSelected = onMentionSelected,
+                        commandInputHint = commandInputHint,
+                        focusRequester = focusRequester,
+                        onSend = onSend,
+                        lineLimits = lineLimits,
+                        modifier = editorBounds,
+                    )
+                }
             }
+            ExpandedComposerBottomBar(
+                canSendImages = canSendImages,
+                canSendFiles = canSendFiles,
+                canSendAudio = canSendAudio,
+                attachmentPickers = attachmentPickers,
+                queueing = queueing,
+                messageText = messageText.text,
+                hasAttachments = hasAttachments,
+                onSend = onSend,
+                dropTargetActive = dropTargetActive,
+            )
+        },
+    )
+}
+
+private const val EDITOR_CARD_ID = "editor-card"
+
+/**
+ * Stacks the expanded composer top to bottom. With [fillEditor] the text card takes the height the
+ * rest leave, but never less than [minEditorCardHeight]: past that the stack outgrows its bounds and
+ * the caller's scroll takes over. The bounds arrive as the minimum height, since the scroll lifts
+ * the maximum.
+ */
+private fun expandedComposerMeasurePolicy(
+    fillEditor: Boolean,
+    minEditorCardHeight: Dp,
+) = MeasurePolicy { measurables, constraints ->
+    val loose = constraints.copy(minWidth = 0, minHeight = 0, maxHeight = Constraints.Infinity)
+    val fixed = measurables.map { if (it.layoutId == EDITOR_CARD_ID) null else it.measure(loose) }
+    val fixedHeight = fixed.sumOf { it?.height ?: 0 }
+    val editorHeight = maxOf(minEditorCardHeight.roundToPx(), constraints.minHeight - fixedHeight)
+    val editorConstraints = if (fillEditor) loose.copy(minHeight = editorHeight, maxHeight = editorHeight) else loose
+    val placeables =
+        measurables.zip(fixed) { measurable, placeable ->
+            placeable
+                ?: measurable.measure(editorConstraints)
         }
-        ExpandedComposerBottomBar(
-            canSendImages = canSendImages,
-            canSendFiles = canSendFiles,
-            canSendAudio = canSendAudio,
-            attachmentPickers = attachmentPickers,
-            queueing = queueing,
-            messageText = messageText.text,
-            hasAttachments = hasAttachments,
-            onSend = onSend,
-            dropTargetActive = dropTargetActive,
-        )
+    layout(constraints.maxWidth, constraints.constrainHeight(placeables.sumOf { it.height })) {
+        placeables.fold(0) { y, placeable ->
+            placeable.placeRelative(0, y)
+            y + placeable.height
+        }
     }
 }
 
 @Composable
 private fun ExpandedComposerHeader(
+    editorScroll: ScrollState,
     fullscreen: Boolean,
     onToggleFullscreen: () -> Unit,
     onClose: () -> Unit,
@@ -716,16 +772,20 @@ private fun ExpandedComposerHeader(
         stringResource(
             if (fullscreen) R.string.chat_composer_restore_desc else R.string.chat_composer_fullscreen_desc,
         )
+    val floating by remember(editorScroll) { derivedStateOf { editorScroll.value > 0 } }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        // Above the rest of the stack, so the pinned close button floats over what scrolls under it.
+        modifier = Modifier.fillMaxWidth().zIndex(1f),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Undoes the scroll, so the way out stays in reach however far the editor scrolls.
         CloseComposerButton(
             onClose = onClose,
             fullscreen = fullscreen,
+            floating = floating,
             modifier =
-                Modifier.semantics {
+                Modifier.graphicsLayer { translationY = editorScroll.value.toFloat() }.semantics {
                     customActions =
                         listOf(
                             CustomAccessibilityAction(resizeLabel) {

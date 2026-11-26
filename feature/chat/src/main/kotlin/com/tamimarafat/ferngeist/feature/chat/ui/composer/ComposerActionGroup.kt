@@ -2,6 +2,7 @@
 
 package com.tamimarafat.ferngeist.feature.chat.ui.composer
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ShapeDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,14 +43,21 @@ import com.tamimarafat.ferngeist.feature.chat.R
 internal fun CloseComposerButton(
     onClose: () -> Unit,
     fullscreen: Boolean,
+    floating: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    // Over scrolled content a shade past the text card beneath it, so it reads as the higher layer.
+    val containerColor by animateColorAsState(
+        if (floating) MaterialTheme.colorScheme.surfaceDim else MaterialTheme.colorScheme.surfaceContainerHighest,
+        MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "CloseComposerButtonColor",
+    )
     FilledTonalIconButton(
         onClick = onClose,
         shapes = IconButtonDefaults.shapes(),
         colors =
             IconButtonDefaults.filledTonalIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                containerColor = containerColor,
                 contentColor = MaterialTheme.colorScheme.onSurface,
             ),
         modifier =
