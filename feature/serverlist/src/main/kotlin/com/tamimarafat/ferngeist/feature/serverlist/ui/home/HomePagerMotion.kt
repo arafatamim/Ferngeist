@@ -67,8 +67,9 @@ internal class HomePagerMotion(
     private var committedPage by mutableIntStateOf(state.currentPage)
     val selectedTab: HomeTab get() = tabAt(committedPage)
 
-    // The page index can briefly outlive a shrunk tab list until the pager's next measure.
-    private fun tabAt(page: Int): HomeTab = tabs[page.coerceAtMost(tabs.lastIndex)]
+    // Pager keys/content can run between pageCount and tabs updates; resolve both from pageCount.
+    internal fun tabAt(page: Int): HomeTab =
+        if (state.pageCount == 1) HomeTab.AGENTS else HomeTab.entries[page.coerceAtMost(HomeTab.entries.lastIndex)]
 
     var overshootPx by mutableFloatStateOf(0f)
         private set

@@ -740,10 +740,10 @@ private fun FrontLayerContent(
                 modifier = Modifier.fillMaxSize().padding(top = 16.dp),
                 beyondViewportPageCount = 1,
                 // Keyed so a page appearing or vanishing doesn't switch the tab the user is on.
-                key = { pager.tabs[it] },
+                key = { pager.tabAt(it) },
                 flingBehavior = pager.flingBehavior(),
             ) { page ->
-                val shown = pager.tabs[page]
+                val shown = pager.tabAt(page)
                 Box(Modifier.graphicsLayer { translationX = pageDirection * pager.overshootPx }) {
                     when (shown) {
                         HomeTab.AGENTS ->
