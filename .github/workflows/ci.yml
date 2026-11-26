@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
     # Docs-only changes are covered by docs.yml; they do not need a full build.
     paths-ignore:
