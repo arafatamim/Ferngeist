@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.core.common.ui.chat
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -11,9 +12,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.offset
 import androidx.compose.ui.util.lerp
 import com.tamimarafat.ferngeist.core.common.ui.status.waveLineColor
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -21,12 +25,14 @@ import kotlin.math.roundToInt
 
 /**
  * A card body for rows with no avatar to carry the turn. At rest the [stamp] sits centred beside
- * the text. While the turn needs showing it rises onto the [headline]'s baseline and a line grows
- * out of the [supporting] text into the space it left, to the card's end: a drifting wave while
- * working, still and recoloured while awaiting the user or failed. Without [supporting] text the
- * line runs alone; a [footer] sits beneath, clear of the stamp. A finished turn's dot is a marker,
- * not a line: it stays put in the line's band while the title and footer close in around it, as
- * they sit at rest. Both stop short of the stamp's column, which is where the dot is drawn.
+ * the text. While the turn needs showing, a line grows out of the [supporting] text to the card's
+ * end. The stamp centres beside a wrapped [headline], or rises to a single-line headline's
+ * baseline if it overlaps the line's band. The line drifts while working and stays still and
+ * recoloured while awaiting the user or failed. Without [supporting] text the line runs alone.
+ * A [footer] sits beneath, clear of the stamp. A finished
+ * turn's dot is a marker, not a line: it stays put in the line's band while the title and footer
+ * close in around it, as they sit at rest. Both stop short of the stamp's column, which is where
+ * the dot is drawn.
  */
 @Composable
 fun StatusCardBody(
@@ -39,10 +45,15 @@ fun StatusCardBody(
 ) {
     val line = rememberStatusLineState(status)
     val shown = line.shown
-    val raise by animateFloatAsState(
+    val expand by animateFloatAsState(
         targetValue = if (shown) 1f else 0f,
         animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-        label = "statusStampRaise",
+        label = "statusBandExpand",
+    )
+    val lineSpacing by animateDpAsState(
+        targetValue = if (line.lined) extraLineGap else 0.dp,
+        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "statusLineSpacing",
     )
     // 0 pins the title to the top of the body, above a line's band; 1 centres it in the body.
     val centring by animateFloatAsState(
@@ -84,26 +95,50 @@ fun StatusCardBody(
             (constraints.maxWidth - (stampPlaceable?.let { it.width + stampGap.roundToPx() } ?: 0)).coerceAtLeast(0)
         val headlinePlaceable = headlines.first().measure(loose.copy(maxWidth = narrow))
         // The spring overshoots on purpose; the line's width must not pass the card's edge.
-        val supportingWidth = lerp(narrow, constraints.maxWidth, raise.coerceIn(0f, 1f)).coerceAtLeast(0)
-        val supportingPlaceable = supportings.first().measure(loose.copy(maxWidth = supportingWidth))
+        val supportingWidth = lerp(narrow, constraints.maxWidth, expand.coerceIn(0f, 1f)).coerceAtLeast(0)
+        // Keep the line clear of the title's descenders and leave empty rows flush.
+        val lineGap = lineSpacing.roundToPx().coerceIn(0, extraLineGap.roundToPx())
+        val titleSpacing = titleGap.roundToPx() + lineGap
+        val bandGap = if (supporting != null || shown) titleSpacing.coerceAtMost(loose.maxHeight) else 0
+        val supportingPlaceable =
+            supportings.first().measure(loose.offset(vertical = -bandGap).copy(maxWidth = supportingWidth))
         val footerPlaceable = footers.firstOrNull()?.measure(loose.copy(maxWidth = narrow))
-        val band = supportingPlaceable.height
-        val textHeight = headlinePlaceable.height + band + (footerPlaceable?.height ?: 0)
+        val bandTop = headlinePlaceable.height + bandGap
+        val bandBottom = bandTop + supportingPlaceable.height
+        val textHeight = bandBottom + (footerPlaceable?.let { lineGap + it.height } ?: 0)
         val height = maxOf(textHeight, stampPlaceable?.height ?: 0)
         // The band stays where a line ran; the title drops and the footer rises into it by half.
-        val drop = (band * centring.coerceIn(0f, 1f) / 2).roundToInt()
+        val drop = ((bandGap + supportingPlaceable.height) * centring.coerceIn(0f, 1f) / 2).roundToInt()
         layout(constraints.maxWidth, height) {
             headlinePlaceable.placeRelative(0, drop)
-            supportingPlaceable.placeRelative(0, headlinePlaceable.height)
-            footerPlaceable?.placeRelative(0, headlinePlaceable.height + band - drop)
+            supportingPlaceable.placeRelative(0, bandTop)
+            footerPlaceable?.placeRelative(0, bandBottom + lineGap - drop)
             stampPlaceable?.let {
                 val centred = (height - it.height) / 2
-                // The raised line's baseline, not the dropped title's: a dot leaves the stamp up.
-                val onHeadline = (headlinePlaceable[FirstBaseline] - it[FirstBaseline]).coerceAtLeast(0)
-                it.placeRelative(constraints.maxWidth - it.width, lerp(centred, onHeadline, raise))
+                val aligned = activeStampTop(headlinePlaceable, it, bandTop until bandBottom, centred, drop)
+                val y = lerp(centred, aligned, expand)
+                it.placeRelative(constraints.maxWidth - it.width, y)
             }
         }
     }
+}
+
+private fun activeStampTop(
+    headline: Placeable,
+    stamp: Placeable,
+    band: IntRange,
+    centred: Int,
+    titleDrop: Int,
+): Int {
+    val firstBaseline = headline[FirstBaseline]
+    val lastBaseline = headline[LastBaseline]
+    val overlapsBand = !band.isEmpty() && centred <= band.last && centred + stamp.height > band.first
+    return when {
+        lastBaseline > firstBaseline -> titleDrop + (headline.height - stamp.height) / 2
+        // A dot can sit beside a dropped title while the stamp stays above it.
+        overlapsBand -> firstBaseline - stamp[FirstBaseline]
+        else -> centred
+    }.coerceAtLeast(0)
 }
 
 @Composable
@@ -111,12 +146,7 @@ private fun SupportingWithLine(
     line: StatusLineState,
     supporting: (@Composable () -> Unit)?,
 ) {
-    Row(
-        // A breath under the title; the line otherwise starts on the title's descender. Skipped
-        // when the row is empty, so a card at rest gains no dead space.
-        modifier = Modifier.padding(top = if (supporting != null || line.shown) titleGap else 0.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         supporting?.invoke()
         StatusWaveLine(
             state = line,
@@ -129,3 +159,4 @@ private fun SupportingWithLine(
 
 private val stampGap = 12.dp
 private val titleGap = 4.dp
+private val extraLineGap = 4.dp

@@ -111,8 +111,8 @@ val restingTitleAutoSize =
     TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 24.sp, stepSize = 0.5.sp)
 
 private const val RESUME_WIDEST = 88
-private const val RESUME_NARROWEST = 56
-private const val RESUME_WIDTH_STEP = 8
+private const val RESUME_NARROWEST = 60
+private const val RESUME_WIDTH_STEP = 4
 private const val RESUME_WEIGHT = 600
 
 /**
