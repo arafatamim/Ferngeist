@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.tamimarafat.ferngeist.AppForegroundState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpNetwork
 import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
@@ -28,7 +29,6 @@ import com.tamimarafat.ferngeist.data.database.migration18To19
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.gatewayHttpClient
 import com.tamimarafat.ferngeist.push.AndroidUnifiedPushClient
-import com.tamimarafat.ferngeist.push.AppForegroundState
 import com.tamimarafat.ferngeist.push.PushRegistrar
 import dagger.Module
 import dagger.Provides

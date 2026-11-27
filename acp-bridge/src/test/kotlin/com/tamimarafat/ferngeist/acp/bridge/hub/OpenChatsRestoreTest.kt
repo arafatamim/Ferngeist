@@ -4,6 +4,7 @@ import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpNetwork
 import com.tamimarafat.ferngeist.acp.bridge.connection.testHttpClient
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
+import com.tamimarafat.ferngeist.core.model.chatIdFor
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi

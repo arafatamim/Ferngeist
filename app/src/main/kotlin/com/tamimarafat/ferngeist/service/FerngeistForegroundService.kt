@@ -10,12 +10,15 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.tamimarafat.ferngeist.MainActivity
+import com.tamimarafat.ferngeist.AppForegroundState
 import com.tamimarafat.ferngeist.R
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.push.AppForegroundState
+import com.tamimarafat.ferngeist.notification.ChatNotifications
+import com.tamimarafat.ferngeist.notification.chatPendingIntent
+import com.tamimarafat.ferngeist.notification.toChatDeepLinkTarget
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -60,16 +63,6 @@ class FerngeistForegroundService : Service() {
 
         // Sent by the live update's delete intent when the user swipes the promotion away.
         const val ACTION_LIVE_DISMISSED = "com.tamimarafat.ferngeist.ACTION_LIVE_DISMISSED"
-
-        // Extras carried by the notification's content intent so MainActivity can
-        // deep-link straight to the active chat session.
-        const val EXTRA_SERVER_ID = "com.tamimarafat.ferngeist.extra.SERVER_ID"
-        const val EXTRA_SESSION_ID = "com.tamimarafat.ferngeist.extra.SESSION_ID"
-        const val EXTRA_CWD = "com.tamimarafat.ferngeist.extra.CWD"
-        const val EXTRA_TITLE = "com.tamimarafat.ferngeist.extra.TITLE"
-        const val EXTRA_GATEWAY_ID = "com.tamimarafat.ferngeist.extra.GATEWAY_ID"
-
-        private const val CONTENT_INTENT_REQUEST_CODE = 1
     }
 
     @Inject
@@ -83,6 +76,9 @@ class FerngeistForegroundService : Service() {
 
     @Inject
     lateinit var chatCatalog: ChatCatalog
+
+    @Inject
+    internal lateinit var chatNotifications: ChatNotifications
 
     private lateinit var liveUpdate: LiveUpdateNotifier
 
@@ -103,9 +99,9 @@ class FerngeistForegroundService : Service() {
                 foregroundState = appForegroundState,
                 targets = launchableTargetRepository,
                 catalog = chatCatalog,
-                scope = scope,
+                chatNotifications = chatNotifications,
             )
-        liveUpdate.start()
+        liveUpdate.start(scope)
     }
 
     override fun onStartCommand(
@@ -187,9 +183,7 @@ class FerngeistForegroundService : Service() {
         observationJob =
             scope.launch {
                 launch { stopWhenIdle() }
-                launch { updateTitleOnConnectivity() }
-                launch { trackConnectedAgentNames() }
-                launch { refreshOnTapTargetChange() }
+                launch { observeConnectionCard() }
             }
     }
 
@@ -204,81 +198,32 @@ class FerngeistForegroundService : Service() {
             }
     }
 
-    private suspend fun updateTitleOnConnectivity() {
-        // Notification title tracks actual connectivity, not the
-        // connecting window that merely keeps the service alive.
-        chatConnectionHub.anyConnected
-            .collect { anyConnected ->
-                if (!isStarted) return@collect
-                updateNotification(anyConnected)
-            }
-    }
-
-    private suspend fun trackConnectedAgentNames() {
-        chatConnectionHub.warmServers
-            .combine(launchableTargetRepository.getTargets()) { ids, targets ->
-                targets
-                    .filter { it.id in ids }
-                    .map { it.name }
-                    .distinct()
-                    .joinToString(", ")
-            }.distinctUntilChanged()
-            .collect { names ->
+    private suspend fun observeConnectionCard() {
+        val names =
+            chatConnectionHub.warmServers
+                .combine(launchableTargetRepository.getTargets()) { ids, targets ->
+                    targets
+                        .filter { it.id in ids }
+                        .map { it.name }
+                        .distinct()
+                        .joinToString(", ")
+                }.distinctUntilChanged()
+        // Follow the focused chat (or most recently focused pooled chat after back-out). The
+        // title tracks actual connectivity, not the connecting window that keeps the service alive.
+        combine(chatConnectionHub.anyConnected, names, chatConnectionHub.tapTarget, ::Triple)
+            .collect { (connected, names, target) ->
                 connectedAgentNames = names
-                if (!isStarted) return@collect
-                updateNotification(chatConnectionHub.anyConnected.value)
-            }
-    }
-
-    private suspend fun refreshOnTapTargetChange() {
-        // Keep the notification's deep-link target in sync with the chat
-        // the user is currently viewing (falling back to the most recently
-        // focused pooled chat after back-out).
-        chatConnectionHub.tapTarget
-            .collect {
-                if (!isStarted) return@collect
-                updateNotification(chatConnectionHub.anyConnected.value)
-            }
-    }
-
-    private fun updateNotification(anyConnected: Boolean) {
-        if (!isStarted) return
-        val notification = buildNotification(anyConnected)
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, notification)
-    }
-
-    /**
-     * Builds the notification's tap target. When the hub tracks a chat it carries
-     * deep-link extras so [MainActivity] navigates straight to that chat; otherwise it
-     * opens the app's default screen. [PendingIntent.FLAG_UPDATE_CURRENT] keeps the
-     * extras current as the tracked chat changes.
-     *
-     * Title is intentionally omitted: it is Room-resolved on open ([MainActivity]
-     * tolerates its absence). The gateway identity travels as [EXTRA_GATEWAY_ID].
-     */
-    private fun buildContentIntent(): PendingIntent {
-        val intent =
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-                chatConnectionHub.tapTarget.value?.let { presence ->
-                    putExtra(EXTRA_SERVER_ID, presence.serverId)
-                    putExtra(EXTRA_SESSION_ID, presence.sessionId)
-                    // ponytail: a pooled entry that was never screen-opened carries an
-                    // empty cwd, so its deep link lands on the default working dir.
-                    putExtra(EXTRA_CWD, presence.cwd)
-                    putExtra(EXTRA_GATEWAY_ID, presence.gatewaySourceId)
+                if (isStarted) {
+                    getSystemService(NotificationManager::class.java)
+                        .notify(NOTIFICATION_ID, buildNotification(connected, target))
                 }
             }
-        return PendingIntent.getActivity(
-            this,
-            CONTENT_INTENT_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
     }
 
-    private fun buildNotification(anyConnected: Boolean): Notification {
+    private fun buildNotification(
+        anyConnected: Boolean,
+        target: ChatPresence? = chatConnectionHub.tapTarget.value,
+    ): Notification {
         val (title, text) =
             if (anyConnected) {
                 getString(R.string.notification_connected_title) to
@@ -291,7 +236,8 @@ class FerngeistForegroundService : Service() {
                     getString(R.string.notification_disconnected_text)
             }
 
-        val contentIntent = buildContentIntent()
+        // Room resolves the title on open; a pooled chat may also lack a working directory.
+        val contentIntent = chatPendingIntent(this, target?.toChatDeepLinkTarget(), "connection")
 
         val stopIntent =
             PendingIntent.getService(

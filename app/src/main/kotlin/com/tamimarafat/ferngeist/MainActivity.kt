@@ -35,8 +35,8 @@ import com.tamimarafat.ferngeist.core.common.ui.isWindowCompact
 import com.tamimarafat.ferngeist.feature.chat.markdown.files.ProvideFileMarkdown
 import com.tamimarafat.ferngeist.feature.sessionlist.project.PROJECT_GATEWAY_ARG
 import com.tamimarafat.ferngeist.feature.sessionlist.project.PROJECT_REPO_ARG
+import com.tamimarafat.ferngeist.notification.resolveChatDeepLink
 import com.tamimarafat.ferngeist.push.PushRegistrar
-import com.tamimarafat.ferngeist.push.resolveChatDeepLink
 import com.tamimarafat.ferngeist.service.BatteryOptimizationDialog
 import com.tamimarafat.ferngeist.ui.theme.FerngeistTheme
 import com.tamimarafat.ferngeist.workspace.ChatViewModelFactory

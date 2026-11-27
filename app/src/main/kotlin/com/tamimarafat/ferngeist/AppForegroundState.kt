@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.push
+package com.tamimarafat.ferngeist
 
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner

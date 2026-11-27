@@ -28,8 +28,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavHostController
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
-import com.tamimarafat.ferngeist.push.ChatDeepLinkTarget
-import com.tamimarafat.ferngeist.push.resolveChatDeepLink
+import com.tamimarafat.ferngeist.notification.ChatDeepLinkTarget
+import com.tamimarafat.ferngeist.notification.resolveChatDeepLink
 import com.tamimarafat.ferngeist.service.BatteryOptimizationDialog
 import com.tamimarafat.ferngeist.service.BatteryOptimizationHelper
 import com.tamimarafat.ferngeist.service.BatteryOptimizationPreferences

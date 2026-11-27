@@ -16,6 +16,7 @@ import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.LiveTurn
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.chatIdFor
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import kotlinx.coroutines.CancellationException
@@ -128,7 +129,7 @@ class ChatConnectionHub(
         val isStreaming: () -> Boolean,
         val manager: AcpConnection?,
         // The chat's live state, which the [liveTurns] observation follows; null until a bridge attaches.
-        val snapshot: StateFlow<SessionSnapshot>? = null,
+        val attachment: SnapshotAttachment? = null,
         var lastFocusedMs: Long,
         // Open screens, counted rather than flagged: a fast A→B→A switch builds the new
         // A screen before the old one's teardown closes it, and a flag would end up closed.
@@ -138,6 +139,17 @@ class ChatConnectionHub(
         // transport, so leaving its screen (say, opened offline) does not drop it.
         val restored: Boolean = false,
     )
+
+    private data class SnapshotAttachment(
+        val flow: StateFlow<SessionSnapshot>,
+        val generation: Long,
+        val initialSequence: Long,
+    )
+
+    private var attachmentGeneration = 0L
+
+    private fun StateFlow<SessionSnapshot>.attach(): SnapshotAttachment =
+        SnapshotAttachment(this, ++attachmentGeneration, value.turnCompletionSequence)
 
     private val Entry.screenOpen: Boolean get() = openScreens > 0
 
@@ -202,7 +214,7 @@ class ChatConnectionHub(
     val onScreenChat: StateFlow<ChatPresence?> = _onScreenChat.asStateFlow()
 
     private val screenChatIds = MutableStateFlow<Set<String>>(emptySet())
-    internal val openChatIds: StateFlow<Set<String>> = screenChatIds.asStateFlow()
+    val openChatIds: StateFlow<Set<String>> = screenChatIds.asStateFlow()
 
     /**
      * Server ids holding at least one tracked entry whose manager is connected.
@@ -318,8 +330,8 @@ class ChatConnectionHub(
             }.stateIn(scope, SharingStarted.Eagerly, false)
 
     /**
-     * Every chat with a known turn state, for the background live-update notification:
-     * turn start, latest plan, activity, and terminal outcome.
+     * Every chat with an attached turn snapshot, including unknown states so notification
+     * consumers can tell a request ending without an outcome from losing the snapshot.
      *
      * Derived from each entry's live [SessionSnapshot] (the same flow the facade publishes), so
      * it follows streaming, plans and permission prompts without polling. The turn start is
@@ -331,12 +343,12 @@ class ChatConnectionHub(
             .flatMapLatest {
                 val observed =
                     entries.values
-                        .mapNotNull { entry -> entry.snapshot?.let { snapshot -> entry to snapshot } }
+                        .mapNotNull { entry -> entry.attachment?.let { attachment -> entry to attachment.flow } }
                 if (observed.isEmpty()) {
                     flowOf(emptyList())
                 } else {
                     combine(observed.map { pair -> pair.second }) { snapshots ->
-                        observed.mapIndexedNotNull { index, pair -> pair.first.toLiveTurn(snapshots[index]) }
+                        observed.mapIndexed { index, pair -> pair.first.toLiveTurn(snapshots[index]) }
                     }
                 }
             }.stateIn(scope, SharingStarted.Eagerly, emptyList())
@@ -437,7 +449,10 @@ class ChatConnectionHub(
                     manager = registration.manager,
                     // A connecting registration can arrive before the bridge's session exists;
                     // keep the snapshot already attached rather than dropping it.
-                    snapshot = registration.snapshot ?: existing.snapshot,
+                    attachment =
+                        registration.snapshot
+                            ?.takeUnless { it === existing.attachment?.flow }
+                            ?.attach() ?: existing.attachment,
                 )
         } else {
             entries[chatId] = hotEntry(chatId, serverId, sessionId, registration)
@@ -463,7 +478,7 @@ class ChatConnectionHub(
         isConnected = registration.isConnected,
         isStreaming = registration.isStreaming,
         manager = registration.manager,
-        snapshot = registration.snapshot,
+        attachment = registration.snapshot?.attach(),
         lastFocusedMs = limits.clock(),
         openScreens = 0,
         cwd = "",
@@ -747,9 +762,8 @@ class ChatConnectionHub(
         )
 
     /** The entry's turn as notification material; unknown states have no outcome to report. */
-    private fun Entry.toLiveTurn(snapshot: SessionSnapshot): LiveTurn? {
+    private fun Entry.toLiveTurn(snapshot: SessionSnapshot): LiveTurn {
         val status = snapshot.turnStatus
-        if (status == TurnStatus.UNKNOWN) return null
         return LiveTurn(
             presence = toPresence(),
             status = status,
@@ -759,8 +773,24 @@ class ChatConnectionHub(
                 },
             planEntries = snapshot.livePlanEntries(),
             activity = snapshot.liveActivity(),
+            title = snapshot.title,
+            startMark =
+                snapshot.turnStatusSince.takeIf {
+                    status == TurnStatus.WORKING ||
+                        status == TurnStatus.NEEDS_ATTENTION
+                },
+            outcomeId = attachment?.outcomeId(snapshot),
         )
     }
+
+    private fun SnapshotAttachment.outcomeId(snapshot: SessionSnapshot): LiveTurn.OutcomeId? =
+        if ((snapshot.turnStatus == TurnStatus.FINISHED || snapshot.turnStatus == TurnStatus.ERROR) &&
+            snapshot.turnCompletionSequence > initialSequence
+        ) {
+            LiveTurn.OutcomeId(generation, snapshot.turnCompletionSequence)
+        } else {
+            null
+        }
 
     /** The plan in the turn's own bubble; a closed bubble's plan belongs to a turn that ended. */
     private fun SessionSnapshot.livePlanEntries(): List<PlanEntry> =
@@ -878,9 +908,3 @@ class ChatConnectionHub(
         revision.value += 1
     }
 }
-
-/** Builds the canonical chat key: `"<serverId>/<sessionId>"`. Single format owner for the hub contract. */
-internal fun chatIdFor(
-    serverId: String,
-    sessionId: String,
-): String = "$serverId/$sessionId"

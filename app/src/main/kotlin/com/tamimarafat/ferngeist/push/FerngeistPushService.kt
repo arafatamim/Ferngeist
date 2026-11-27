@@ -1,14 +1,8 @@
 package com.tamimarafat.ferngeist.push
 
 import android.util.Log
-import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.gateway.GatewayPushSubscription
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import org.unifiedpush.android.connector.FailedReason
@@ -28,10 +22,7 @@ class FerngeistPushService : PushService() {
     lateinit var pushRegistrar: PushRegistrar
 
     @Inject
-    lateinit var pushNotifier: PushNotifier
-
-    @Inject
-    lateinit var projectCatalog: ProjectCatalog
+    internal lateinit var pushNotifier: PushNotifier
 
     override fun onNewEndpoint(
         endpoint: PushEndpoint,
@@ -62,12 +53,8 @@ class FerngeistPushService : PushService() {
                 Log.w(TAG, "Unreadable push payload for $instance", e)
                 return
             }
-        // Events arrive on the main thread; the lookups behind a notification are database reads.
-        scope.launch {
-            if (!pushRegistrar.acceptsMessageFor(instance)) return@launch
-            projectCatalog.refresh(instance)
-            pushNotifier.show(payload)
-        }
+        // The ordered app-owned consumer outlives this briefly bound service.
+        pushNotifier.enqueue(instance, payload)
     }
 
     override fun onRegistrationFailed(
@@ -84,11 +71,5 @@ class FerngeistPushService : PushService() {
     private companion object {
         const val TAG = "FerngeistPushService"
         val json = Json { ignoreUnknownKeys = true }
-
-        // Outlives the briefly bound service so a notification still posts after it unbinds.
-        val scope = newScope()
-
-        // A static scope is created before Hilt injects anything, so its dispatcher is a default argument.
-        fun newScope(dispatcher: CoroutineDispatcher = Dispatchers.IO) = CoroutineScope(SupervisorJob() + dispatcher)
     }
 }

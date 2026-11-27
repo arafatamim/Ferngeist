@@ -5,7 +5,9 @@ import com.agentclientprotocol.model.PlanEntryStatus
 import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.LiveTurn
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.chatIdFor
 import com.tamimarafat.ferngeist.core.model.worktreeBranchOf
+import kotlin.time.ComparableTimeMark
 
 /**
  * What the live-update notification says for the turns running right now. Pure: names,
@@ -13,11 +15,6 @@ import com.tamimarafat.ferngeist.core.model.worktreeBranchOf
  * testable without Android.
  */
 internal sealed interface LiveUpdateContent {
-    data class Completed(
-        val done: Int,
-        val errors: Int,
-    ) : LiveUpdateContent
-
     /** One agent following a plan: the "2/5" chip and its segmented bar. */
     data class PlanStep(
         val turn: TurnText,
@@ -36,16 +33,13 @@ internal sealed interface LiveUpdateContent {
         val startedAtEpochMs: Long,
     ) : LiveUpdateContent
 
-    /** Several agents at once, blocked ones first. */
+    /** Several agents working at once, oldest first. */
     data class Aggregate(
         val lines: List<Line>,
-        val busyCount: Int,
-        val needsYou: Boolean,
     ) : LiveUpdateContent {
         data class Line(
             val turn: TurnText,
             val elapsedMs: Long,
-            val needsYou: Boolean,
         )
     }
 
@@ -90,27 +84,23 @@ internal fun liveUpdateContent(
     agentNames: Map<String, String>,
     sessionTitles: Map<String, String?>,
     nowMs: Long,
+    dismissedTurns: Set<LiveTurnKey>,
 ): LiveUpdateContent? {
-    if (turns.isEmpty()) return null
-    if (turns.size == 1) return singleTurnContent(turns.single(), agentNames, sessionTitles, nowMs)
+    val shown = turns.filter { it.status == TurnStatus.WORKING && !dismissedTurns.dismisses(turnKey(it)) }
+    if (shown.isEmpty()) return null
+    if (shown.size == 1) return singleTurnContent(shown.single(), agentNames, sessionTitles, nowMs)
     val lines =
-        turns
+        shown
             .sortedWith(
-                compareByDescending<LiveTurn> { it.status == TurnStatus.NEEDS_ATTENTION }
-                    .thenBy { it.startedAtEpochMs ?: nowMs }
+                compareBy<LiveTurn> { it.startedAtEpochMs ?: nowMs }
                     .thenBy { it.presence.sessionId },
             ).map { turn ->
                 LiveUpdateContent.Aggregate.Line(
                     turn = turn.labels(agentNames, sessionTitles),
                     elapsedMs = (nowMs - (turn.startedAtEpochMs ?: nowMs)).coerceAtLeast(0),
-                    needsYou = turn.status == TurnStatus.NEEDS_ATTENTION,
                 )
             }
-    return LiveUpdateContent.Aggregate(
-        lines = lines,
-        busyCount = turns.size,
-        needsYou = turns.any { it.status == TurnStatus.NEEDS_ATTENTION },
-    )
+    return LiveUpdateContent.Aggregate(lines)
 }
 
 private fun singleTurnContent(
@@ -149,7 +139,22 @@ internal fun LiveTurn.labels(
     )
 
 /** Catalog key for one session's title: the same `serverId/sessionId` the status catalogs use. */
-internal fun titleKey(presence: ChatPresence): String = "${presence.serverId}/${presence.sessionId}"
+internal fun titleKey(presence: ChatPresence): String = chatIdFor(presence.serverId, presence.sessionId)
 
 /** Identity of one turn, so a dismissal holds until this turn ends and the next one starts. */
-internal fun turnKey(turn: LiveTurn): String = "${titleKey(turn.presence)}@${turn.startedAtEpochMs}"
+internal data class LiveTurnKey(
+    val chatId: String,
+    val startMark: ComparableTimeMark?,
+)
+
+internal fun turnKey(turn: LiveTurn): LiveTurnKey = LiveTurnKey(titleKey(turn.presence), turn.startMark)
+
+internal fun MutableSet<LiveTurnKey>.retainActiveDismissals(activeKeys: Set<LiveTurnKey>) {
+    val activeChatIds = activeKeys.mapTo(mutableSetOf()) { it.chatId }
+    removeAll { key ->
+        if (key.startMark == null) key.chatId !in activeChatIds else key !in activeKeys
+    }
+}
+
+internal fun Set<LiveTurnKey>.dismisses(turn: LiveTurnKey): Boolean =
+    turn in this || turn.copy(startMark = null) in this

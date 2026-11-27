@@ -4,11 +4,13 @@ import android.app.Application
 import android.util.Log
 import androidx.compose.ui.ComposeUiFlags
 import androidx.compose.ui.ExperimentalComposeUiApi
+import com.tamimarafat.ferngeist.AppForegroundState
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
-import com.tamimarafat.ferngeist.push.AppForegroundState
+import com.tamimarafat.ferngeist.notification.ChatNotifications
+import com.tamimarafat.ferngeist.notification.ensureNotificationChannels
+import com.tamimarafat.ferngeist.push.PushNotifier
 import com.tamimarafat.ferngeist.push.PushRegistrar
-import com.tamimarafat.ferngeist.push.ensurePushChannels
 import com.tamimarafat.ferngeist.service.ForegroundServiceController
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineDispatcher
@@ -49,6 +51,12 @@ class FerngeistApplication : Application() {
     @Inject
     lateinit var projectCatalog: ProjectCatalog
 
+    @Inject
+    internal lateinit var chatNotifications: ChatNotifications
+
+    @Inject
+    internal lateinit var pushNotifier: PushNotifier
+
     private val appScope = newAppScope()
     private var serviceStopBackstop: Job? = null
 
@@ -72,8 +80,10 @@ class FerngeistApplication : Application() {
 
         // Push notifications: create the channels and keep every paired gateway subscribed.
         // Registration waits for a UnifiedPush distributor, which MainActivity picks.
-        ensurePushChannels(this)
+        ensureNotificationChannels(this)
         pushRegistrar.start()
+        chatNotifications.start(appScope)
+        pushNotifier.start(appScope)
 
         // The stop backstop keys on anyActive, not anyConnected, and is cancelled when
         // the connection comes back. Keyed on a drop, it stopped the service 10s after

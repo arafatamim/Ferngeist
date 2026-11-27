@@ -14,4 +14,7 @@
     <string name="notification_agent_fallback">агент</string>
     <string name="app_untitled_session">Сессия без названия</string>
     <string name="workspace_no_selection">Выберите агента или сессию</string>
+    <string name="notification_turn_ended">Ход завершён</string>
+    <string name="notification_turn_finished">Ход выполнен</string>
+    <string name="notification_turn_failed">Ход завершился ошибкой</string>
 </resources>

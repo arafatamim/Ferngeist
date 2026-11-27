@@ -2,9 +2,9 @@ package com.tamimarafat.ferngeist.acp.bridge.facade
 
 import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
-import com.tamimarafat.ferngeist.acp.bridge.hub.chatIdFor
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
+import com.tamimarafat.ferngeist.core.model.chatIdFor
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRepository

@@ -26,26 +26,20 @@
     <string name="live_update_channel_description">Shows running agent turns while Ferngeist is in the background</string>
     <string name="live_update_step_title">%1$s · Step %2$d of %3$d</string>
     <string name="live_update_open">Open</string>
-    <plurals name="live_update_done">
-        <item quantity="one">%1$d done</item>
-        <item quantity="other">%1$d done</item>
-    </plurals>
-    <plurals name="live_update_errored">
-        <item quantity="one">%1$d errored</item>
-        <item quantity="other">%1$d errored</item>
-    </plurals>
     <string name="live_update_step_chip">%1$d/%2$d</string>
     <string name="live_update_working">Working</string>
     <plurals name="live_update_busy_chip">
         <item quantity="one">%1$d busy</item>
         <item quantity="other">%1$d busy</item>
     </plurals>
-    <string name="live_update_needs_you">Needs you</string>
     <string name="live_update_agents_working">Agents working</string>
     <string name="live_update_agent_line">%1$s · %2$s · %3$s</string>
     <string name="live_update_elapsed_seconds">%1$ds</string>
     <string name="live_update_elapsed_minutes">%1$dm</string>
     <string name="live_update_elapsed_hours">%1$dh %2$dm</string>
+    <string name="notification_turn_ended">Turn ended</string>
+    <string name="notification_turn_finished">Turn finished</string>
+    <string name="notification_turn_failed">Turn failed</string>
     <string name="live_update_needs_you_alert">Needs your input</string>
     <string name="live_update_agent_fallback">Agent</string>
     <string name="workspace_no_selection">Select an agent or session</string>

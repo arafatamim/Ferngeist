@@ -14,4 +14,7 @@
     <string name="notification_agent_fallback">agente</string>
     <string name="app_untitled_session">Sesión sin título</string>
     <string name="workspace_no_selection">Selecciona un agente o una sesión</string>
+    <string name="notification_turn_ended">Turno finalizado</string>
+    <string name="notification_turn_finished">Turno completado</string>
+    <string name="notification_turn_failed">El turno falló</string>
 </resources>

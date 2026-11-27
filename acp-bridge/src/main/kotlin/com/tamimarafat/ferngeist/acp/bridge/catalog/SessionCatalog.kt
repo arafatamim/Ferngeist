@@ -19,11 +19,11 @@ import com.tamimarafat.ferngeist.acp.bridge.facade.OpenStepTimer
 import com.tamimarafat.ferngeist.acp.bridge.facade.mapDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.GatewayEndpoint
-import com.tamimarafat.ferngeist.acp.bridge.hub.chatIdFor
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.chatIdFor
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse

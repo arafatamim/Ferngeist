@@ -1,126 +1,118 @@
 package com.tamimarafat.ferngeist.push
 
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.content.Context
-import android.content.Intent
-import androidx.core.app.NotificationCompat
-import com.tamimarafat.ferngeist.MainActivity
-import com.tamimarafat.ferngeist.R
+import android.database.sqlite.SQLiteException
+import android.util.Log
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
+import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.push.PushPayloadKeys
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.service.FerngeistForegroundService
-import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.concurrent.atomic.AtomicInteger
+import com.tamimarafat.ferngeist.notification.ChatDeepLinkTarget
+import com.tamimarafat.ferngeist.notification.ChatNotifications
+import com.tamimarafat.ferngeist.notification.GatewayCardEvent
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Turns a decrypted push payload into a notification that deep-links into the referenced
- * chat, reusing the same intent extras the foreground-service notification uses
- * ([FerngeistForegroundService.EXTRA_SERVER_ID] etc.) so taps land in the right place via
- * [MainActivity].
- *
- * The push's `serverId` is the **gateway-owned** id; it's resolved to the agent binding on
- * that gateway holding the session, because navigation routes on the agent's id. Pushes are
- * suppressed while the app is in the foreground.
- *
- * Payload keys (all optional): see [PushPayloadKeys]. A push that names `serverId` +
- * `sessionId` deep-links to that chat; otherwise the tap just opens the app.
- */
+/** Resolves accepted gateway pushes in arrival order, even after the distributor unbinds. */
 @Singleton
-class PushNotifier
+internal class PushNotifier
     @Inject
     constructor(
-        @ApplicationContext private val context: Context,
         private val gatewaySourceRepository: GatewaySourceRepository,
         private val gatewayAgentBindingRepository: GatewayAgentBindingRepository,
         private val sessionRepository: ChatCatalog,
-        private val appForegroundState: AppForegroundState,
+        private val pushRegistrar: PushRegistrar,
+        private val projectCatalog: ProjectCatalog,
+        private val notifications: ChatNotifications,
     ) {
-        suspend fun show(data: Map<String, String>) {
-            val sessionId = data[PushPayloadKeys.SESSION_ID]
-            val category = data[PushPayloadKeys.CATEGORY]
+        private data class Push(
+            val instance: String,
+            val data: Map<String, String>,
+        )
 
-            cancelStaleProgress(category, sessionId)
+        private val queue = Channel<Push>(Channel.UNLIMITED)
 
-            // The app on screen already shows every chat's turn live, so a push only adds noise.
-            if (appForegroundState.isForeground.value) return
-
-            // Null when unknown → no deep-link.
-            val target = chatTarget(data, sessionId)
-
-            ensurePushChannels(context)
-            postNotification(data, category, sessionId, target)
+        fun enqueue(
+            instance: String,
+            data: Map<String, String>,
+        ) {
+            queue.trySend(Push(instance, data))
         }
 
-        /** Cancels the "working" notification of a turn that has ended. */
-        private fun cancelStaleProgress(
-            category: String?,
-            sessionId: String?,
-        ) {
-            // The turn is over, so its "working" notification is stale — even when this push
-            // itself is suppressed below.
-            if (sessionId != null && category in turnEndCategories) {
-                context
-                    .getSystemService(NotificationManager::class.java)
-                    .cancel(notificationIdFor(PUSH_CATEGORY_PROGRESS, sessionId) { 0 })
+        fun start(scope: CoroutineScope) {
+            scope.launch {
+                for (push in queue) {
+                    deliver(push)
+                }
             }
         }
 
-        private fun postNotification(
+        private suspend fun deliver(push: Push) {
+            try {
+                if (!pushRegistrar.acceptsMessageFor(push.instance)) return
+                projectCatalog.refresh(push.instance)
+                val gateway = gatewaySourceRepository.getGateway(push.instance) ?: return
+                val event = gatewayEvent(gateway, push.data) ?: return
+                withContext(Dispatchers.Main.immediate) { notifications.acceptGateway(event) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: SQLiteException) {
+                reportDeliveryFailure(error)
+            } catch (error: IllegalStateException) {
+                reportDeliveryFailure(error)
+            } catch (error: SecurityException) {
+                reportDeliveryFailure(error)
+            }
+        }
+
+        private fun reportDeliveryFailure(error: Exception) {
+            // Keep the consumer available without including message or database contents in logs.
+            Log.w("PushNotifier", "Could not handle a gateway notification (${error.javaClass.simpleName})")
+        }
+
+        private suspend fun gatewayEvent(
+            gateway: GatewaySource,
             data: Map<String, String>,
-            category: String?,
-            sessionId: String?,
-            target: ChatDeepLinkTarget?,
-        ) {
-            val title = data[PushPayloadKeys.TITLE] ?: context.getString(R.string.push_default_title)
-            val body = data[PushPayloadKeys.BODY] ?: context.getString(R.string.push_default_body)
-
-            // Progress pushes are throttled server-side to one per ~15s per session, so they
-            // should replace (not stack) the previous "Agent working" notification for that
-            // session. Other categories keep stacking via the incrementing id.
-            val notifyId = notificationIdFor(category, sessionId, notificationId::incrementAndGet)
-
-            // Route urgent categories to the heads-up Alerts channel, routine ones to the quiet
-            // Updates channel. On Android O+ the channel — not per-notification priority —
-            // decides whether a push interrupts.
-            val built =
-                NotificationCompat
-                    .Builder(context, pushChannelIdFor(category))
-                    .setContentTitle(title)
-                    .setContentText(body)
-                    // Shown in the header beside the app name, so two worktrees' chats tell apart.
-                    .setSubText(data[PushPayloadKeys.BRANCH]?.takeIf { it.isNotBlank() })
-                    .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-                    .setSmallIcon(R.drawable.ic_notification)
-                    .setAutoCancel(true)
-                    // "Working" is a live status replaced every few seconds, not an event.
-                    .setSilent(category == PUSH_CATEGORY_PROGRESS)
-                    .setContentIntent(buildContentIntent(target))
-                    .build()
-
-            context.getSystemService(NotificationManager::class.java).notify(notifyId, built)
+        ): GatewayCardEvent? {
+            val wireGatewayId = data[PushPayloadKeys.SERVER_ID]?.takeIf { it.isNotBlank() }
+            if (wireGatewayId != null && gateway.gatewayId != null && wireGatewayId != gateway.gatewayId) return null
+            val sessionId = data[PushPayloadKeys.SESSION_ID]?.takeIf { it.isNotBlank() }
+            val target =
+                if (wireGatewayId != null && wireGatewayId == gateway.gatewayId && sessionId != null) {
+                    chatTarget(gateway, wireGatewayId, sessionId, data[PushPayloadKeys.CWD])
+                } else {
+                    null
+                }
+            return GatewayCardEvent(
+                gatewayId = gateway.id,
+                sessionId = sessionId,
+                target = target,
+                purpose = cardPurposeOf(data[PushPayloadKeys.CATEGORY]),
+                title = data[PushPayloadKeys.TITLE],
+                body = data[PushPayloadKeys.BODY],
+                branch = data[PushPayloadKeys.BRANCH],
+            )
         }
 
         /**
-         * The chat a tap opens. Its server id is the agent binding on the push's gateway that
-         * holds [sessionId]: the push names only the gateway, and the gateway's own id opens no
-         * chat. The push's cwd is empty when the gateway never saw the session opened, and the
-         * agent rejects a load without one, so the session's stored cwd fills in.
+         * Navigation routes on the agent binding's id. The gateway may omit the working directory
+         * until it sees the session open, and the agent needs a cwd to load it.
          */
         private suspend fun chatTarget(
-            data: Map<String, String>,
-            sessionId: String?,
+            gateway: GatewaySource,
+            wireGatewayId: String,
+            sessionId: String,
+            cwd: String?,
         ): ChatDeepLinkTarget? {
-            val gatewayId = data[PushPayloadKeys.SERVER_ID]
-            if (gatewayId == null || sessionId == null) return null
-            val gateway = gatewaySourceRepository.getGatewayByGatewayId(gatewayId) ?: return null
             val bindings = gatewayAgentBindingRepository.getBindingsForGateway(gateway.id)
-            // getSession matches on the session id alone, so only the row's own serverId
-            // tells which agent holds it.
+            // getSession matches on the session id alone, so check the binding on the returned row.
             val stored =
                 bindings.firstNotNullOfOrNull { binding ->
                     sessionRepository.getSession(binding.id, sessionId)?.takeIf { it.serverId == binding.id }
@@ -129,41 +121,9 @@ class PushNotifier
             return ChatDeepLinkTarget(
                 serverId = serverId,
                 sessionId = sessionId,
-                cwd = data[PushPayloadKeys.CWD]?.takeIf { it.isNotBlank() } ?: stored?.cwd.orEmpty(),
+                cwd = cwd?.takeIf { it.isNotBlank() } ?: stored?.cwd.orEmpty(),
                 title = stored?.title.orEmpty(),
-                gatewayId = gatewayId,
+                gatewayId = wireGatewayId,
             )
-        }
-
-        /** Builds the tap target, deep-linking to [target]'s chat when it resolved. */
-        private fun buildContentIntent(target: ChatDeepLinkTarget?): PendingIntent {
-            val intent =
-                Intent(context, MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    if (target != null) {
-                        putExtra(FerngeistForegroundService.EXTRA_SERVER_ID, target.serverId)
-                        putExtra(FerngeistForegroundService.EXTRA_SESSION_ID, target.sessionId)
-                        putExtra(FerngeistForegroundService.EXTRA_CWD, target.cwd)
-                        putExtra(FerngeistForegroundService.EXTRA_TITLE, target.title)
-                        putExtra(FerngeistForegroundService.EXTRA_GATEWAY_ID, target.gatewayId)
-                    }
-                }
-            return PendingIntent.getActivity(
-                context,
-                requestCode.incrementAndGet(),
-                intent,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
-        }
-
-        private companion object {
-            // Distinct, ascending ids so multiple pushes don't overwrite one another,
-            // kept clear of the foreground (1) and error (2) notification ids. Unique
-            // request codes likewise stop FLAG_UPDATE_CURRENT from clobbering extras.
-            val notificationId = AtomicInteger(1000)
-            val requestCode = AtomicInteger(2000)
         }
     }
-
-private val turnEndCategories =
-    setOf(PUSH_CATEGORY_TURN_COMPLETE, PUSH_CATEGORY_AGENT_ERROR, PUSH_CATEGORY_AGENT_CRASH)

@@ -14,4 +14,7 @@
     <string name="notification_agent_fallback">代理</string>
     <string name="app_untitled_session">无标题会话</string>
     <string name="workspace_no_selection">选择一个代理或会话</string>
+    <string name="notification_turn_ended">回合已结束</string>
+    <string name="notification_turn_finished">回合已完成</string>
+    <string name="notification_turn_failed">回合失败</string>
 </resources>

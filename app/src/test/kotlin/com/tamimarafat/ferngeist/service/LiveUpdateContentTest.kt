@@ -8,8 +8,9 @@ import com.tamimarafat.ferngeist.core.model.LiveTurn
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TestTimeSource
 
 class LiveUpdateContentTest {
     @Test
@@ -26,6 +27,7 @@ class LiveUpdateContentTest {
                 agentNames = mapOf("srv" to "Claude"),
                 sessionTitles = mapOf("srv/s1" to "Fix login"),
                 nowMs = 10_000,
+                dismissedTurns = emptySet(),
             ) as LiveUpdateContent.PlanStep
 
         assertEquals(2, content.current)
@@ -44,6 +46,7 @@ class LiveUpdateContentTest {
                 agentNames = emptyMap(),
                 sessionTitles = emptyMap(),
                 nowMs = 10_000,
+                dismissedTurns = emptySet(),
             ) as LiveUpdateContent.PlanStep
 
         assertEquals(2, content.current)
@@ -71,6 +74,7 @@ class LiveUpdateContentTest {
                 agentNames = mapOf("srv" to "Claude"),
                 sessionTitles = mapOf("srv/s1" to "Fix login"),
                 nowMs = 10_000,
+                dismissedTurns = emptySet(),
             ) as LiveUpdateContent.Working
 
         assertEquals("feat-x", content.branch)
@@ -86,30 +90,37 @@ class LiveUpdateContentTest {
                 agentNames = emptyMap(),
                 sessionTitles = emptyMap(),
                 nowMs = 7_000,
+                dismissedTurns = emptySet(),
             ) as LiveUpdateContent.Working
 
         assertEquals(7_000L, content.startedAtEpochMs)
     }
 
     @Test
-    fun `several turns collapse into one aggregate with blocked agents first`() {
+    fun `paused turns are left out of the aggregate`() {
         val content =
             liveUpdateContent(
                 turns =
                     listOf(
                         turn(sessionId = "working", status = TurnStatus.WORKING, startedAtEpochMs = 8_000),
                         turn(sessionId = "blocked", status = TurnStatus.NEEDS_ATTENTION, startedAtEpochMs = 9_000),
+                        turn(sessionId = "other", status = TurnStatus.WORKING, startedAtEpochMs = 9_500),
                     ),
                 agentNames = mapOf("srv" to "Claude"),
                 sessionTitles = mapOf("srv/blocked" to "Blocked chat", "srv/working" to "Working chat"),
                 nowMs = 10_000,
+                dismissedTurns = emptySet(),
             ) as LiveUpdateContent.Aggregate
 
-        assertEquals(2, content.busyCount)
-        assertTrue(content.needsYou)
-        assertEquals(listOf("blocked", "working"), content.lines.map { it.turn.presence.sessionId })
-        assertTrue(content.lines.first().needsYou)
-        assertEquals(1_000L, content.lines.first().elapsedMs)
+        assertEquals(listOf("working", "other"), content.lines.map { it.turn.presence.sessionId })
+        assertEquals(2_000L, content.lines.first().elapsedMs)
+    }
+
+    @Test
+    fun `a paused turn with a plan produces no live notification`() {
+        val paused = turn(TurnStatus.NEEDS_ATTENTION, plan = plan("Review changes" to IN_PROGRESS))
+
+        assertNull(liveUpdateContent(listOf(paused), emptyMap(), emptyMap(), 10_000, emptySet()))
     }
 
     @Test
@@ -120,8 +131,48 @@ class LiveUpdateContentTest {
                 agentNames = emptyMap(),
                 sessionTitles = emptyMap(),
                 nowMs = 10_000,
+                dismissedTurns = emptySet(),
             ),
         )
+    }
+
+    @Test
+    fun `a new turn appears without reviving the dismissed turn`() {
+        val clock = TestTimeSource()
+        val a = turn(TurnStatus.WORKING, sessionId = "a").copy(startMark = clock.markNow())
+        val dismissed = setOf(turnKey(a))
+        val b = turn(TurnStatus.WORKING, sessionId = "b")
+        val single =
+            liveUpdateContent(listOf(a, b), emptyMap(), emptyMap(), 10_000, dismissed) as LiveUpdateContent.Working
+        assertEquals("b", single.turn.presence.sessionId)
+
+        clock += 1.milliseconds
+        val nextA = a.copy(startMark = clock.markNow())
+        val next =
+            liveUpdateContent(listOf(nextA), emptyMap(), emptyMap(), 10_000, dismissed) as LiveUpdateContent.Working
+        assertEquals("a", next.turn.presence.sessionId)
+    }
+
+    @Test
+    fun `a dismissed turn stays hidden when its previously unknown start arrives`() {
+        val turn = turn(TurnStatus.WORKING, startedAtEpochMs = null)
+        val dismissed = setOf(turnKey(turn))
+        val withStart = turn.copy(startedAtEpochMs = 1_000, startMark = TestTimeSource().markNow())
+
+        assertNull(liveUpdateContent(listOf(withStart), emptyMap(), emptyMap(), 10_000, dismissed))
+    }
+
+    @Test
+    fun `a dismissed turn stays hidden after resuming from an approval pause`() {
+        val clock = TestTimeSource()
+        val running = turn(TurnStatus.WORKING).copy(startMark = clock.markNow())
+        val paused = running.copy(status = TurnStatus.NEEDS_ATTENTION)
+        val dismissed = mutableSetOf(turnKey(running))
+
+        dismissed.retainActiveDismissals(setOf(turnKey(paused)))
+        dismissed.retainActiveDismissals(setOf(turnKey(running)))
+
+        assertNull(liveUpdateContent(listOf(running), emptyMap(), emptyMap(), 10_000, dismissed))
     }
 
     private fun turn(

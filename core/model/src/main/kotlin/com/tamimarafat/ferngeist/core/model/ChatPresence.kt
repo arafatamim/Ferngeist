@@ -11,3 +11,9 @@ data class ChatPresence(
     val cwd: String = "",
     val gatewaySourceId: String? = null,
 )
+
+/** Builds the canonical chat key: `"<serverId>/<sessionId>"`. */
+fun chatIdFor(
+    serverId: String,
+    sessionId: String,
+): String = "$serverId/$sessionId"

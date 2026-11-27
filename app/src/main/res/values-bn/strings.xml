@@ -14,4 +14,7 @@
     <string name="notification_agent_fallback">এজেন্ট</string>
     <string name="app_untitled_session">শিরোনামহীন সেশন</string>
     <string name="workspace_no_selection">একজন এজেন্ট বা সেশন নির্বাচন করুন</string>
+    <string name="notification_turn_ended">টার্ন শেষ হয়েছে</string>
+    <string name="notification_turn_finished">টার্ন সম্পন্ন হয়েছে</string>
+    <string name="notification_turn_failed">টার্ন ব্যর্থ হয়েছে</string>
 </resources>

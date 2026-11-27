@@ -1,10 +1,10 @@
 package com.tamimarafat.ferngeist.core.model
 
 import com.agentclientprotocol.model.PlanEntry
+import kotlin.time.ComparableTimeMark
 
 /**
- * A chat with a known turn state: what the background
- * live-update notification needs and nothing more.
+ * An attached chat's turn state for live activity and drawer notifications.
  *
  * The hub derives it from each chat's live session snapshot; agent names, session titles and
  * the notification copy belong to the app.
@@ -19,4 +19,13 @@ data class LiveTurn(
     val planEntries: List<PlanEntry> = emptyList(),
     /** What the agent is doing now (its latest tool-call title), or null when it is not saying. */
     val activity: String? = null,
-)
+    val title: String? = null,
+    val startMark: ComparableTimeMark? = null,
+    /** Identifies an outcome observed since this chat's snapshot was attached. */
+    val outcomeId: OutcomeId? = null,
+) {
+    data class OutcomeId(
+        val attachmentGeneration: Long,
+        val sequence: Long,
+    )
+}
