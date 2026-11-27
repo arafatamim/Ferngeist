@@ -14,7 +14,7 @@ Run Claude Code, Codex, OpenCode, Pi or another coding agent on your computer an
 
 Or grab the APK from [GitHub Releases](https://github.com/arafatamim/ferngeist/releases/latest) (no auto-updates). Requires Android 11 or later.
 
-<img height="500" alt="A chat with a coding agent, showing its tool calls and code changes" src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" />
+<img height="500" alt="A chat with a coding agent, with the files it read, edited and ran shown inline" src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" />
 
 https://github.com/user-attachments/assets/8da6a306-5678-4006-a791-8c5ddbda9ecf
 
@@ -101,7 +101,7 @@ More options are in the [gateway docs](https://github.com/arafatamim/ferngeist-a
 
 ## Screenshots
 
-<img height="500" alt="All your agents in one list" src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" /> <img height="500" alt="The git history of a project, shown as a commit timeline" src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" />
+<img height="500" alt="Home, with one project's agents connected and working" src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" /> <img height="500" alt="Past sessions for a project" src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" /> <img height="500" alt="A file diff from the git panel" src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" /> <img height="500" alt="Claude and Codex plan usage" src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" />
 
 *Your agents, and the git history of the project you're working in.*
 
@@ -109,7 +109,7 @@ More options are in the [gateway docs](https://github.com/arafatamim/ferngeist-a
 
 *On a tablet, agents, sessions and chat sit side by side.*
 
-<img height="500" alt="Two-pane layout on a 7-inch tablet" src="fastlane/metadata/android/en-US/images/sevenInchScreenshots/1.png" />
+<img height="500" alt="Projects and chat side by side on a 7-inch tablet" src="fastlane/metadata/android/en-US/images/sevenInchScreenshots/1.png" />
 
 ## FAQ
 
