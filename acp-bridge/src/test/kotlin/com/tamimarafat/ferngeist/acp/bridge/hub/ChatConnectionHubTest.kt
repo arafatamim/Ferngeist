@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -373,7 +374,7 @@ class ChatConnectionHubTest {
             hub.abandon(manager)
             advanceUntilIdle()
             assertEquals(1, hub.trackedCount())
-            assertEquals("srv/s1", hub.managerFor("srv/s1")?.let { "srv/s1" })
+            assertNotNull(hub.managerFor("srv/s1"))
         }
 
     @Test

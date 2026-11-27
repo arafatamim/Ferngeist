@@ -15,7 +15,7 @@ import org.junit.Test
 
 class DiffBlocksTest {
     @Test
-    fun zeroChanges_shouldBeFiveEmpty() {
+    fun zeroChanges_showFiveEmptyBars() {
         val result = computeDiffBlocks(0, 0)
         assertEquals(DiffBlockResult(0, 0, 5), result)
     }
@@ -33,7 +33,7 @@ class DiffBlocksTest {
     }
 
     @Test
-    fun mixedRatio() {
+    fun mixedChanges_splitBarsByProportion() {
         // A=10, D=2 -> round(10/12*5)=4 green, 1 red
         val result = computeDiffBlocks(10, 2)
         assertEquals(DiffBlockResult(4, 1, 0), result)
@@ -140,7 +140,7 @@ class DiffBlocksTest {
     }
 
     @Test
-    fun directoryPath_isNotDiffable() {
+    fun directoryEntry_isRecognisedByItsTrailingSlash() {
         // The gate the git sheet uses: isDir is false here, so the trailing slash decides.
         assert(isDirectoryEntry(ChatChangedFile(path = ".commandcode/", status = "M")))
         assert(!isDirectoryEntry(ChatChangedFile(path = "feature/chat/ChatViewModel.kt", status = "M")))

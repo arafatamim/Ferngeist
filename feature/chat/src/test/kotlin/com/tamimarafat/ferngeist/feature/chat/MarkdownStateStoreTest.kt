@@ -78,7 +78,7 @@ class MarkdownStateStoreTest {
         }
 
     @Test
-    fun `repeated hydration snapshots parse a run once, not once per snapshot`() =
+    fun `hydration snapshots followed by a ready snapshot show the grown text`() =
         runTest {
             val store = MarkdownStateStore()
             val message = assistantMessage(id = "message_1", text = "Hello world")

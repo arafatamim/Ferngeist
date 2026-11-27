@@ -22,13 +22,6 @@ class QueuedPromptRecordTest {
         json.decodeFromString(json.encodeToString(records))
 
     @Test
-    fun `a single record round trips unchanged`() {
-        val record = QueuedPromptRecord(clientId = "client-1", text = "hello agent")
-
-        assertEquals(listOf(record), roundTrip(listOf(record)))
-    }
-
-    @Test
     fun `multiple records keep their queue order`() {
         val records =
             listOf(

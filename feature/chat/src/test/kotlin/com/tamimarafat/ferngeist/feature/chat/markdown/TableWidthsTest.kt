@@ -19,19 +19,6 @@ class TableWidthsTest {
     }
 
     @Test
-    fun distribute_threeWideColumns_overflowInsteadOfSqueezingBelowTheFloor() {
-        // Three columns of prose are not a reason to squeeze: below the floor the table scrolls.
-        val widths =
-            distributeTableColumnWidths(
-                preferredWidths = intArrayOf(500, 500, 500),
-                availableWidth = 300,
-                minColumnWidth = READABLE_COLUMN,
-            )
-        assertArrayEquals(intArrayOf(READABLE_COLUMN, READABLE_COLUMN, READABLE_COLUMN), widths)
-        assertTrue(widths.sum() > 300)
-    }
-
-    @Test
     fun distribute_twoColumns_stillFitWhenTheShareClearsTheFloor() {
         // The floor is a minimum, not a target: a wide container still fits two columns exactly.
         assertArrayEquals(

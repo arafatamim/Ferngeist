@@ -74,7 +74,7 @@ class GatewayCredentialRefreshTest {
                     host = "host-a",
                     gatewayCredential = "cred",
                 )
-                fail("expected IllegalStateException")
+                fail("expected GatewayRequestException")
             } catch (error: GatewayRequestException) {
                 assertEquals(500, error.statusCode)
             }

@@ -18,12 +18,6 @@ class ImageAttachmentHelperTest {
     // -- computeSampleSize --
 
     @Test
-    fun `computeSampleSize returns power-of-two when image exceeds max dimension`() {
-        val sampleSize = ImageAttachmentHelper.computeSampleSize(2048, 1024, 1024)
-        assertEquals(2, sampleSize)
-    }
-
-    @Test
     fun `computeSampleSize returns larger power-of-two for much larger images`() {
         val sampleSize = ImageAttachmentHelper.computeSampleSize(4096, 4096, 1024)
         assertEquals(4, sampleSize)

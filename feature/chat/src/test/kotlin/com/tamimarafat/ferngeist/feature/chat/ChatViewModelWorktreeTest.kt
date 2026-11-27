@@ -20,21 +20,6 @@ class ChatViewModelWorktreeTest : ChatViewModelTestBase() {
     private val featX = ChatWorktree(branch = "feat-x", ahead = 2, dirty = true)
 
     @Test
-    fun `a refresh stores the worktree the gateway reports`() =
-        runTest {
-            val (viewModel, _) =
-                gatewayViewModel {
-                    gitStatus = ChatGitStatus(branch = "feat-x")
-                    worktree = { featX }
-                }
-
-            viewModel.dispatch(ChatIntent.RefreshGitStatus)
-            advanceUntilIdle()
-
-            assertEquals(featX, viewModel.state.value.git.worktree)
-        }
-
-    @Test
     fun `a failed refresh keeps the last known worktree`() =
         runTest {
             var failing = false

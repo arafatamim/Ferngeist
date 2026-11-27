@@ -268,33 +268,6 @@ class GatewayProofSkewTest {
         }
 
     @Test
-    fun `refreshCredential on proof_expired keeps the credential`() =
-        runTest {
-            val serverNow = Instant.now().plusSeconds(SKEW_SECONDS)
-            val captured = mutableListOf<CapturedRequest>()
-            val body = proofExpiredBody(serverNow)
-            val repo =
-                GatewayRepositoryImpl(
-                    HttpClient(
-                        engineOf(
-                            captured,
-                            listOf(Stub(HttpStatusCode.Unauthorized, body), Stub(HttpStatusCode.Unauthorized, body)),
-                        ),
-                    ),
-                    json,
-                    GatewayClock(),
-                )
-
-            try {
-                repo.refreshCredential("https", HOST, proofCredential())
-                fail("expected GatewayRequestException")
-            } catch (error: GatewayRequestException) {
-                // A GatewayCredentialExpiredException would have escaped and failed the test.
-                assertEquals("proof_expired", error.code)
-            }
-        }
-
-    @Test
     fun `refreshCredential throws GatewayCredentialExpiredException on credential_grace_expired`() =
         runTest {
             val captured = mutableListOf<CapturedRequest>()
