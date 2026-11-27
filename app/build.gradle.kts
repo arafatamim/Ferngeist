@@ -54,8 +54,8 @@ android {
         // must all agree. A preview tag appends "-preview"; release.yml strips it and
         // still expects versionName. F-Droid's checkupdates and release.yml parse these
         // literal values, so they MUST NOT be computed (e.g. via git describe).
-        versionCode = 1628
-        versionName = "1.8.0"
+        versionCode = 1629
+        versionName = "1.8.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
