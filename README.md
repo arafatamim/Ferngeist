@@ -16,7 +16,7 @@ Or grab the APK from [GitHub Releases](https://github.com/arafatamim/ferngeist/r
 
 <img height="500" alt="A chat with a coding agent, with the files it read, edited and ran shown inline" src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" />
 
-https://github.com/user-attachments/assets/8da6a306-5678-4006-a791-8c5ddbda9ecf
+https://github.com/user-attachments/assets/87195efd-7479-45bd-8082-594f75e2ca79
 
 ## Why Ferngeist
 
